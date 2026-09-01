@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WhyBlog</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --ink: #e7ecef;
+    --ink-soft: #a9b4bd;
+    --ink-faint: #71808c;
+    --paper: #16202b;
+    --card: #1c2733;
+    --line: #2c3944;
+    --accent: #2fa393;
+    --accent-soft: #1e3833;
+    --heart: #e0604a;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; }
+
+  .shell {
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--card);
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(22,32,43,0.88);
+    backdrop-filter: blur(10px);
+  }
+
+  .topbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px 6px;
+  }
+
+  .avatar-sm {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1116;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12.5px;
+  }
+
+  .wordmark {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  }
+  .wordmark .why {
+    background: linear-gradient(90deg, #22e0d0, #2f7dff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .wordmark .blog { color: #ffffff; }
+  .wordmark .mark { color: #f5a623; }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+  }
+
+  /* ---------- side menu ---------- */
+  .menu-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,0.55);
+    z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .menu-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .menu-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 82%;
+    max-width: 320px;
+    background: var(--card);
+    border-right: 1px solid var(--line);
+    padding: 20px 18px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 31;
+    overflow-y: auto;
+  }
+  .menu-panel.open { transform: translateX(0); }
+
+  .menu-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1116;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .menu-name { font-size: 17px; font-weight: 700; }
+
+  .menu-divider { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 11px 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .menu-item:hover { color: var(--accent); }
+  .menu-item svg { flex-shrink: 0; }
+
+  .menu-social-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 0 4px 10px;
+  }
+  .menu-social-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 4px 4px;
+  }
+  .menu-social-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+  }
+  .menu-social-icon:hover { color: var(--accent); border-color: var(--accent); }
+
+  .menu-badge {
+    background: var(--accent);
+    color: #0d1116;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    margin-left: 4px;
+  }
+
+  /* ---------- search page ---------- */
+  .search-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .search-page.open { transform: translateX(0); }
+
+  .search-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .search-back { display: flex; color: var(--ink); flex-shrink: 0; }
+
+  .search-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 9px 14px;
+  }
+  .search-input-wrap svg { color: var(--ink-faint); flex-shrink: 0; }
+  .search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .search-input::placeholder { color: var(--ink-faint); }
+  .search-clear { color: var(--ink-faint); display: flex; flex-shrink: 0; }
+
+  .search-body { flex: 1; overflow-y: auto; }
+
+  .search-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    padding: 16px 16px 8px;
+  }
+
+  .search-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 16px 16px;
+  }
+  .search-chip {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 7px 14px;
+    border-radius: 999px;
+  }
+  .search-chip:hover { color: var(--accent); border-color: var(--accent); }
+
+  .search-result {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .search-result .avatar { width: 40px; height: 40px; font-size: 14px; }
+  .search-result-body { flex: 1; min-width: 0; }
+  .search-result-meta { display: flex; align-items: center; gap: 4px; font-size: 14px; }
+  .search-result-source { font-weight: 700; }
+  .search-result-handle, .search-result-time { color: var(--ink-faint); font-size: 13px; }
+  .search-result-title { font-size: 14.5px; font-weight: 700; margin: 3px 0 2px; }
+  .search-result-excerpt { font-size: 13.5px; color: var(--ink-soft); line-height: 1.4; }
+
+  .search-empty {
+    text-align: center;
+    padding: 60px 30px;
+    color: var(--ink-faint);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ---------- bookmarks page ---------- */
+  .bookmarks-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 42;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .bookmarks-page.open { transform: translateX(0); }
+
+  .bookmarks-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .bookmarks-back { display: flex; color: var(--ink); flex-shrink: 0; }
+  .bookmarks-title { font-size: 17px; font-weight: 700; }
+
+  .bookmarks-body { flex: 1; overflow-y: auto; }
+
+  .bookmark-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bookmark-item .avatar { width: 38px; height: 38px; font-size: 13px; flex-shrink: 0; }
+  .bookmark-item-body { flex: 1; min-width: 0; }
+  .bookmark-item-meta { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-faint); }
+  .bookmark-item-source { font-weight: 700; color: var(--ink); }
+  .bookmark-item-title { font-size: 14.5px; font-weight: 700; margin: 3px 0 2px; }
+  .bookmark-item-excerpt { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+  .bookmark-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .bookmark-remove:hover { background: var(--accent-soft); }
+
+  /* ---------- invite friends modal ---------- */
+  .invite-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,0.65);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .invite-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .invite-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    z-index: 51;
+    width: min(340px, 86vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .invite-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+
+  .invite-envelope {
+    margin-bottom: 6px;
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.4));
+  }
+  .invite-envelope-svg .flap-top {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    transform: rotate(0deg);
+    opacity: 1;
+    transition: transform 0.45s cubic-bezier(.34,1.56,.64,1) 0.1s, opacity 0.35s ease 0.25s;
+  }
+  .invite-modal.open .invite-envelope-svg .flap-top {
+    transform: rotate(-172deg);
+    opacity: 0;
+  }
+  .invite-envelope-svg .flap-front { opacity: 1; transition: opacity 0.2s ease 0.15s; }
+  .invite-modal.open .invite-envelope-svg .flap-front { opacity: 0; }
+
+  .invite-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px 20px 16px;
+    width: 100%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.3s ease 0.35s, transform 0.3s ease 0.35s;
+  }
+  .invite-modal.open .invite-card { opacity: 1; transform: translateY(0); }
+
+  .invite-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .invite-sub { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; margin-bottom: 18px; }
+
+  .invite-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .invite-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    text-align: left;
+  }
+  .invite-action:hover { border-color: var(--accent); }
+  .invite-action-icon { display: flex; color: var(--accent); flex-shrink: 0; }
+
+  .invite-close {
+    width: 100%;
+    padding: 11px 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  .invite-close:hover { color: var(--ink); }
+
+  /* ---------- profile page ---------- */
+  .profile-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+  }
+  .profile-page.open { transform: translateX(0); }
+
+  .profile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background: rgba(28,39,51,0.85);
+    backdrop-filter: blur(10px);
+  }
+  .profile-topbar-back { display: flex; color: #fff; flex-shrink: 0; }
+  .profile-topbar-name { font-size: 15.5px; font-weight: 700; color: #fff; }
+
+  .profile-banner {
+    height: 120px;
+    margin-top: -46px;
+  }
+
+  .profile-header { padding: 0 18px; }
+
+  .profile-avatar-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: -38px;
+  }
+
+  .profile-avatar-lg {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 4px solid var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 26px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .profile-action-btn {
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0d1116;
+    font-weight: 700;
+    font-size: 13.5px;
+    margin-bottom: 6px;
+  }
+  .profile-action-btn:hover { background: #37bba9; }
+
+  .profile-name-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+  .profile-name { font-size: 19px; font-weight: 700; }
+  .profile-verified { color: var(--accent); display: flex; flex-shrink: 0; }
+
+  .profile-bio { font-size: 14px; line-height: 1.5; color: var(--ink-soft); margin: 6px 0 12px; }
+
+  .profile-meta-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .profile-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .profile-meta-item svg { color: var(--ink-faint); flex-shrink: 0; }
+  .profile-meta-item a { color: var(--accent); }
+
+  .profile-vibe-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .profile-vibe-chip {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0d1116;
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+
+  .profile-stats-row {
+    display: flex;
+    gap: 22px;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+  .profile-stat b { font-size: 15px; display: block; }
+  .profile-stat span { font-size: 12px; color: var(--ink-faint); }
+
+  .profile-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 16px 18px 8px;
+    color: var(--ink-soft);
+  }
+
+  .profile-media-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    padding: 0 0 20px;
+  }
+  .profile-media-grid img,
+  .profile-media-grid .profile-media-placeholder {
+    width: 100%;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+    display: block;
+  }
+  .profile-media-placeholder { display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.85); }
+
+  .profile-empty { text-align: center; padding: 30px; color: var(--ink-faint); font-size: 13px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 90px;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- settings / snooze topics sheet ---------- */
+  .sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,0.6);
+    z-index: 32;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .sheet-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .settings-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    max-height: 82vh;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    z-index: 33;
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .settings-sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--line);
+    margin: 10px auto 4px;
+    flex-shrink: 0;
+  }
+
+  .sheet-header { text-align: center; padding: 6px 20px 14px; flex-shrink: 0; }
+  .sheet-title { font-size: 17px; font-weight: 700; }
+  .sheet-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 3px; }
+
+  .sheet-body { overflow-y: auto; padding: 0 20px; }
+
+  .topic-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .topic-row:last-child { border-bottom: none; }
+  .topic-icon { color: var(--ink-soft); flex-shrink: 0; }
+  .topic-label { flex: 1; font-size: 15.5px; }
+
+  .toggle {
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: #2c3944;
+    border: none;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+  }
+  .toggle::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .toggle.on { background: var(--accent-soft); border: 1px solid rgba(47,163,147,0.4); }
+  .toggle.on::after { transform: translateX(18px); background: var(--accent); }
+
+  .sheet-footer { padding: 14px 20px 20px; flex-shrink: 0; }
+  .sheet-reset {
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 999px;
+    background: #2c3944;
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 15px;
+    text-align: center;
+  }
+  .sheet-reset:hover { background: #354352; }
+
+  .post {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+  }
+
+  .post-body { flex: 1; min-width: 0; }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14.5px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .post-source { font-weight: 700; white-space: nowrap; }
+  .post-verified { display: inline-flex; color: var(--accent); flex-shrink: 0; }
+  .post-handle, .post-dot, .post-time { color: var(--ink-faint); font-size: 14.5px; white-space: nowrap; }
+  .post-handle { overflow: hidden; text-overflow: ellipsis; }
+  .post-more { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; }
+
+  .eco-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(47,163,147,0.35);
+    padding: 1px 6px 1px 8px;
+    border-radius: 999px;
+    margin-left: 2px;
+    flex-shrink: 0;
+  }
+  .eco-info {
+    display: flex;
+    align-items: center;
+    color: var(--accent);
+    opacity: 0.75;
+  }
+  .eco-info:hover { opacity: 1; }
+
+  .eco-tooltip {
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    bottom: 84px;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    z-index: 40;
+    display: none;
+  }
+  .eco-tooltip.open { display: block; }
+  .eco-tooltip strong { color: var(--ink); }
+  .eco-tooltip-close {
+    display: block;
+    margin-top: 8px;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  .stat.gift:hover, .stat.gift.active { color: #f5a623; }
+  .stat.gift.active svg { fill: #f5a623; }
+
+  .post-text { font-size: 15px; line-height: 1.4; margin: 2px 0 8px; }
+  .post-text .title { font-weight: 700; display: block; margin-bottom: 2px; }
+  .post-text .excerpt { color: var(--ink-soft); white-space: pre-wrap; }
+
+  .link-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 10px; }
+  .link-card-media {
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    padding: 20px;
+  }
+  .read-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 11px 12px;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #0d1116;
+    background: var(--accent);
+    border-top: 1px solid var(--line);
+  }
+  .read-more-btn:hover { background: #37bba9; }
+  .read-more-btn:active { background: #1c8f80; }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 425px;
+    margin-top: 2px;
+  }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px;
+    border-radius: 18px;
+    color: var(--ink-faint);
+    font-size: 12.5px;
+  }
+  .stat svg { flex-shrink: 0; }
+  .stat.reply:hover { color: var(--accent); background: var(--accent-soft); }
+  .stat.like:hover, .stat.like.active { color: var(--heart); }
+  .stat.like.active svg { fill: var(--heart); }
+  .stat.bookmark.active { color: var(--accent); }
+  .stat.bookmark.active svg { fill: var(--accent); }
+  .stat.share:hover { color: var(--accent); }
+
+  .comments { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .comment { display: flex; gap: 8px; padding: 6px 0; }
+  .comment-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #0d1116;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .comment-bubble { background: var(--paper); border-radius: 13px; padding: 6px 11px; font-size: 13px; line-height: 1.4; }
+  .comment-author { font-weight: 700; margin-right: 5px; }
+  .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
+
+  .comment-form { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .comment-count {
+    text-align: right;
+    font-size: 11px;
+    color: var(--ink-faint);
+    padding: 4px 4px 0;
+    min-height: 14px;
+  }
+  .comment-count.warn { color: #f5a623; }
+  .comment-count.limit { color: var(--heart); font-weight: 700; }
+  .comment-input {
+    flex: 1;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13.5px;
+    outline: none;
+    font-family: inherit;
+  }
+  .comment-input::placeholder { color: var(--ink-faint); }
+  .comment-input:focus { border-color: var(--accent); }
+  .comment-image-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint);
+    flex-shrink: 0;
+  }
+  .comment-image-btn:hover { color: var(--accent); background: var(--accent-soft); }
+  .comment-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .comment-preview img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+  }
+  .comment-preview-remove {
+    font-size: 12px;
+    color: var(--heart);
+  }
+  .comment-img {
+    display: block;
+    max-width: 220px;
+    border-radius: 12px;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+  }
+  .comment-send {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: #0d1116;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .comment-send:hover { background: #3bbcaa; }
+
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: rgba(22,32,43,0.9);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 10px 0 12px;
+    z-index: 10;
+  }
+  .nav-btn { position: relative; display: flex; color: var(--ink); }
+  .nav-btn.active { color: var(--accent); }
+  .nav-glow-dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #2fa393;
+    box-shadow: 0 0 0 2px var(--card), 0 0 8px 2px rgba(47,163,147,0.9);
+    animation: navGlowPulse 2s ease-in-out infinite;
+  }
+  @keyframes navGlowPulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 2px var(--card), 0 0 8px 2px rgba(47,163,147,0.9); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 2px var(--card), 0 0 4px 1px rgba(47,163,147,0.6); }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="icon-btn" onclick="toggleMenu(true)" aria-label="Open menu">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      </button>
+      <div class="wordmark"><span class="why">Why</span><span class="blog">Blog</span><span class="mark">?</span></div>
+      <button class="icon-btn" onclick="openInvite()" aria-label="Invite friends">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+
+  <div class="toast" id="toast"></div>
+
+  <nav class="bottom-nav">
+    <div class="nav-btn active">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12l9-9 9 9"/><path d="M9 21V12h6v9"/></svg>
+    </div>
+    <button class="nav-btn" onclick="openSearch()" aria-label="Search">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </button>
+    <a class="nav-btn" href="https://hardcover.app/" target="_blank" rel="noreferrer" aria-label="Hardcover">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>
+    </a>
+    <button class="nav-btn" onclick="openNotifications()" aria-label="Notifications">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+      <span class="nav-glow-dot"></span>
+    </button>
+  </nav>
+
+  <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu(false)"></div>
+
+  <div class="eco-tooltip" id="ecoTooltip">
+    <strong>What is this number?</strong><br />
+    An estimate of the value this creator's posts have generated, based on engagement quality, engagement velocity, likes, comments, bookmarks, and posting velocity. It's a score, not a confirmed payout.
+    <a class="eco-tooltip-close" onclick="toggleEcoTooltip(false)">Got it</a>
+  </div>
+  <aside class="menu-panel" id="menuPanel">
+    <div class="menu-avatar">Y</div>
+    <div class="menu-name">You</div>
+    <div class="eco-value" style="margin:8px 0 4px;">$0 <span style="opacity:.7;font-weight:500;">· private</span><button class="eco-info" onclick="event.stopPropagation(); toggleEcoTooltip(true)" aria-label="What is this?"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg></button></div>
+
+    <hr class="menu-divider" />
+
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openProfile('you');">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
+    </a>
+    <a class="menu-item" href="#">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Communities
+    </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openBookmarksPage();">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>
+      Bookmarks
+    </a>
+    <a class="menu-item" href="https://events.coinpedia.org/" target="_blank" rel="noreferrer">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      Events
+    </a>
+    <a class="menu-item" href="#">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
+      Quests
+    </a>
+    <a class="menu-item" href="#">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2.5c2 2 3 5 1 9-2.5 5-8 7-8 7s2-5.5 7-8c4-2 7-1 9 1"/><path d="M5 15l-2 6 6-2"/><circle cx="15" cy="9" r="1.5"/></svg>
+      Creator Studio
+    </a>
+
+    <hr class="menu-divider" />
+
+    <a class="menu-item" href="#">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 9c.5-1.5 3.5-1.5 4 0 .4 1.2-1 1.8-1.5 2.5-.4.5-.5 1-.5 1.5"/><circle cx="12" cy="17" r=".2"/></svg>
+      Open Mime
+    </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); toggleSettingsSheet(true);">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      Settings and privacy
+    </a>
+    <a class="menu-item" href="#">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2.5 3.5"/><path d="M12 17.5h.01"/></svg>
+      Help Centre
+    </a>
+
+    <hr class="menu-divider" />
+
+    <div class="menu-social-row">
+      <a class="menu-social-icon" href="https://t.me/WhyBlogNet" target="_blank" rel="noreferrer" aria-label="Telegram">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3L18.6 20c-.2 1.1-1 1.4-2 .9l-5.5-4-2.6 2.5c-.3.3-.5.5-1 .5l.4-5.6L18 6.6c.5-.4-.1-.6-.7-.2L7.5 12.9l-5.4-1.7c-1.2-.4-1.2-1.2.2-1.7L20.3 3.1c1-.4 1.9.2 1.6 1.2z"/></svg>
+      </a>
+      <a class="menu-social-icon" href="#" aria-label="X (Twitter)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.6 8.7L23.3 22H16.9l-5-6.5L6.1 22H3l8.1-9.3L2.7 2h6.5l4.5 6 5.2-6z"/></svg>
+      </a>
+      <a class="menu-social-icon" href="#" aria-label="YouTube">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 6.5a2.9 2.9 0 00-2-2C18.7 4 12 4 12 4s-6.7 0-8.5.5a2.9 2.9 0 00-2 2A30 30 0 001 12a30 30 0 00.5 5.5 2.9 2.9 0 002 2C5.3 20 12 20 12 20s6.7 0 8.5-.5a2.9 2.9 0 002-2A30 30 0 0023 12a30 30 0 00-.5-5.5zM10 15.5v-7l6 3.5-6 3.5z"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <div class="sheet-overlay" id="settingsOverlay" onclick="toggleSettingsSheet(false)"></div>
+  <div class="settings-sheet" id="settingsSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">Snooze topics</div>
+      <div class="sheet-sub">Select topics to hide for 1 day</div>
+    </div>
+    <div class="sheet-body" id="topicList"></div>
+    <div class="sheet-footer">
+      <button class="sheet-reset" onclick="resetSnoozeTopics()">Reset</button>
+    </div>
+  </div>
+
+  <div class="invite-overlay" id="inviteOverlay" onclick="closeInvite()"></div>
+  <div class="invite-modal" id="inviteModal">
+    <div class="invite-envelope" id="inviteEnvelope">
+      <svg class="invite-envelope-svg" viewBox="0 0 120 88" width="120" height="88">
+        <rect x="4" y="14" width="112" height="70" rx="8" fill="#1c2733" stroke="#2c3944" stroke-width="2"/>
+        <path class="flap-back" d="M4 20 L60 56 L116 20 L116 84 L4 84 Z" fill="#233140"/>
+        <path class="flap-front" d="M4 20 L60 56 L116 20" fill="none" stroke="#2fa393" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <path class="flap-top" d="M4 20 L60 -4 L116 20 L60 56 Z" fill="#2fa393"/>
+      </svg>
+    </div>
+
+    <div class="invite-card" id="inviteCard">
+      <div class="invite-title">Invite friends to WhyBlog</div>
+      <div class="invite-sub">Share your invite link and grow the feed together.</div>
+
+      <div class="invite-actions">
+        <button class="invite-action" onclick="copyInviteLink()">
+          <span class="invite-action-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+          </span>
+          <span id="copyLabel">Copy invite link</span>
+        </button>
+        <button class="invite-action" onclick="shareInvite('whatsapp')">
+          <span class="invite-action-icon" style="color:#3bb875">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15L2 22l5.2-1.4A10 10 0 1012 2zm5.7 14.2c-.2.6-1.3 1.2-1.9 1.3-.5.1-1.1.1-1.8-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.8 0-1.3.7-2 .9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.4.2.5.7 1.8.8 1.9.1.2.1.4 0 .6-.1.2-.2.3-.3.5-.2.2-.3.3-.5.5-.2.2-.3.4-.1.7.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.5 1.6.3.1.5.1.6-.1.2-.2.7-.8.9-1.1.2-.3.4-.2.6-.1.2.1 1.5.7 1.7.8.2.1.4.2.4.3.1.2.1.7-.1 1.3z"/></svg>
+          </span>
+          Share to WhatsApp
+        </button>
+        <button class="invite-action" onclick="shareInvite('x')">
+          <span class="invite-action-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.6 8.7L23.3 22H16.9l-5-6.5L6.1 22H3l8.1-9.3L2.7 2h6.5l4.5 6 5.2-6z"/></svg>
+          </span>
+          Share to X
+        </button>
+      </div>
+
+      <button class="invite-close" onclick="closeInvite()">Done</button>
+    </div>
+  </div>
+
+  <div class="profile-page" id="profilePage">
+    <div class="profile-topbar">
+      <button class="profile-topbar-back" onclick="closeProfile()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="profile-topbar-name" id="profileTopbarName"></div>
+    </div>
+    <div class="profile-banner" id="profileBanner"></div>
+    <div class="profile-header">
+      <div class="profile-avatar-row">
+        <div class="profile-avatar-lg" id="profileAvatar"></div>
+        <button class="profile-action-btn" id="profileActionBtn" onclick="messageProfile()">Message</button>
+      </div>
+      <div class="profile-name-row">
+        <div class="profile-name" id="profileName"></div>
+        <span class="profile-verified" id="profileVerified"></span>
+      </div>
+      <div class="profile-bio" id="profileBio"></div>
+      <div class="profile-meta-list" id="profileMeta"></div>
+      <div class="profile-vibe-row" id="profileVibes"></div>
+      <div class="profile-stats-row" id="profileStats"></div>
+    </div>
+  </div>
+
+  <div class="bookmarks-page" id="bookmarksPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closeBookmarksPage()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title">Bookmarks</div>
+    </div>
+    <div class="bookmarks-body" id="bookmarksBody"></div>
+  </div>
+
+  <div class="search-page" id="searchPage">
+    <div class="search-header">
+      <button class="search-back" onclick="closeSearch()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="search-input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" class="search-input" placeholder="Search WhyBlog" oninput="runSearch(this.value)" autocomplete="off" />
+        <button class="search-clear" id="searchClearBtn" onclick="clearSearch()" style="display:none" aria-label="Clear">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="search-body" id="searchBody"></div>
+  </div>
+
+</div>
+
+<script>
+const PROFILES = {
+  cointelegraph: {
+    name: "Cointelegraph", initials: "CT", color: "#2f6f4f", verified: true,
+    bio: "Independent crypto and blockchain news, since 2013.",
+    blogUrl: "cointelegraph.com", email: "tips@cointelegraph.com", joined: "Jan 2013",
+    vibes: ["Crypto", "Business & Finance"], posts: 4210, ecoValue: "12.4K"
+  },
+  kottke: {
+    name: "kottke.org", initials: "K", color: "#4a5b8c", verified: true,
+    bio: "The blog of fine hypertext products, curated by Jason Kottke since 1998.",
+    blogUrl: "kottke.org", email: "jason@kottke.org", joined: "Mar 1998",
+    vibes: ["Culture", "Science & Technology"], posts: 6830, ecoValue: "3.1K"
+  },
+  simonw: {
+    name: "Simon Willison", initials: "SW", color: "#9c5a2e", verified: false,
+    bio: "Building small, useful software. Writing about Python, SQLite, and AI tools.",
+    blogUrl: "simonwillison.net", email: "swillison@gmail.com", joined: "Oct 2002",
+    vibes: ["Artificial Intelligence", "Science & Technology"], posts: 2940, ecoValue: "1.8K"
+  },
+  densediscovery: {
+    name: "Dense Discovery", initials: "DD", color: "#7a4a8c", verified: true,
+    bio: "A weekly newsletter on design, technology, and the slow-media movement.",
+    blogUrl: "densediscovery.com", email: "hello@densediscovery.com", joined: "Feb 2018",
+    vibes: ["Entertainment & Arts", "Science & Technology"], posts: 320, ecoValue: "6.7K"
+  },
+  "mira.reads": {
+    name: "Mira Osei", initials: "MO", color: "#2f6f4f", verified: false,
+    bio: "Fantasy and literary fiction. Currently rereading everything by Ursula K. Le Guin.",
+    blogUrl: null, email: "mira.reads@proton.me", joined: "May 2025",
+    vibes: ["Bookish"], posts: 84, ecoValue: null
+  },
+  jaydenclicks: {
+    name: "Jayden Cole", initials: "JC", color: "#4a5b8c", verified: false,
+    bio: "Street style photographer based in Lagos. Shot on film, mostly.",
+    blogUrl: "jaydencole.co", email: "hello@jaydencole.co", joined: "Nov 2024",
+    vibes: ["Streetstyle"], posts: 152, ecoValue: null
+  },
+  lenapark: {
+    name: "Lena Park", initials: "LP", color: "#9c5a2e", verified: false,
+    bio: "Home cook chasing the perfect bowl of noodles. Seoul \u2192 wherever the kitchen is.",
+    blogUrl: null, email: "lena.cooks@gmail.com", joined: "Jul 2025",
+    vibes: ["Foodie"], posts: 63, ecoValue: null
+  },
+  theovision: {
+    name: "Theo Adeyemi", initials: "TA", color: "#7a4a8c", verified: false,
+    bio: "Slow travel, one continent a year. Currently: Southeast Asia.",
+    blogUrl: "theoadeyemi.com", email: "theo@theoadeyemi.com", joined: "Feb 2025",
+    vibes: ["Travel"], posts: 41, ecoValue: null
+  },
+  noorwrites: {
+    name: "Noor Haddad", initials: "NH", color: "#1d7a6f", verified: false,
+    bio: "Illustrator and studio-diary keeper. Ink, mostly.",
+    blogUrl: "noorhaddad.art", email: "studio@noorhaddad.art", joined: "Sep 2024",
+    vibes: ["Studio"], posts: 97, ecoValue: null
+  },
+  kofisketches: {
+    name: "Kofi Mensah", initials: "KM", color: "#c9432f", verified: false,
+    bio: "Daily sketchbook. One drawing a day, no exceptions.",
+    blogUrl: null, email: "kofi.sketches@gmail.com", joined: "Jan 2026",
+    vibes: ["Sketch"], posts: 218, ecoValue: null
+  },
+  you: {
+    name: "You", initials: "Y", color: "#2fa393", verified: false,
+    bio: "Add a bio to tell people what you're into.",
+    blogUrl: null, email: null, joined: "Aug 2026",
+    vibes: [], posts: 0, ecoValue: "0"
+  }
+};
+
+let currentProfileId = null;
+
+function openProfile(id) {
+  const p = PROFILES[id];
+  if (!p) return;
+  currentProfileId = id;
+  document.getElementById("profileTopbarName").textContent = p.name;
+  document.getElementById("profileBanner").style.background = `linear-gradient(135deg, ${p.color}, #16202b)`;
+  const avatar = document.getElementById("profileAvatar");
+  avatar.textContent = p.initials;
+  avatar.style.background = p.color;
+  document.getElementById("profileName").textContent = p.name;
+  document.getElementById("profileVerified").innerHTML = p.verified ? verifiedBadge() : "";
+  document.getElementById("profileBio").textContent = p.bio;
+
+  const actionBtn = document.getElementById("profileActionBtn");
+  if (id === "you") {
+    actionBtn.textContent = "Edit profile";
+    actionBtn.onclick = () => alert("Profile editing isn't wired up yet \u2014 coming with the backend.");
+  } else {
+    actionBtn.textContent = "Message";
+    actionBtn.onclick = messageProfile;
+  }
+
+  const meta = [];
+  if (p.blogUrl) {
+    meta.push(`<div class="profile-meta-item">${linkIcon()}<a href="https://${p.blogUrl}" target="_blank" rel="noreferrer">${p.blogUrl}</a></div>`);
+  }
+  if (p.email) {
+    meta.push(`<div class="profile-meta-item">${mailIcon()}<a href="mailto:${p.email}">${p.email}</a></div>`);
+  }
+  meta.push(`<div class="profile-meta-item">${calendarIcon()}Joined ${p.joined}</div>`);
+  document.getElementById("profileMeta").innerHTML = meta.join("");
+
+  document.getElementById("profileVibes").innerHTML = (p.vibes || [])
+    .map(v => `<span class="profile-vibe-chip" style="background:${p.color}">${v}</span>`).join("");
+
+  const stats = [`<div class="profile-stat"><b>${p.posts}</b><span>Posts</span></div>`];
+  if (p.ecoValue !== null && p.ecoValue !== undefined) {
+    stats.push(`<div class="profile-stat"><b>$${p.ecoValue}</b><span>Est. value</span></div>`);
+  }
+  document.getElementById("profileStats").innerHTML = stats.join("");
+
+  document.getElementById("profilePage").classList.add("open");
+  syncBackButton();
+}
+
+function closeProfile() {
+  document.getElementById("profilePage").classList.remove("open");
+  syncBackButton();
+}
+
+function messageProfile() {
+  const p = PROFILES[currentProfileId];
+  if (p && p.email) {
+    window.location.href = `mailto:${p.email}`;
+  } else {
+    alert("This creator hasn't added a contact email yet.");
+  }
+}
+
+function linkIcon() {
+  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.1 0l3-3a5 5 0 00-7.1-7.1l-1.5 1.4"/><path d="M14 11a5 5 0 00-7.1 0l-3 3a5 5 0 007.1 7.1l1.4-1.4"/></svg>`;
+}
+function mailIcon() {
+  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>`;
+}
+function calendarIcon() {
+  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
+}
+
+const POSTS = [
+  {
+    id: "p1",
+    source: "Cointelegraph",
+    handle: "@Cointelegraph",
+    initials: "CT",
+    color: "#2f6f4f",
+    verified: true,
+    time: "6h",
+    title: "",
+    excerpt: "ADOPTION: Sber, Russia's largest bank, plans to accept Bitcoin, Ether and USDT as loan collateral as the country's new crypto regulations take effect on September 1.",
+    url: "https://cointelegraph.com",
+    cardTitle: "Sberbank",
+    cardColor: "#1d7a6f",
+    economicValue: "12.4K",
+    profileId: "cointelegraph"
+  },
+  {
+    id: "p2",
+    source: "kottke.org",
+    handle: "@kottke",
+    initials: "K",
+    color: "#4a5b8c",
+    verified: true,
+    time: "2h",
+    title: "The quiet death of the RSS reader, and its unlikely revival",
+    excerpt: "For a decade everyone said RSS was dead. Turns out people just wanted a feed without an algorithm deciding what they see.",
+    url: "https://kottke.org",
+    cardTitle: "kottke.org",
+    cardColor: "#4a5b8c",
+    economicValue: "3.1K",
+    profileId: "kottke"
+  },
+  {
+    id: "p3",
+    source: "Simon Willison's Weblog",
+    handle: "@simonw",
+    initials: "SW",
+    color: "#9c5a2e",
+    verified: false,
+    time: "5h",
+    title: "Small tools beat big platforms for personal publishing",
+    excerpt: "The best blogging setups I've seen lately are the ones nobody else could copy: a static site, a cron job, and opinions.",
+    url: "https://simonwillison.net",
+    cardTitle: "simonwillison.net",
+    cardColor: "#9c5a2e",
+    economicValue: "1.8K",
+    profileId: "simonw"
+  },
+  {
+    id: "p4",
+    source: "Dense Discovery",
+    handle: "@densediscovery",
+    initials: "DD",
+    color: "#7a4a8c",
+    verified: true,
+    time: "1d",
+    title: "Slow media is having a moment",
+    excerpt: "Newsletters and blogs are filling the gap left by feeds that optimized for outrage over insight.",
+    url: "https://densediscovery.com",
+    cardTitle: "Dense Discovery",
+    cardColor: "#7a4a8c",
+    economicValue: "6.7K",
+    profileId: "densediscovery"
+  }
+];
+
+let state = {};
+
+
+function heartIcon(filled) {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.3C.4 8 2 4.5 5.5 4c2-.3 3.8.6 5 2.2C11.7 4.6 13.5 3.7 15.5 4c3.5.5 5.1 4 3.5 7.7C21.5 16.4 12 21 12 21z"/></svg>`;
+}
+function replyIcon() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>`;
+}
+function bookmarkIcon(filled) {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>`;
+}
+function giftIcon(filled) {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1" fill="${filled ? 'currentColor' : 'none'}"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>`;
+}
+function shareIcon() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>`;
+}
+function verifiedBadge() {
+  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 2.2 3.1-.4.6 3.1 2.9 1.4-1.1 2.9 1.1 2.9-2.9 1.4-.6 3.1-3.1-.4L12 21l-2.2-2.8-3.1.4-.6-3.1-2.9-1.4L4.3 11.2 3.2 8.3l2.9-1.4.6-3.1 3.1.4L12 2z"/><path d="M9 12l2 2 4-4" stroke="#0d1116" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function imageIcon() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+}
+function moreIcon() {
+  return `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
+}
+
+function infoIcon() {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg>`;
+}
+
+// ---------- Telegram Mini App integration ----------
+const tg = window.Telegram && window.Telegram.WebApp;
+
+if (tg) {
+  tg.ready();
+  tg.expand();
+  if (tg.setHeaderColor) tg.setHeaderColor("#16202b");
+  if (tg.setBackgroundColor) tg.setBackgroundColor("#16202b");
+  if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+}
+
+function haptic(style) {
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style || "light");
+}
+
+function anyOverlayOpen() {
+  return document.getElementById("menuPanel").classList.contains("open")
+    || document.getElementById("settingsSheet").classList.contains("open")
+    || document.getElementById("ecoTooltip").classList.contains("open")
+    || document.getElementById("searchPage").classList.contains("open")
+    || document.getElementById("inviteModal").classList.contains("open")
+    || document.getElementById("profilePage").classList.contains("open")
+    || document.getElementById("bookmarksPage").classList.contains("open");
+}
+
+function closeTopOverlay() {
+  if (document.getElementById("bookmarksPage").classList.contains("open")) {
+    closeBookmarksPage();
+  } else if (document.getElementById("profilePage").classList.contains("open")) {
+    closeProfile();
+  } else if (document.getElementById("searchPage").classList.contains("open")) {
+    closeSearch();
+  } else if (document.getElementById("inviteModal").classList.contains("open")) {
+    closeInvite();
+  } else if (document.getElementById("settingsSheet").classList.contains("open")) {
+    toggleSettingsSheet(false);
+  } else if (document.getElementById("ecoTooltip").classList.contains("open")) {
+    toggleEcoTooltip(false);
+  } else if (document.getElementById("menuPanel").classList.contains("open")) {
+    toggleMenu(false);
+  }
+}
+
+function syncBackButton() {
+  if (!tg || !tg.BackButton) return;
+  if (anyOverlayOpen()) {
+    tg.BackButton.show();
+  } else {
+    tg.BackButton.hide();
+  }
+}
+
+if (tg && tg.BackButton) {
+  tg.BackButton.onClick(closeTopOverlay);
+}
+
+function toggleEcoTooltip(open) {
+  document.getElementById("ecoTooltip").classList.toggle("open", open);
+  syncBackButton();
+}
+document.addEventListener("click", (e) => {
+  const tip = document.getElementById("ecoTooltip");
+  if (tip.classList.contains("open") && !tip.contains(e.target) && !e.target.closest(".eco-info")) {
+    toggleEcoTooltip(false);
+  }
+});
+
+const SNOOZE_TOPICS = [
+  { key: "politics", label: "Politics", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 7h14M4 7l-2 6h6l-2-6zM20 7l-2 6h6l-2-6z"/><path d="M8 21h8"/></svg>` },
+  { key: "sports", label: "Sports", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>` },
+  { key: "business", label: "Business & Finance", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>` },
+  { key: "science", label: "Science & Technology", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3l12 18M18 3L6 21"/></svg>` },
+  { key: "entertainment", label: "Entertainment & Arts", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0110 10c0 1.1-.9 2-2 2h-2a2 2 0 00-2 2v2a2 2 0 01-2 2 10 10 0 01-2-20z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></svg>` },
+  { key: "ai", label: "Artificial Intelligence", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>` },
+  { key: "gaming", label: "Gaming", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/><circle cx="15.5" cy="10.5" r="1"/><circle cx="18" cy="13" r="1"/></svg>` },
+  { key: "crypto", label: "Crypto", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5c0-1 1-1.8 2.5-1.8s2.5.7 2.5 1.6c0 2.2-5 1-5 3.2 0 1 1.1 1.7 2.5 1.7s2.5-.7 2.5-1.7"/></svg>` },
+  { key: "videos", label: "Videos", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9l5-3v12l-5-3"/></svg>` }
+];
+
+let snoozeState = {};
+SNOOZE_TOPICS.forEach(t => snoozeState[t.key] = false);
+
+function renderTopicList() {
+  const list = document.getElementById("topicList");
+  list.innerHTML = SNOOZE_TOPICS.map(t => `
+    <div class="topic-row">
+      <span class="topic-icon">${t.icon}</span>
+      <span class="topic-label">${t.label}</span>
+      <button class="toggle ${snoozeState[t.key] ? 'on' : ''}" onclick="toggleSnoozeTopic('${t.key}')" aria-label="Snooze ${t.label}"></button>
+    </div>
+  `).join("");
+}
+
+function toggleSnoozeTopic(key) {
+  snoozeState[key] = !snoozeState[key];
+  haptic("light");
+  renderTopicList();
+}
+
+function resetSnoozeTopics() {
+  SNOOZE_TOPICS.forEach(t => snoozeState[t.key] = false);
+  renderTopicList();
+}
+
+function toggleSettingsSheet(open) {
+  document.getElementById("settingsOverlay").classList.toggle("open", open);
+  document.getElementById("settingsSheet").classList.toggle("open", open);
+  if (open) renderTopicList();
+  syncBackButton();
+}
+
+const INVITE_LINK = "https://t.me/WhyBlog_bot";
+
+function openInvite() {
+  document.getElementById("inviteOverlay").classList.add("open");
+  document.getElementById("inviteModal").classList.add("open");
+  document.getElementById("copyLabel").textContent = "Copy invite link";
+  syncBackButton();
+  haptic("light");
+}
+
+function closeInvite() {
+  document.getElementById("inviteOverlay").classList.remove("open");
+  document.getElementById("inviteModal").classList.remove("open");
+  syncBackButton();
+}
+
+async function copyInviteLink() {
+  const label = document.getElementById("copyLabel");
+  try {
+    await navigator.clipboard.writeText(INVITE_LINK);
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = INVITE_LINK;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+  label.textContent = "Link copied!";
+  haptic("medium");
+  setTimeout(() => { label.textContent = "Copy invite link"; }, 1800);
+}
+
+function openNotifications() {
+  const url = "https://t.me/WhyBlogNet";
+  haptic("light");
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
+  } else if (tg && tg.openLink) {
+    tg.openLink(url);
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
+function shareInvite(platform) {
+  const text = "Join me on WhyBlog \u2014 blogs and vlogs, curated. No noise, just the good stuff.";
+  let url = "";
+  if (platform === "whatsapp") {
+    url = "https://wa.me/?text=" + encodeURIComponent(text + " " + INVITE_LINK);
+  } else if (platform === "x") {
+    url = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(INVITE_LINK);
+  }
+  if (tg && tg.openTelegramLink && platform !== "whatsapp" && platform !== "x") {
+    tg.openTelegramLink(url);
+  } else if (tg && tg.openLink) {
+    tg.openLink(url);
+  } else {
+    window.open(url, "_blank");
+  }
+  haptic("light");
+}
+
+function toggleMenu(open) {
+  document.getElementById("menuOverlay").classList.toggle("open", open);
+  document.getElementById("menuPanel").classList.toggle("open", open);
+  syncBackButton();
+}
+
+const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
+
+function openBookmarksPage() {
+  document.getElementById("bookmarksPage").classList.add("open");
+  renderBookmarksPage();
+  syncBackButton();
+}
+
+function closeBookmarksPage() {
+  document.getElementById("bookmarksPage").classList.remove("open");
+  syncBackButton();
+}
+
+function renderBookmarksPage() {
+  const body = document.getElementById("bookmarksBody");
+  const saved = POSTS.filter(p => state[p.id] && state[p.id].bookmarked);
+
+  if (saved.length === 0) {
+    body.innerHTML = `<div class="search-empty">No bookmarks yet.<br />Tap the bookmark icon on any post to save it here.</div>`;
+    return;
+  }
+
+  body.innerHTML = saved.map(post => `
+    <div class="bookmark-item">
+      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.initials}</div>
+      <div class="bookmark-item-body">
+        <div class="bookmark-item-meta">
+          <span class="bookmark-item-source">${post.source}</span>
+          <span>· ${post.time}</span>
+        </div>
+        ${post.title ? `<div class="bookmark-item-title">${post.title}</div>` : ""}
+        <div class="bookmark-item-excerpt">${post.excerpt}</div>
+      </div>
+      <button class="bookmark-remove" onclick="toggleBookmark('${post.id}')" aria-label="Remove bookmark">
+        ${bookmarkIcon(true)}
+      </button>
+    </div>
+  `).join("");
+}
+
+function openSearch() {
+  document.getElementById("searchPage").classList.add("open");
+  renderSearchDefault();
+  syncBackButton();
+  setTimeout(() => document.getElementById("searchInput").focus(), 200);
+}
+
+function closeSearch() {
+  document.getElementById("searchPage").classList.remove("open");
+  document.getElementById("searchInput").value = "";
+  document.getElementById("searchClearBtn").style.display = "none";
+  syncBackButton();
+}
+
+function clearSearch() {
+  const input = document.getElementById("searchInput");
+  input.value = "";
+  input.focus();
+  runSearch("");
+}
+
+function renderSearchDefault() {
+  const body = document.getElementById("searchBody");
+  body.innerHTML = `
+    <div class="search-section-title">Trending on WhyBlog</div>
+    <div class="search-chip-row">
+      ${TRENDING_TOPICS.map(t => `<button class="search-chip" onclick="setSearchQuery('${t}')">${t}</button>`).join("")}
+    </div>
+  `;
+}
+
+function setSearchQuery(q) {
+  const input = document.getElementById("searchInput");
+  input.value = q;
+  runSearch(q);
+}
+
+function runSearch(query) {
+  const q = query.trim().toLowerCase();
+  document.getElementById("searchClearBtn").style.display = q ? "flex" : "none";
+
+  if (!q) {
+    renderSearchDefault();
+    return;
+  }
+
+  const matches = POSTS.filter(p =>
+    p.source.toLowerCase().includes(q) ||
+    p.handle.toLowerCase().includes(q) ||
+    (p.title && p.title.toLowerCase().includes(q)) ||
+    p.excerpt.toLowerCase().includes(q)
+  );
+
+  const body = document.getElementById("searchBody");
+  if (matches.length === 0) {
+    body.innerHTML = `<div class="search-empty">No results for &ldquo;${escapeHtml(query)}&rdquo;<br />Try a different source or keyword.</div>`;
+    return;
+  }
+
+  body.innerHTML = matches.map(post => `
+    <a class="search-result" href="${post.url}" target="_blank" rel="noreferrer">
+      <div class="avatar" style="background:${post.color}">${post.initials}</div>
+      <div class="search-result-body">
+        <div class="search-result-meta">
+          <span class="search-result-source">${post.source}</span>
+          <span class="search-result-time">· ${post.time}</span>
+        </div>
+        ${post.title ? `<div class="search-result-title">${post.title}</div>` : ""}
+        <div class="search-result-excerpt">${post.excerpt}</div>
+      </div>
+    </a>
+  `).join("");
+}
+
+async function loadState() {
+  for (const post of POSTS) {
+    let likeData = { count: Math.floor(Math.random() * 250) + 20 };
+    let commentData = [];
+    let bookmarked = false;
+    try {
+      const res = await window.storage.get(`likes:${post.id}`, true);
+      if (res) likeData = JSON.parse(res.value);
+    } catch (e) {}
+    try {
+      const res = await window.storage.get(`comments:${post.id}`, true);
+      if (res) commentData = JSON.parse(res.value);
+    } catch (e) {}
+    try {
+      const res = await window.storage.get(`bookmark:${post.id}`, false);
+      if (res) bookmarked = JSON.parse(res.value);
+    } catch (e) {}
+    state[post.id] = {
+      liked: false, likeCount: likeData.count,
+      bookmarked, gifted: false,
+      comments: commentData, showComments: false, draftImage: null
+    };
+  }
+  render();
+}
+
+async function toggleLike(id) {
+  const s = state[id];
+  s.liked = !s.liked;
+  s.likeCount += s.liked ? 1 : -1;
+  haptic("light");
+  render();
+  try { await window.storage.set(`likes:${id}`, JSON.stringify({ count: s.likeCount }), true); } catch (e) {}
+}
+
+function toggleBookmark(id) {
+  state[id].bookmarked = !state[id].bookmarked;
+  haptic("light");
+  render();
+  window.storage.set(`bookmark:${id}`, JSON.stringify(state[id].bookmarked), false).catch(() => {});
+  if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
+}
+
+function sendGift(id) {
+  if (state[id].gifted) return;
+  state[id].gifted = true;
+  haptic("medium");
+  render();
+  // Placeholder: wire this to real payments before launch.
+  setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
+}
+
+function toggleComments(id) {
+  state[id].showComments = !state[id].showComments;
+  render();
+}
+
+function handleImageSelect(id, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) {
+    alert("Please choose an image under 3MB.");
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    state[id].draftImage = reader.result;
+    render();
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function removeDraftImage(id) {
+  state[id].draftImage = null;
+  render();
+}
+
+const COMMENT_MAX = 280;
+
+function updateCommentCount(id) {
+  const input = document.getElementById(`input-${id}`);
+  const counter = document.getElementById(`count-${id}`);
+  if (!input || !counter) return;
+  const remaining = COMMENT_MAX - input.value.length;
+  counter.className = "comment-count";
+  if (remaining <= 0) {
+    counter.textContent = "0 characters left";
+    counter.classList.add("limit");
+  } else if (remaining <= 30) {
+    counter.textContent = `${remaining} characters left`;
+    counter.classList.add("warn");
+  } else {
+    counter.textContent = "";
+  }
+}
+
+async function submitComment(id) {
+  const input = document.getElementById(`input-${id}`);
+  const text = input.value.trim();
+  const image = state[id].draftImage;
+  if (!text && !image) return;
+  const entry = { author: "You", text, image: image || null };
+  state[id].comments.push(entry);
+  input.value = "";
+  state[id].draftImage = null;
+  render();
+  try { await window.storage.set(`comments:${id}`, JSON.stringify(state[id].comments), true); } catch (e) {}
+}
+
+function fmt(n) {
+  if (n >= 1000) return (n / 1000).toFixed(n % 1000 >= 100 ? 1 : 0) + "K";
+  return String(n);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function render() {
+  const feed = document.getElementById("feed");
+
+  const blogPostsHtml = POSTS.map(post => {
+    const s = state[post.id];
+    const commentsHtml = s.comments.length
+      ? s.comments.map(c => `
+          <div class="comment">
+            <div class="comment-avatar">${c.author === "You" ? "Y" : c.author[0]}</div>
+            <div class="comment-bubble">
+              <span class="comment-author">${c.author}</span>${escapeHtml(c.text)}
+              ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
+            </div>
+          </div>`).join("")
+      : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+
+    return `
+      <article class="post">
+        <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.initials}</div>
+        <div class="post-body">
+          <div class="post-meta">
+            <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${post.source}</span>
+            ${post.verified ? `<span class="post-verified">${verifiedBadge()}</span>` : ""}
+            <span class="post-dot">·</span>
+            <span class="post-time">${post.time}</span>
+            ${post.economicValue ? `<span class="eco-value">$${post.economicValue}<button class="eco-info" onclick="event.stopPropagation(); toggleEcoTooltip(true)" aria-label="What is this?">${infoIcon()}</button></span>` : ""}
+            <span class="post-more">${moreIcon()}</span>
+          </div>
+
+          <div class="post-text">
+            ${post.title ? `<span class="title">${post.title}</span>` : ""}
+            <span class="excerpt">${post.excerpt}</span>
+          </div>
+
+          <div class="link-card">
+            <div class="link-card-media" style="background:${post.cardColor}">${post.cardTitle}</div>
+            <a class="read-more-btn" href="${post.url}" target="_blank" rel="noreferrer">
+              Read More
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+            </a>
+          </div>
+
+          <div class="stat-row">
+            <button class="stat reply" onclick="toggleComments('${post.id}')">
+              ${replyIcon()}<span>${s.comments.length || ""}</span>
+            </button>
+            <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleLike('${post.id}')">
+              ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
+            </button>
+            <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleBookmark('${post.id}')">
+              ${bookmarkIcon(s.bookmarked)}
+            </button>
+            <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="sendGift('${post.id}')" aria-label="Support creator">
+              ${giftIcon(s.gifted)}
+            </button>
+            <button class="stat share" onclick="navigator.share ? navigator.share({url:'${post.url}'}) : window.open('${post.url}','_blank')">
+              ${shareIcon()}
+            </button>
+          </div>
+
+          ${s.showComments ? `
+            <div class="comments">
+              ${commentsHtml}
+              ${s.draftImage ? `
+                <div class="comment-preview">
+                  <img src="${s.draftImage}" alt="" />
+                  <button class="comment-preview-remove" onclick="removeDraftImage('${post.id}')">Remove</button>
+                </div>
+              ` : ""}
+              <div class="comment-form">
+                <button class="comment-image-btn" onclick="document.getElementById('file-${post.id}').click()">
+                  ${imageIcon()}
+                </button>
+                <input type="file" id="file-${post.id}" accept="image/*" style="display:none" onchange="handleImageSelect('${post.id}', this)" />
+                <input id="input-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updateCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitComment('${post.id}')" />
+                <button class="comment-send" onclick="submitComment('${post.id}')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </button>
+              </div>
+              <div class="comment-count" id="count-${post.id}"></div>
+            </div>
+          ` : ""}
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  feed.innerHTML = blogPostsHtml;
+}
+
+loadState();
+</script>
+
+</body>
+</html>
