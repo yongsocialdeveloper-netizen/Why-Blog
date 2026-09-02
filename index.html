@@ -338,102 +338,6 @@
   }
   .bookmark-remove:hover { background: var(--accent-soft); }
 
-  /* ---------- hardcover panel ---------- */
-  .hardcover-page {
-    position: fixed;
-    inset: 0;
-    max-width: 600px;
-    margin: 0 auto;
-    background: var(--card);
-    z-index: 43;
-    display: flex;
-    flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.22s ease;
-  }
-  .hardcover-page.open { transform: translateX(0); }
-
-  .hardcover-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--line);
-    flex-shrink: 0;
-  }
-  .hardcover-back { display: flex; color: var(--ink); flex-shrink: 0; }
-  .hardcover-title-wrap { flex: 1; min-width: 0; }
-  .hardcover-title { font-size: 16px; font-weight: 700; line-height: 1.2; }
-  .hardcover-subtitle { font-size: 11px; color: var(--ink-faint); }
-
-  .hardcover-search-row { padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
-  .hardcover-search-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--paper);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 9px 14px;
-  }
-  .hardcover-search-wrap svg { color: var(--ink-faint); flex-shrink: 0; }
-  .hardcover-search-input {
-    flex: 1;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: var(--ink);
-    font-size: 14.5px;
-    font-family: inherit;
-  }
-  .hardcover-search-input::placeholder { color: var(--ink-faint); }
-
-  .hardcover-body { flex: 1; overflow-y: auto; padding: 4px 0 20px; }
-
-  .hardcover-section-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-faint); padding: 14px 14px 8px; }
-
-  .hardcover-book {
-    display: flex;
-    gap: 12px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--line);
-  }
-  .hardcover-cover {
-    width: 52px;
-    height: 78px;
-    border-radius: 6px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255,255,255,0.85);
-    font-family: "Iowan Old Style", Georgia, serif;
-    font-size: 10.5px;
-    font-weight: 700;
-    text-align: center;
-    padding: 4px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
-  }
-  .hardcover-book-body { flex: 1; min-width: 0; }
-  .hardcover-book-title { font-size: 14.5px; font-weight: 700; line-height: 1.3; }
-  .hardcover-book-author { font-size: 12.5px; color: var(--ink-faint); margin-top: 1px; }
-  .hardcover-book-meta { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
-  .hardcover-book-meta svg { color: #f5a623; flex-shrink: 0; }
-
-  .hardcover-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10.5px;
-    font-weight: 700;
-    color: var(--accent);
-    background: var(--accent-soft);
-    border: 1px solid rgba(47,163,147,0.35);
-    padding: 3px 9px;
-    border-radius: 999px;
-    margin: 10px 14px 0;
-  }
-
   /* ---------- video zone ---------- */
   .videozone-page {
     position: fixed;
@@ -1568,8 +1472,8 @@
     <button class="nav-btn" onclick="openSearch()" aria-label="Search">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </button>
-    <button class="nav-btn" onclick="openOpenLibrary()" aria-label="Open Library">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>
+    <button class="nav-btn" onclick="openVideoZone()" aria-label="Video Zone">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="15" rx="2"/><path d="M9 2h6M12 19v3M8 22h8"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
     </button>
     <button class="nav-btn" onclick="openNotifications()" aria-label="Notifications">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
@@ -1595,17 +1499,9 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       Profile
     </a>
-    <a class="menu-item" href="#">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      Communities
-    </a>
     <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openBookmarksPage();">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>
       Bookmarks
-    </a>
-    <a class="menu-item" href="https://events.coinpedia.org/" target="_blank" rel="noreferrer">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
-      Events
     </a>
     <a class="menu-item" href="#">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
@@ -1615,11 +1511,6 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2.5c2 2 3 5 1 9-2.5 5-8 7-8 7s2-5.5 7-8c4-2 7-1 9 1"/><path d="M5 15l-2 6 6-2"/><circle cx="15" cy="9" r="1.5"/></svg>
       Creator Studio
     </a>
-    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openVideoZone();">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="15" rx="2"/><path d="M9 2h6M12 19v3M8 22h8"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
-      Video Zone
-    </a>
-
     <hr class="menu-divider" />
 
     <a class="menu-item" href="#">
@@ -1735,26 +1626,6 @@
       <div class="bookmarks-title">Bookmarks</div>
     </div>
     <div class="bookmarks-body" id="bookmarksBody"></div>
-  </div>
-
-  <div class="hardcover-page" id="hardcoverPage">
-    <div class="hardcover-header">
-      <button class="hardcover-back" onclick="closeOpenLibrary()" aria-label="Back">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="hardcover-title-wrap">
-        <div class="hardcover-title">Open Library</div>
-        <div class="hardcover-subtitle">Search millions of books, free</div>
-      </div>
-    </div>
-    <div class="hardcover-search-row">
-      <div class="hardcover-search-wrap">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="hardcoverSearchInput" class="hardcover-search-input" placeholder="Search books or authors" oninput="searchOpenLibrary(this.value)" autocomplete="off" />
-      </div>
-    </div>
-    <span class="hardcover-badge" id="hardcoverModeBadge">Live · Open Library API</span>
-    <div class="hardcover-body" id="hardcoverBody"></div>
   </div>
 
   <div class="videozone-page" id="videoZonePage">
@@ -2452,7 +2323,6 @@ function anyOverlayOpen() {
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
-    || document.getElementById("hardcoverPage").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
@@ -2471,8 +2341,6 @@ function closeTopOverlay() {
     closeEditProfile();
   } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
     closeBlogSubmit();
-  } else if (document.getElementById("hardcoverPage").classList.contains("open")) {
-    closeOpenLibrary();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
     closeBookmarksPage();
   } else if (document.getElementById("profilePage").classList.contains("open")) {
@@ -2631,110 +2499,6 @@ function toggleMenu(open) {
 
 const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
 
-/* =========================================================================
-   OPEN LIBRARY INTEGRATION
-   -------------------------------------------------------------------------
-   Open Library's Search API (openlibrary.org) is fully public: no API
-   key, no auth token, no backend required. Safe to call directly from
-   the client, unlike Hardcover which needs a server-side secret.
-
-   Search:  https://openlibrary.org/search.json?q={query}&limit=10
-   Browse:  https://openlibrary.org/subjects/fiction.json?limit=10
-   Covers:  https://covers.openlibrary.org/b/id/{cover_i}-M.jpg
-   ========================================================================= */
-
-const OPENLIB_COLORS = ["#4a5b8c", "#7a4a8c", "#9c5a2e", "#2f6f4f", "#c9432f", "#1d7a6f"];
-
-function initialsFor(title) {
-  return title.split(" ").filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0]).join("").toUpperCase();
-}
-
-function colorForTitle(title) {
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) % OPENLIB_COLORS.length;
-  return OPENLIB_COLORS[Math.abs(hash) % OPENLIB_COLORS.length];
-}
-
-async function fetchOpenLibraryBooks(query) {
-  try {
-    if (query) {
-      const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=12&fields=title,author_name,cover_i,ratings_average`);
-      const data = await res.json();
-      return (data.docs || []).map(d => ({
-        title: d.title,
-        author: (d.author_name && d.author_name[0]) || "Unknown author",
-        coverId: d.cover_i || null,
-        rating: d.ratings_average || null,
-        color: colorForTitle(d.title || "")
-      }));
-    } else {
-      const res = await fetch(`https://openlibrary.org/subjects/fiction.json?limit=12`);
-      const data = await res.json();
-      return (data.works || []).map(w => ({
-        title: w.title,
-        author: (w.authors && w.authors[0] && w.authors[0].name) || "Unknown author",
-        coverId: w.cover_id || null,
-        rating: null,
-        color: colorForTitle(w.title || "")
-      }));
-    }
-  } catch (e) {
-    return null; // signals a network/fetch failure to the caller
-  }
-}
-
-function starRow(rating) {
-  const rounded = Math.round(rating);
-  let out = "";
-  for (let i = 1; i <= 5; i++) {
-    out += `<svg width="11" height="11" viewBox="0 0 24 24" fill="${i <= rounded ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2.5l2.9 6.2 6.6.7-4.9 4.6 1.3 6.7L12 17.6l-5.9 3.1 1.3-6.7-4.9-4.6 6.6-.7z"/></svg>`;
-  }
-  return out;
-}
-
-function renderHardcoverBooks(books, sectionTitle) {
-  const body = document.getElementById("hardcoverBody");
-
-  if (books === null) {
-    body.innerHTML = `<div class="search-empty">Couldn't reach Open Library.<br />Check your connection and try again.</div>`;
-    return;
-  }
-  if (books.length === 0) {
-    body.innerHTML = `<div class="search-empty">No books found.<br />Try a different title or author.</div>`;
-    return;
-  }
-
-  body.innerHTML = `
-    <div class="hardcover-section-title">${sectionTitle}</div>
-    ${books.map(b => {
-      const cover = b.coverId
-        ? `<img class="hardcover-cover" src="https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg" alt="" onerror="this.outerHTML='<div class=\\'hardcover-cover\\' style=\\'background:${b.color}\\'>${initialsFor(b.title)}</div>'" />`
-        : `<div class="hardcover-cover" style="background:${b.color}">${initialsFor(b.title)}</div>`;
-      return `
-        <div class="hardcover-book">
-          ${cover}
-          <div class="hardcover-book-body">
-            <div class="hardcover-book-title">${escapeHtml(b.title)}</div>
-            <div class="hardcover-book-author">${escapeHtml(b.author)}</div>
-            ${b.rating ? `<div class="hardcover-book-meta">${starRow(b.rating)}<span>${b.rating.toFixed(1)}</span></div>` : ""}
-          </div>
-        </div>
-      `;
-    }).join("")}
-  `;
-}
-
-let openLibrarySearchToken = 0;
-
-async function searchOpenLibrary(query) {
-  const myToken = ++openLibrarySearchToken;
-  const q = query.trim();
-  document.getElementById("hardcoverBody").innerHTML = `<div class="search-empty">Searching\u2026</div>`;
-  const books = await fetchOpenLibraryBooks(q);
-  if (myToken !== openLibrarySearchToken) return; // a newer keystroke superseded this request
-  renderHardcoverBooks(books, q ? "Results" : "Popular fiction on Open Library");
-}
-
 const VIBE_OPTIONS = ["Bookish", "Streetstyle", "Foodie", "Travel", "Studio", "Sketch", "Crypto", "Science & Technology"];
 let editVibeSelection = [];
 
@@ -2868,6 +2632,39 @@ const VIDEO_PLAYLISTS = [
 let videoZoneActiveGenre = "All";
 let videoZoneSearchQuery = "";
 
+// Cache of playlist id -> thumbnail URL (or null if unavailable). Populated
+// lazily via YouTube's public oEmbed endpoint, which needs no API key and
+// works directly from the browser.
+const videoThumbCache = {};
+
+async function fetchPlaylistThumbnail(playlistId) {
+  if (videoThumbCache[playlistId] !== undefined) return videoThumbCache[playlistId];
+  try {
+    const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(playlistUrl)}&format=json`);
+    if (!res.ok) throw new Error("oEmbed request failed");
+    const data = await res.json();
+    videoThumbCache[playlistId] = data.thumbnail_url || null;
+  } catch (e) {
+    videoThumbCache[playlistId] = null;
+  }
+  return videoThumbCache[playlistId];
+}
+
+async function preloadVideoZoneThumbnails() {
+  const pending = VIDEO_PLAYLISTS.filter(p => videoThumbCache[p.id] === undefined);
+  if (pending.length === 0) return;
+  await Promise.all(pending.map(p => fetchPlaylistThumbnail(p.id)));
+  renderVideoZoneBody();
+}
+
+function videoZoneMediaStyle(p, darkColor) {
+  const thumb = videoThumbCache[p.id];
+  return thumb
+    ? `background:#0b0f14 center/cover no-repeat url('${thumb}')`
+    : `background:linear-gradient(135deg, ${p.color}, ${darkColor})`;
+}
+
 function videoZoneGenres() {
   const genres = [...new Set(VIDEO_PLAYLISTS.map(p => p.genre))];
   return ["All", ...genres];
@@ -2905,7 +2702,7 @@ function videoZonePosterHTML(p, rank) {
   return `
     <div class="videozone-poster" onclick="openVideoPlayer('${p.id}', '${escapeHtml(p.title)}')">
       ${rankBadge}
-      <div class="videozone-poster-media" style="background:linear-gradient(135deg, ${p.color}, #0d1116)">
+      <div class="videozone-poster-media" style="${videoZoneMediaStyle(p, '#0d1116')}">
         <div class="videozone-poster-play">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </div>
@@ -2932,7 +2729,7 @@ function renderVideoZoneBody() {
     : [videoZoneActiveGenre];
 
   const heroHTML = `
-    <div class="videozone-hero" style="background:linear-gradient(135deg, ${hero.color}, #0b0f14)" onclick="openVideoPlayer('${hero.id}', '${escapeHtml(hero.title)}')">
+    <div class="videozone-hero" style="${videoZoneMediaStyle(hero, '#0b0f14')}" onclick="openVideoPlayer('${hero.id}', '${escapeHtml(hero.title)}')">
       <div class="videozone-hero-play">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
@@ -2951,7 +2748,7 @@ function renderVideoZoneBody() {
     <div class="videozone-quickrow">
       ${quickPicks.map(p => `
         <div class="videozone-quickcard" onclick="openVideoPlayer('${p.id}', '${escapeHtml(p.title)}')">
-          <div class="videozone-quickcard-thumb" style="background:linear-gradient(135deg, ${p.color}, #0b0f14)"></div>
+          <div class="videozone-quickcard-thumb" style="${videoZoneMediaStyle(p, '#0b0f14')}"></div>
           <div class="videozone-quickcard-body">
             <div class="videozone-quickcard-title">${escapeHtml(p.title)}</div>
             <div class="videozone-quickcard-meta">${p.genre} · ${p.count} videos</div>
@@ -2992,6 +2789,7 @@ function openVideoZone() {
   if (input) input.value = "";
   renderVideoZoneTabs();
   renderVideoZoneBody();
+  preloadVideoZoneThumbnails();
   document.getElementById("videoZonePage").classList.add("open");
   syncBackButton();
 }
@@ -3012,19 +2810,6 @@ function openVideoPlayer(playlistId, title) {
 function closeVideoPlayer() {
   document.getElementById("videoZoneIframe").src = "";
   document.getElementById("videoZonePlayer").classList.remove("open");
-  syncBackButton();
-}
-
-function openOpenLibrary() {
-  document.getElementById("hardcoverPage").classList.add("open");
-  document.getElementById("hardcoverSearchInput").value = "";
-  searchOpenLibrary("");
-  syncBackButton();
-  haptic("light");
-}
-
-function closeOpenLibrary() {
-  document.getElementById("hardcoverPage").classList.remove("open");
   syncBackButton();
 }
 
