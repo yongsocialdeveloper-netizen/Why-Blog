@@ -338,6 +338,612 @@
   }
   .bookmark-remove:hover { background: var(--accent-soft); }
 
+  /* ---------- hardcover panel ---------- */
+  .hardcover-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 43;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .hardcover-page.open { transform: translateX(0); }
+
+  .hardcover-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .hardcover-back { display: flex; color: var(--ink); flex-shrink: 0; }
+  .hardcover-title-wrap { flex: 1; min-width: 0; }
+  .hardcover-title { font-size: 16px; font-weight: 700; line-height: 1.2; }
+  .hardcover-subtitle { font-size: 11px; color: var(--ink-faint); }
+
+  .hardcover-search-row { padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .hardcover-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 9px 14px;
+  }
+  .hardcover-search-wrap svg { color: var(--ink-faint); flex-shrink: 0; }
+  .hardcover-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 14.5px;
+    font-family: inherit;
+  }
+  .hardcover-search-input::placeholder { color: var(--ink-faint); }
+
+  .hardcover-body { flex: 1; overflow-y: auto; padding: 4px 0 20px; }
+
+  .hardcover-section-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-faint); padding: 14px 14px 8px; }
+
+  .hardcover-book {
+    display: flex;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .hardcover-cover {
+    width: 52px;
+    height: 78px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.85);
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    padding: 4px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+  }
+  .hardcover-book-body { flex: 1; min-width: 0; }
+  .hardcover-book-title { font-size: 14.5px; font-weight: 700; line-height: 1.3; }
+  .hardcover-book-author { font-size: 12.5px; color: var(--ink-faint); margin-top: 1px; }
+  .hardcover-book-meta { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+  .hardcover-book-meta svg { color: #f5a623; flex-shrink: 0; }
+
+  .hardcover-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(47,163,147,0.35);
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin: 10px 14px 0;
+  }
+
+  /* ---------- video zone ---------- */
+  .videozone-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #0b0f14;
+    z-index: 44;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .videozone-page.open { transform: translateX(0); }
+
+  .videozone-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px 8px;
+    flex-shrink: 0;
+    background: #0b0f14;
+  }
+  .videozone-back { display: flex; color: #fff; flex-shrink: 0; }
+
+  .videozone-search-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1c2530;
+    border-radius: 999px;
+    padding: 9px 14px;
+    min-width: 0;
+  }
+  .videozone-search-wrap svg { color: #7a8390; flex-shrink: 0; }
+  .videozone-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .videozone-search-input::placeholder { color: #7a8390; }
+  .videozone-search-go {
+    flex-shrink: 0;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #2fd6b8;
+  }
+  .videozone-wallet-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #1c2530;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f5a623;
+  }
+
+  .videozone-tabs {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 4px 14px 14px;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .videozone-tab {
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #7a8390;
+    white-space: nowrap;
+    padding-bottom: 2px;
+  }
+  .videozone-tab.active { color: #fff; font-weight: 800; }
+
+  .videozone-body { flex: 1; overflow-y: auto; padding: 0 0 30px; }
+
+  /* hero banner */
+  .videozone-hero {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+  }
+  .videozone-hero-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(11,15,20,0) 40%, rgba(11,15,20,0.85) 88%, #0b0f14 100%);
+  }
+  .videozone-hero-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(13,17,22,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    backdrop-filter: blur(2px);
+    z-index: 2;
+  }
+  .videozone-hero-info {
+    position: relative;
+    z-index: 1;
+    padding: 0 14px 16px;
+    width: 100%;
+  }
+  .videozone-hero-title { font-size: 21px; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 4px; }
+  .videozone-hero-meta { font-size: 12.5px; font-weight: 600; color: #c3cad1; display: flex; align-items: center; gap: 6px; }
+  .videozone-hero-genre-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #0d1116;
+    background: #2fd6b8;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .videozone-quickrow {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px 6px;
+  }
+  .videozone-quickcard {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #161d26;
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 0;
+  }
+  .videozone-quickcard-thumb {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+  }
+  .videozone-quickcard-body { min-width: 0; flex: 1; }
+  .videozone-quickcard-title { font-size: 12.5px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .videozone-quickcard-meta { font-size: 11px; color: #7a8390; margin-top: 1px; }
+  .videozone-quickcard-play {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #1c2530;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2fd6b8;
+  }
+
+  .videozone-section { padding-top: 22px; }
+  .videozone-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px 12px;
+  }
+  .videozone-section-title { font-size: 17px; font-weight: 800; color: #fff; }
+  .videozone-section-all { font-size: 12.5px; font-weight: 600; color: #7a8390; display: flex; align-items: center; gap: 2px; }
+
+  .videozone-chip-row {
+    display: flex;
+    gap: 8px;
+    padding: 0 14px 14px;
+    overflow-x: auto;
+  }
+  .videozone-chip {
+    flex-shrink: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #b8c0c9;
+    background: #1c2530;
+    padding: 6px 14px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .videozone-chip.active { color: #0d1116; background: #fff; }
+
+  .videozone-row-title { font-size: 15px; font-weight: 700; color: #fff; padding: 0 14px 10px; }
+  .videozone-row {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 0 14px 26px;
+  }
+
+  .videozone-poster {
+    position: relative;
+    flex-shrink: 0;
+    width: 112px;
+  }
+  .videozone-poster-media {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2/3;
+    border-radius: 8px;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .videozone-poster-play {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(13,17,22,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    backdrop-filter: blur(2px);
+  }
+  .videozone-poster-count {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(13,17,22,0.7);
+    padding: 2px 6px;
+    border-radius: 999px;
+  }
+  .videozone-poster-rank {
+    position: absolute;
+    top: 0;
+    left: 4px;
+    font-size: 20px;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
+    color: #4a5568;
+    -webkit-text-stroke: 1px #0b0f14;
+    z-index: 2;
+  }
+  .videozone-poster-rank.rank-1,
+  .videozone-poster-rank.rank-2 { color: #ff2d6b; }
+  .videozone-poster-rank.rank-3 { color: #f5a623; }
+  .videozone-poster-title {
+    padding: 8px 1px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #dfe4e8;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .videozone-empty { text-align: center; padding: 60px 30px; color: #7a8390; font-size: 14px; line-height: 1.6; }
+
+  .videozone-player-overlay {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #000;
+    z-index: 60;
+    display: none;
+    flex-direction: column;
+  }
+  .videozone-player-overlay.open { display: flex; }
+  .videozone-player-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    flex-shrink: 0;
+  }
+  .videozone-player-close { display: flex; color: #fff; }
+  .videozone-player-title { font-size: 14.5px; font-weight: 700; color: #fff; }
+  .videozone-player-frame-wrap { width: 100%; aspect-ratio: 16/9; background: #000; flex-shrink: 0; }
+  .videozone-player-frame-wrap iframe { width: 100%; height: 100%; border: none; }
+
+  /* ---------- form sheets (edit profile / blog submission) ---------- */
+  .form-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,0.6);
+    z-index: 52;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .form-sheet-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .form-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    max-height: 88vh;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    z-index: 53;
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .form-sheet.open { transform: translateY(0); }
+
+  .form-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 10px;
+    flex-shrink: 0;
+  }
+  .form-sheet-title { font-size: 17px; font-weight: 700; }
+  .form-sheet-close { display: flex; color: var(--ink-faint); }
+  .form-sheet-close:hover { color: var(--ink); }
+
+  .form-sheet-body { overflow-y: auto; padding: 0 18px 10px; }
+
+  .form-field { margin-bottom: 16px; }
+  .form-label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; display: block; }
+  .form-sublabel { font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; }
+  .form-input, .form-textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 11px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .form-input:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-input::placeholder, .form-textarea::placeholder { color: var(--ink-faint); }
+  .form-textarea { resize: none; min-height: 76px; line-height: 1.4; }
+  .form-char-count { text-align: right; font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
+
+  .form-vibe-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .form-vibe-chip {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .form-vibe-chip.selected { color: #0d1116; border-color: transparent; }
+
+  .form-sheet-footer { padding: 12px 18px 20px; flex-shrink: 0; border-top: 1px solid var(--line); }
+  .form-submit-btn {
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0d1116;
+    font-weight: 700;
+    font-size: 15px;
+    text-align: center;
+  }
+  .form-submit-btn:hover { background: #37bba9; }
+  .form-note { font-size: 11.5px; color: var(--ink-faint); line-height: 1.5; margin-bottom: 12px; }
+
+  /* ---------- compose page ---------- */
+  .compose-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 55;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.22s ease;
+  }
+  .compose-page.open { transform: translateY(0); }
+
+  .compose-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .compose-close { display: flex; color: var(--ink); }
+  .compose-topbar-right { display: flex; align-items: center; gap: 14px; }
+  .compose-drafts { font-size: 14.5px; font-weight: 700; color: var(--accent); opacity: 0.6; }
+  .compose-post-btn {
+    padding: 8px 20px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0d1116;
+    font-weight: 700;
+    font-size: 14.5px;
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .compose-post-btn.enabled { opacity: 1; pointer-events: auto; }
+  .compose-post-btn:hover.enabled { background: #37bba9; }
+
+  .compose-body { flex: 1; overflow-y: auto; padding: 14px; }
+  .compose-row { display: flex; gap: 12px; }
+  .compose-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: #0d1116;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; flex-shrink: 0;
+  }
+  .compose-main { flex: 1; min-width: 0; }
+
+  .compose-audience {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+
+  .compose-textarea {
+    width: 100%;
+    min-height: 90px;
+    border: none;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 1.4;
+    font-family: inherit;
+    white-space: pre-wrap;
+  }
+  .compose-textarea::placeholder { color: var(--ink-faint); }
+  .compose-char-count {
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-faint);
+    margin-top: 4px;
+  }
+  .compose-char-count.warn { color: #f5a623; }
+  .compose-char-count.limit { color: var(--heart); }
+
+  .compose-image-preview { position: relative; margin-top: 10px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+  .compose-image-preview img { width: 100%; max-height: 320px; object-fit: cover; display: block; }
+  .compose-image-remove {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(13,17,22,0.7);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .compose-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .compose-tool-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+  }
+  .compose-tool-btn:hover { background: var(--accent-soft); }
+  .compose-tool-btn.disabled { color: var(--ink-faint); opacity: 0.4; pointer-events: none; }
+
+  .compose-reply-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--line);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
   /* ---------- invite friends modal ---------- */
   .invite-overlay {
     position: fixed;
@@ -559,6 +1165,23 @@
 
   .profile-empty { text-align: center; padding: 30px; color: var(--ink-faint); font-size: 13px; }
 
+  .post-fab {
+    position: fixed;
+    right: max(16px, calc(50% - 300px + 16px));
+    bottom: 78px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1116;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    z-index: 9;
+  }
+  .post-fab:hover { background: #37bba9; }
+
   .toast {
     position: fixed;
     left: 50%;
@@ -764,35 +1387,24 @@
   .post-text { font-size: 15px; line-height: 1.4; margin: 2px 0 8px; }
   .post-text .title { font-weight: 700; display: block; margin-bottom: 2px; }
   .post-text .excerpt { color: var(--ink-soft); white-space: pre-wrap; }
-
-  .link-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 10px; }
-  .link-card-media {
-    height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-family: "Iowan Old Style", Georgia, serif;
-    font-size: 15px;
-    font-weight: 700;
-    text-align: center;
-    padding: 20px;
+  .user-post-image {
+    width: 100%;
+    max-height: 380px;
+    object-fit: cover;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    margin-bottom: 10px;
+    display: block;
   }
-  .read-more-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 11px 12px;
+
+  .read-more-toggle {
+    display: inline-block;
+    margin-top: 4px;
     font-size: 13.5px;
     font-weight: 700;
-    letter-spacing: 0.01em;
-    color: #0d1116;
-    background: var(--accent);
-    border-top: 1px solid var(--line);
+    color: var(--accent);
   }
-  .read-more-btn:hover { background: #37bba9; }
-  .read-more-btn:active { background: #1c8f80; }
+  .read-more-toggle:hover { text-decoration: underline; }
 
   .stat-row {
     display: flex;
@@ -943,6 +1555,10 @@
 
   <div class="feed" id="feed"></div>
 
+  <button class="post-fab" id="postFab" onclick="openCompose()" aria-label="Create a post">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+
   <div class="toast" id="toast"></div>
 
   <nav class="bottom-nav">
@@ -952,9 +1568,9 @@
     <button class="nav-btn" onclick="openSearch()" aria-label="Search">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </button>
-    <a class="nav-btn" href="https://hardcover.app/" target="_blank" rel="noreferrer" aria-label="Hardcover">
+    <button class="nav-btn" onclick="openOpenLibrary()" aria-label="Open Library">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>
-    </a>
+    </button>
     <button class="nav-btn" onclick="openNotifications()" aria-label="Notifications">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
       <span class="nav-glow-dot"></span>
@@ -995,9 +1611,13 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
       Quests
     </a>
-    <a class="menu-item" href="#">
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openBlogSubmit();">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2.5c2 2 3 5 1 9-2.5 5-8 7-8 7s2-5.5 7-8c4-2 7-1 9 1"/><path d="M5 15l-2 6 6-2"/><circle cx="15" cy="9" r="1.5"/></svg>
       Creator Studio
+    </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openVideoZone();">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="15" rx="2"/><path d="M9 2h6M12 19v3M8 22h8"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+      Video Zone
     </a>
 
     <hr class="menu-divider" />
@@ -1117,6 +1737,164 @@
     <div class="bookmarks-body" id="bookmarksBody"></div>
   </div>
 
+  <div class="hardcover-page" id="hardcoverPage">
+    <div class="hardcover-header">
+      <button class="hardcover-back" onclick="closeOpenLibrary()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="hardcover-title-wrap">
+        <div class="hardcover-title">Open Library</div>
+        <div class="hardcover-subtitle">Search millions of books, free</div>
+      </div>
+    </div>
+    <div class="hardcover-search-row">
+      <div class="hardcover-search-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="hardcoverSearchInput" class="hardcover-search-input" placeholder="Search books or authors" oninput="searchOpenLibrary(this.value)" autocomplete="off" />
+      </div>
+    </div>
+    <span class="hardcover-badge" id="hardcoverModeBadge">Live · Open Library API</span>
+    <div class="hardcover-body" id="hardcoverBody"></div>
+  </div>
+
+  <div class="videozone-page" id="videoZonePage">
+    <div class="videozone-header">
+      <button class="videozone-back" onclick="closeVideoZone()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="videozone-search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input class="videozone-search-input" id="videoZoneSearchInput" placeholder="Search Video Zone" oninput="filterVideoZoneSearch(this.value)" />
+        <button class="videozone-search-go" onclick="filterVideoZoneSearch(document.getElementById('videoZoneSearchInput').value)">Search</button>
+      </div>
+      <button class="videozone-wallet-btn" onclick="haptic('light')" aria-label="Rewards">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8c-2 0-3.5 1-3.5 2.5S10 13 12 13s3.5 1 3.5 2.5S14 18 12 18"/><path d="M12 6v2M12 18v2"/><circle cx="12" cy="12" r="10"/></svg>
+      </button>
+    </div>
+    <div class="videozone-tabs" id="videoZoneTabs"></div>
+    <div class="videozone-body" id="videoZoneBody"></div>
+  </div>
+
+  <div class="videozone-player-overlay" id="videoZonePlayer">
+    <div class="videozone-player-header">
+      <button class="videozone-player-close" onclick="closeVideoPlayer()" aria-label="Close player">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+      <div class="videozone-player-title" id="videoZonePlayerTitle"></div>
+    </div>
+    <div class="videozone-player-frame-wrap">
+      <iframe id="videoZoneIframe" src="" title="Video player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <div class="form-sheet-overlay" id="editProfileOverlay" onclick="closeEditProfile()"></div>
+  <div class="form-sheet" id="editProfileSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Edit profile</div>
+      <button class="form-sheet-close" onclick="closeEditProfile()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-field">
+        <label class="form-label">Bio</label>
+        <textarea class="form-textarea" id="editBioInput" maxlength="160" placeholder="Tell people what you're into" oninput="updateBioCount()"></textarea>
+        <div class="form-char-count" id="editBioCount"></div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Vibes</label>
+        <div class="form-sublabel">Pick what fits — this shapes what shows up in your feed.</div>
+        <div class="form-vibe-grid" id="editVibeGrid"></div>
+      </div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" onclick="saveEditProfile()">Save profile</button>
+    </div>
+  </div>
+
+  <div class="form-sheet-overlay" id="blogSubmitOverlay" onclick="closeBlogSubmit()"></div>
+  <div class="form-sheet" id="blogSubmitSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">List your blog on WhyBlog</div>
+      <button class="form-sheet-close" onclick="closeBlogSubmit()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-note">Submissions are reviewed before a blog appears in the For You feed. We'll reach out at the email you provide.</div>
+      <div class="form-field">
+        <label class="form-label">Blog or RSS URL</label>
+        <input class="form-input" id="blogUrlInput" type="url" placeholder="https://yourblog.com" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Contact email</label>
+        <input class="form-input" id="blogEmailInput" type="email" placeholder="you@yourblog.com" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Tell us about it</label>
+        <textarea class="form-textarea" id="blogPitchInput" maxlength="240" placeholder="What do you write about, and why should WhyBlog readers see it?" oninput="updatePitchCount()"></textarea>
+        <div class="form-char-count" id="blogPitchCount"></div>
+      </div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" id="blogSubmitBtn" onclick="submitBlogListing()">Submit for review</button>
+    </div>
+  </div>
+
+  <div class="compose-page" id="composePage">
+    <div class="compose-topbar">
+      <button class="compose-close" onclick="closeCompose()" aria-label="Close">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+      <div class="compose-topbar-right">
+        <span class="compose-drafts">Drafts</span>
+        <button class="compose-post-btn" id="composePostBtn" onclick="submitCompose()">Post</button>
+      </div>
+    </div>
+    <div class="compose-body">
+      <div class="compose-row">
+        <div class="compose-avatar">Y</div>
+        <div class="compose-main">
+          <span class="compose-audience">
+            Everyone
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </span>
+          <textarea class="compose-textarea" id="composeTextarea" placeholder="What's happening?" oninput="updateComposeState()" rows="3"></textarea>
+          <div class="compose-char-count" id="composeCharCount"></div>
+          <div class="compose-image-preview" id="composeImagePreview" style="display:none">
+            <img id="composeImagePreviewImg" src="" alt="" />
+            <button class="compose-image-remove" onclick="removeComposeImage()" aria-label="Remove image">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="compose-reply-row">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/></svg>
+      Everyone can reply
+    </div>
+    <div class="compose-toolbar">
+      <button class="compose-tool-btn" onclick="document.getElementById('composeFile').click()" aria-label="Add image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </button>
+      <button class="compose-tool-btn" onclick="document.getElementById('composeCameraFile').click()" aria-label="Camera">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button class="compose-tool-btn disabled" aria-label="GIF (coming soon)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="3"/><text x="6" y="15" font-size="8" fill="currentColor" stroke="none">GIF</text></svg>
+      </button>
+      <button class="compose-tool-btn disabled" aria-label="Poll (coming soon)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="2"/><path d="M11 7h10"/><circle cx="6" cy="14" r="2"/><path d="M11 14h10"/><circle cx="6" cy="21" r="2"/><path d="M11 21h10"/></svg>
+      </button>
+      <button class="compose-tool-btn disabled" aria-label="Location (coming soon)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 10.5c0 6.5-8.8 11.5-8.8 11.5s-8.8-5-8.8-11.5a8.8 8.8 0 0117.6 0z"/><circle cx="12" cy="10.5" r="3"/></svg>
+      </button>
+    </div>
+    <input type="file" id="composeFile" accept="image/*" style="display:none" onchange="handleComposeImageSelect(this)" />
+    <input type="file" id="composeCameraFile" accept="image/*" capture="environment" style="display:none" onchange="handleComposeImageSelect(this)" />
+  </div>
+
   <div class="search-page" id="searchPage">
     <div class="search-header">
       <button class="search-back" onclick="closeSearch()" aria-label="Back">
@@ -1223,7 +2001,7 @@ function openProfile(id) {
   const actionBtn = document.getElementById("profileActionBtn");
   if (id === "you") {
     actionBtn.textContent = "Edit profile";
-    actionBtn.onclick = () => alert("Profile editing isn't wired up yet \u2014 coming with the backend.");
+    actionBtn.onclick = openEditProfile;
   } else {
     actionBtn.textContent = "Message";
     actionBtn.onclick = messageProfile;
@@ -1345,6 +2123,282 @@ const POSTS = [
 
 let state = {};
 
+let USER_POSTS = [];
+let userPostState = {};
+
+async function loadUserPosts() {
+  try {
+    const list = await window.storage.list("userpost:", true);
+    if (list && list.keys && list.keys.length) {
+      const posts = [];
+      for (const key of list.keys) {
+        try {
+          const res = await window.storage.get(key, true);
+          if (res) posts.push(JSON.parse(res.value));
+        } catch (e) {}
+      }
+      posts.sort((a, b) => (b.id < a.id ? -1 : 1));
+      USER_POSTS = posts;
+    }
+  } catch (e) {}
+
+  for (const post of USER_POSTS) {
+    let likeData = { count: 0 };
+    let comments = [];
+    try {
+      const res = await window.storage.get(`userpostlikes:${post.id}`, true);
+      if (res) likeData = JSON.parse(res.value);
+    } catch (e) {}
+    try {
+      const res = await window.storage.get(`userpostcomments:${post.id}`, true);
+      if (res) comments = JSON.parse(res.value);
+    } catch (e) {}
+    userPostState[post.id] = { liked: false, likeCount: likeData.count, bookmarked: false, gifted: false, comments, showComments: false };
+  }
+  render();
+}
+
+function toggleUserPostLike(id) {
+  const s = userPostState[id];
+  s.liked = !s.liked;
+  s.likeCount += s.liked ? 1 : -1;
+  haptic("light");
+  render();
+  window.storage.set(`userpostlikes:${id}`, JSON.stringify({ count: s.likeCount }), true).catch(() => {});
+}
+
+function toggleUserPostBookmark(id) {
+  userPostState[id].bookmarked = !userPostState[id].bookmarked;
+  haptic("light");
+  render();
+}
+
+function sendUserPostGift(id) {
+  const s = userPostState[id];
+  if (s.gifted) return;
+  s.gifted = true;
+  haptic("medium");
+  render();
+  setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
+}
+
+function toggleUserPostComments(id) {
+  userPostState[id].showComments = !userPostState[id].showComments;
+  render();
+}
+
+async function submitUserPostComment(id) {
+  const input = document.getElementById(`upinput-${id}`);
+  const text = input.value.trim();
+  if (!text) return;
+  userPostState[id].comments.push({ author: "You", text });
+  input.value = "";
+  render();
+  try { await window.storage.set(`userpostcomments:${id}`, JSON.stringify(userPostState[id].comments), true); } catch (e) {}
+}
+
+function updateUserPostCommentCount(id) {
+  const input = document.getElementById(`upinput-${id}`);
+  const counter = document.getElementById(`upcount-${id}`);
+  if (!input || !counter) return;
+  const remaining = 280 - input.value.length;
+  counter.className = "comment-count";
+  if (remaining <= 0) {
+    counter.textContent = "0 characters left";
+    counter.classList.add("limit");
+  } else if (remaining <= 30) {
+    counter.textContent = `${remaining} characters left`;
+    counter.classList.add("warn");
+  } else {
+    counter.textContent = "";
+  }
+}
+
+function userPostCardHTML(post) {
+  const s = userPostState[post.id];
+  if (!s) return "";
+  const commentsHtml = s.comments.length
+    ? s.comments.map(c => `
+        <div class="comment">
+          <div class="comment-avatar">${c.author === "You" ? "Y" : c.author[0]}</div>
+          <div class="comment-bubble"><span class="comment-author">${c.author}</span>${escapeHtml(c.text)}</div>
+        </div>`).join("")
+    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+
+  return `
+    <article class="post">
+      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.initials}</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${post.name}</span>
+          <span class="post-dot">·</span>
+          <span class="post-time">${post.time}</span>
+        </div>
+        ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
+        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        <div class="stat-row">
+          <button class="stat reply" onclick="toggleUserPostComments('${post.id}')">
+            ${replyIcon()}<span>${s.comments.length || ""}</span>
+          </button>
+          <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
+            ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
+          </button>
+          <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleUserPostBookmark('${post.id}')">
+            ${bookmarkIcon(s.bookmarked)}
+          </button>
+          <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="sendUserPostGift('${post.id}')" aria-label="Support creator">
+            ${giftIcon(s.gifted)}
+          </button>
+        </div>
+        ${s.showComments ? `
+          <div class="comments">
+            ${commentsHtml}
+            <div class="comment-form">
+              <input id="upinput-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updateUserPostCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitUserPostComment('${post.id}')" />
+              <button class="comment-send" onclick="submitUserPostComment('${post.id}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+            <div class="comment-count" id="upcount-${post.id}"></div>
+          </div>
+        ` : ""}
+      </div>
+    </article>
+  `;
+}
+
+let composeImage = null;
+const COMPOSE_MAX = 500;
+
+function isEmojiSegment(segment) {
+  return /\p{Extended_Pictographic}/u.test(segment);
+}
+
+function computeWeightedLength(text) {
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    const seg = new Intl.Segmenter("en", { granularity: "grapheme" });
+    let total = 0;
+    for (const { segment } of seg.segment(text)) {
+      total += isEmojiSegment(segment) ? 2 : 1;
+    }
+    return total;
+  }
+  let total = 0;
+  for (const ch of text) {
+    total += /\p{Extended_Pictographic}/u.test(ch) ? 2 : 1;
+  }
+  return total;
+}
+
+function truncateToWeightedLimit(text, limit) {
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    const seg = new Intl.Segmenter("en", { granularity: "grapheme" });
+    let total = 0;
+    let result = "";
+    for (const { segment } of seg.segment(text)) {
+      const w = isEmojiSegment(segment) ? 2 : 1;
+      if (total + w > limit) break;
+      total += w;
+      result += segment;
+    }
+    return result;
+  }
+  return text.slice(0, limit);
+}
+
+function openCompose() {
+  document.getElementById("composePage").classList.add("open");
+  updateComposeState();
+  syncBackButton();
+  setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+}
+
+function closeCompose() {
+  const textarea = document.getElementById("composeTextarea");
+  if ((textarea.value.trim() || composeImage) && !confirm("Discard this post?")) return;
+  document.getElementById("composePage").classList.remove("open");
+  textarea.value = "";
+  removeComposeImage();
+  updateComposeState();
+  syncBackButton();
+}
+
+function updateComposeState() {
+  const textarea = document.getElementById("composeTextarea");
+  const counter = document.getElementById("composeCharCount");
+  const btn = document.getElementById("composePostBtn");
+
+  let weighted = computeWeightedLength(textarea.value);
+  if (weighted > COMPOSE_MAX) {
+    textarea.value = truncateToWeightedLimit(textarea.value, COMPOSE_MAX);
+    weighted = COMPOSE_MAX;
+    haptic("light");
+  }
+
+  counter.textContent = `${weighted}/${COMPOSE_MAX}`;
+  counter.className = "compose-char-count";
+  if (weighted >= COMPOSE_MAX) counter.classList.add("limit");
+  else if (weighted >= COMPOSE_MAX - 40) counter.classList.add("warn");
+
+  btn.classList.toggle("enabled", textarea.value.trim().length > 0 || !!composeImage);
+}
+
+function handleComposeImageSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Please choose an image file.");
+    input.value = "";
+    return;
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    alert("Please choose an image under 3MB.");
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    composeImage = reader.result;
+    document.getElementById("composeImagePreviewImg").src = composeImage;
+    document.getElementById("composeImagePreview").style.display = "block";
+    updateComposeState();
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function removeComposeImage() {
+  composeImage = null;
+  document.getElementById("composeImagePreviewImg").src = "";
+  document.getElementById("composeImagePreview").style.display = "none";
+  updateComposeState();
+}
+
+async function submitCompose() {
+  const textarea = document.getElementById("composeTextarea");
+  const text = textarea.value.trim();
+  if (!text && !composeImage) return;
+
+  const id = "u" + Date.now();
+  const newPost = {
+    id, text: text || null, image: composeImage,
+    name: "You", initials: "Y", color: "#2fa393", profileId: "you", time: "now"
+  };
+  USER_POSTS.unshift(newPost);
+  userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false };
+  try { await window.storage.set(`userpost:${id}`, JSON.stringify(newPost), true); } catch (e) {}
+
+  render();
+  haptic("medium");
+  showToast("Posted to For You");
+  textarea.value = "";
+  composeImage = null;
+  document.getElementById("composeImagePreview").style.display = "none";
+  document.getElementById("composePage").classList.remove("open");
+  updateComposeState();
+  syncBackButton();
+}
+
 
 function heartIcon(filled) {
   return `<svg width="18" height="18" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.3C.4 8 2 4.5 5.5 4c2-.3 3.8.6 5 2.2C11.7 4.6 13.5 3.7 15.5 4c3.5.5 5.1 4 3.5 7.7C21.5 16.4 12 21 12 21z"/></svg>`;
@@ -1397,11 +2451,29 @@ function anyOverlayOpen() {
     || document.getElementById("searchPage").classList.contains("open")
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
-    || document.getElementById("bookmarksPage").classList.contains("open");
+    || document.getElementById("bookmarksPage").classList.contains("open")
+    || document.getElementById("hardcoverPage").classList.contains("open")
+    || document.getElementById("editProfileSheet").classList.contains("open")
+    || document.getElementById("blogSubmitSheet").classList.contains("open")
+    || document.getElementById("composePage").classList.contains("open")
+    || document.getElementById("videoZonePlayer").classList.contains("open")
+    || document.getElementById("videoZonePage").classList.contains("open");
 }
 
 function closeTopOverlay() {
-  if (document.getElementById("bookmarksPage").classList.contains("open")) {
+  if (document.getElementById("videoZonePlayer").classList.contains("open")) {
+    closeVideoPlayer();
+  } else if (document.getElementById("videoZonePage").classList.contains("open")) {
+    closeVideoZone();
+  } else if (document.getElementById("composePage").classList.contains("open")) {
+    closeCompose();
+  } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
+    closeEditProfile();
+  } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
+    closeBlogSubmit();
+  } else if (document.getElementById("hardcoverPage").classList.contains("open")) {
+    closeOpenLibrary();
+  } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
     closeBookmarksPage();
   } else if (document.getElementById("profilePage").classList.contains("open")) {
     closeProfile();
@@ -1559,6 +2631,403 @@ function toggleMenu(open) {
 
 const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
 
+/* =========================================================================
+   OPEN LIBRARY INTEGRATION
+   -------------------------------------------------------------------------
+   Open Library's Search API (openlibrary.org) is fully public: no API
+   key, no auth token, no backend required. Safe to call directly from
+   the client, unlike Hardcover which needs a server-side secret.
+
+   Search:  https://openlibrary.org/search.json?q={query}&limit=10
+   Browse:  https://openlibrary.org/subjects/fiction.json?limit=10
+   Covers:  https://covers.openlibrary.org/b/id/{cover_i}-M.jpg
+   ========================================================================= */
+
+const OPENLIB_COLORS = ["#4a5b8c", "#7a4a8c", "#9c5a2e", "#2f6f4f", "#c9432f", "#1d7a6f"];
+
+function initialsFor(title) {
+  return title.split(" ").filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+}
+
+function colorForTitle(title) {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) % OPENLIB_COLORS.length;
+  return OPENLIB_COLORS[Math.abs(hash) % OPENLIB_COLORS.length];
+}
+
+async function fetchOpenLibraryBooks(query) {
+  try {
+    if (query) {
+      const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=12&fields=title,author_name,cover_i,ratings_average`);
+      const data = await res.json();
+      return (data.docs || []).map(d => ({
+        title: d.title,
+        author: (d.author_name && d.author_name[0]) || "Unknown author",
+        coverId: d.cover_i || null,
+        rating: d.ratings_average || null,
+        color: colorForTitle(d.title || "")
+      }));
+    } else {
+      const res = await fetch(`https://openlibrary.org/subjects/fiction.json?limit=12`);
+      const data = await res.json();
+      return (data.works || []).map(w => ({
+        title: w.title,
+        author: (w.authors && w.authors[0] && w.authors[0].name) || "Unknown author",
+        coverId: w.cover_id || null,
+        rating: null,
+        color: colorForTitle(w.title || "")
+      }));
+    }
+  } catch (e) {
+    return null; // signals a network/fetch failure to the caller
+  }
+}
+
+function starRow(rating) {
+  const rounded = Math.round(rating);
+  let out = "";
+  for (let i = 1; i <= 5; i++) {
+    out += `<svg width="11" height="11" viewBox="0 0 24 24" fill="${i <= rounded ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2.5l2.9 6.2 6.6.7-4.9 4.6 1.3 6.7L12 17.6l-5.9 3.1 1.3-6.7-4.9-4.6 6.6-.7z"/></svg>`;
+  }
+  return out;
+}
+
+function renderHardcoverBooks(books, sectionTitle) {
+  const body = document.getElementById("hardcoverBody");
+
+  if (books === null) {
+    body.innerHTML = `<div class="search-empty">Couldn't reach Open Library.<br />Check your connection and try again.</div>`;
+    return;
+  }
+  if (books.length === 0) {
+    body.innerHTML = `<div class="search-empty">No books found.<br />Try a different title or author.</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="hardcover-section-title">${sectionTitle}</div>
+    ${books.map(b => {
+      const cover = b.coverId
+        ? `<img class="hardcover-cover" src="https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg" alt="" onerror="this.outerHTML='<div class=\\'hardcover-cover\\' style=\\'background:${b.color}\\'>${initialsFor(b.title)}</div>'" />`
+        : `<div class="hardcover-cover" style="background:${b.color}">${initialsFor(b.title)}</div>`;
+      return `
+        <div class="hardcover-book">
+          ${cover}
+          <div class="hardcover-book-body">
+            <div class="hardcover-book-title">${escapeHtml(b.title)}</div>
+            <div class="hardcover-book-author">${escapeHtml(b.author)}</div>
+            ${b.rating ? `<div class="hardcover-book-meta">${starRow(b.rating)}<span>${b.rating.toFixed(1)}</span></div>` : ""}
+          </div>
+        </div>
+      `;
+    }).join("")}
+  `;
+}
+
+let openLibrarySearchToken = 0;
+
+async function searchOpenLibrary(query) {
+  const myToken = ++openLibrarySearchToken;
+  const q = query.trim();
+  document.getElementById("hardcoverBody").innerHTML = `<div class="search-empty">Searching\u2026</div>`;
+  const books = await fetchOpenLibraryBooks(q);
+  if (myToken !== openLibrarySearchToken) return; // a newer keystroke superseded this request
+  renderHardcoverBooks(books, q ? "Results" : "Popular fiction on Open Library");
+}
+
+const VIBE_OPTIONS = ["Bookish", "Streetstyle", "Foodie", "Travel", "Studio", "Sketch", "Crypto", "Science & Technology"];
+let editVibeSelection = [];
+
+function renderEditVibeGrid() {
+  const grid = document.getElementById("editVibeGrid");
+  grid.innerHTML = VIBE_OPTIONS.map(v => {
+    const selected = editVibeSelection.includes(v);
+    return `<button class="form-vibe-chip ${selected ? 'selected' : ''}" style="${selected ? 'background:#2fa393' : ''}" onclick="toggleEditVibe('${v}')">${v}</button>`;
+  }).join("");
+}
+
+function toggleEditVibe(v) {
+  if (editVibeSelection.includes(v)) {
+    editVibeSelection = editVibeSelection.filter(x => x !== v);
+  } else {
+    if (editVibeSelection.length >= 4) return;
+    editVibeSelection.push(v);
+  }
+  haptic("light");
+  renderEditVibeGrid();
+}
+
+function updateBioCount() {
+  const input = document.getElementById("editBioInput");
+  const counter = document.getElementById("editBioCount");
+  counter.textContent = `${input.value.length}/160`;
+}
+
+function openEditProfile() {
+  const p = PROFILES.you;
+  document.getElementById("editBioInput").value = p.bio === "Add a bio to tell people what you're into." ? "" : p.bio;
+  editVibeSelection = [...(p.vibes || [])];
+  updateBioCount();
+  renderEditVibeGrid();
+  document.getElementById("editProfileOverlay").classList.add("open");
+  document.getElementById("editProfileSheet").classList.add("open");
+  syncBackButton();
+}
+
+function closeEditProfile() {
+  document.getElementById("editProfileOverlay").classList.remove("open");
+  document.getElementById("editProfileSheet").classList.remove("open");
+  syncBackButton();
+}
+
+async function saveEditProfile() {
+  const bio = document.getElementById("editBioInput").value.trim();
+  PROFILES.you.bio = bio || "Add a bio to tell people what you're into.";
+  PROFILES.you.vibes = [...editVibeSelection];
+  try {
+    await window.storage.set("myProfile", JSON.stringify({ bio: PROFILES.you.bio, vibes: PROFILES.you.vibes }), false);
+  } catch (e) {}
+  haptic("medium");
+  showToast("Profile updated");
+  closeEditProfile();
+  if (currentProfileId === "you") openProfile("you");
+}
+
+async function loadMyProfile() {
+  try {
+    const res = await window.storage.get("myProfile", false);
+    if (res) {
+      const data = JSON.parse(res.value);
+      if (data.bio) PROFILES.you.bio = data.bio;
+      if (data.vibes) PROFILES.you.vibes = data.vibes;
+    }
+  } catch (e) {}
+}
+
+function updatePitchCount() {
+  const input = document.getElementById("blogPitchInput");
+  const counter = document.getElementById("blogPitchCount");
+  counter.textContent = `${input.value.length}/240`;
+}
+
+function openBlogSubmit() {
+  document.getElementById("blogUrlInput").value = "";
+  document.getElementById("blogEmailInput").value = "";
+  document.getElementById("blogPitchInput").value = "";
+  updatePitchCount();
+  const btn = document.getElementById("blogSubmitBtn");
+  btn.textContent = "Submit for review";
+  btn.style.pointerEvents = "auto";
+  btn.style.opacity = "1";
+  document.getElementById("blogSubmitOverlay").classList.add("open");
+  document.getElementById("blogSubmitSheet").classList.add("open");
+  syncBackButton();
+}
+
+function closeBlogSubmit() {
+  document.getElementById("blogSubmitOverlay").classList.remove("open");
+  document.getElementById("blogSubmitSheet").classList.remove("open");
+  syncBackButton();
+}
+
+async function submitBlogListing() {
+  const url = document.getElementById("blogUrlInput").value.trim();
+  const email = document.getElementById("blogEmailInput").value.trim();
+  const pitch = document.getElementById("blogPitchInput").value.trim();
+
+  if (!url || !email) {
+    alert("Please add both a blog URL and a contact email.");
+    return;
+  }
+
+  const submission = { url, email, pitch, submittedAt: new Date().toISOString() };
+  try {
+    await window.storage.set(`blogsubmission:${Date.now()}`, JSON.stringify(submission), true);
+  } catch (e) {}
+
+  haptic("medium");
+  const btn = document.getElementById("blogSubmitBtn");
+  btn.textContent = "Submitted \u2014 we'll be in touch";
+  btn.style.pointerEvents = "none";
+  btn.style.opacity = "0.7";
+  setTimeout(() => closeBlogSubmit(), 1400);
+}
+
+/* =========================================================================
+   VIDEO ZONE
+   -------------------------------------------------------------------------
+   Each entry is a full YouTube playlist, embedded via the public
+   videoseries embed URL -- no API key needed, fully playable in-app.
+   Add more playlists here as they come in; genres group automatically.
+   ========================================================================= */
+
+const VIDEO_PLAYLISTS = [
+  { id: "PLd1uCEOlp2tQ", title: "YONG SOCIAL WATCH", genre: "Featured", count: 25, color: "#4a5b8c" }
+];
+
+let videoZoneActiveGenre = "All";
+let videoZoneSearchQuery = "";
+
+function videoZoneGenres() {
+  const genres = [...new Set(VIDEO_PLAYLISTS.map(p => p.genre))];
+  return ["All", ...genres];
+}
+
+function renderVideoZoneTabs() {
+  const genres = videoZoneGenres();
+  document.getElementById("videoZoneTabs").innerHTML = genres.map(g => `
+    <button class="videozone-tab ${g === videoZoneActiveGenre ? 'active' : ''}" onclick="setVideoZoneGenre('${g}')">${g}</button>
+  `).join("");
+}
+
+function setVideoZoneGenre(genre) {
+  videoZoneActiveGenre = genre;
+  haptic("light");
+  renderVideoZoneTabs();
+  renderVideoZoneBody();
+}
+
+function filterVideoZoneSearch(query) {
+  videoZoneSearchQuery = query.trim().toLowerCase();
+  renderVideoZoneBody();
+}
+
+function videoZoneFilteredPlaylists() {
+  return VIDEO_PLAYLISTS.filter(p => {
+    const matchesGenre = videoZoneActiveGenre === "All" || p.genre === videoZoneActiveGenre;
+    const matchesSearch = !videoZoneSearchQuery || p.title.toLowerCase().includes(videoZoneSearchQuery);
+    return matchesGenre && matchesSearch;
+  });
+}
+
+function videoZonePosterHTML(p, rank) {
+  const rankBadge = rank ? `<span class="videozone-poster-rank rank-${rank}">${rank}</span>` : "";
+  return `
+    <div class="videozone-poster" onclick="openVideoPlayer('${p.id}', '${escapeHtml(p.title)}')">
+      ${rankBadge}
+      <div class="videozone-poster-media" style="background:linear-gradient(135deg, ${p.color}, #0d1116)">
+        <div class="videozone-poster-play">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <span class="videozone-poster-count">${p.count} videos</span>
+      </div>
+      <div class="videozone-poster-title">${escapeHtml(p.title)}</div>
+    </div>
+  `;
+}
+
+function renderVideoZoneBody() {
+  const body = document.getElementById("videoZoneBody");
+  const results = videoZoneFilteredPlaylists();
+
+  if (results.length === 0) {
+    body.innerHTML = `<div class="videozone-empty">No playlists found.<br />Try a different tab or search term.</div>`;
+    return;
+  }
+
+  const hero = results[0];
+  const quickPicks = results.slice(1, 3);
+  const genresToShow = videoZoneActiveGenre === "All"
+    ? [...new Set(results.map(p => p.genre))]
+    : [videoZoneActiveGenre];
+
+  const heroHTML = `
+    <div class="videozone-hero" style="background:linear-gradient(135deg, ${hero.color}, #0b0f14)" onclick="openVideoPlayer('${hero.id}', '${escapeHtml(hero.title)}')">
+      <div class="videozone-hero-play">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="videozone-hero-scrim"></div>
+      <div class="videozone-hero-info">
+        <div class="videozone-hero-title">${escapeHtml(hero.title)}</div>
+        <div class="videozone-hero-meta">
+          <span class="videozone-hero-genre-badge">${escapeHtml(hero.genre)}</span>
+          <span>${hero.count} videos</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const quickRowHTML = quickPicks.length ? `
+    <div class="videozone-quickrow">
+      ${quickPicks.map(p => `
+        <div class="videozone-quickcard" onclick="openVideoPlayer('${p.id}', '${escapeHtml(p.title)}')">
+          <div class="videozone-quickcard-thumb" style="background:linear-gradient(135deg, ${p.color}, #0b0f14)"></div>
+          <div class="videozone-quickcard-body">
+            <div class="videozone-quickcard-title">${escapeHtml(p.title)}</div>
+            <div class="videozone-quickcard-meta">${p.genre} · ${p.count} videos</div>
+          </div>
+          <div class="videozone-quickcard-play">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  ` : "";
+
+  const sectionsHTML = genresToShow.map(genre => {
+    const playlists = results.filter(p => p.genre === genre);
+    if (playlists.length === 0) return "";
+    return `
+      <div class="videozone-section">
+        <div class="videozone-section-head">
+          <div class="videozone-section-title">${escapeHtml(genre)} Rankings</div>
+          <div class="videozone-section-all">All
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <div class="videozone-row">
+          ${playlists.map((p, i) => videoZonePosterHTML(p, i + 1)).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  body.innerHTML = heroHTML + quickRowHTML + sectionsHTML;
+}
+
+function openVideoZone() {
+  videoZoneActiveGenre = "All";
+  videoZoneSearchQuery = "";
+  const input = document.getElementById("videoZoneSearchInput");
+  if (input) input.value = "";
+  renderVideoZoneTabs();
+  renderVideoZoneBody();
+  document.getElementById("videoZonePage").classList.add("open");
+  syncBackButton();
+}
+
+function closeVideoZone() {
+  document.getElementById("videoZonePage").classList.remove("open");
+  syncBackButton();
+}
+
+function openVideoPlayer(playlistId, title) {
+  document.getElementById("videoZoneIframe").src = `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1`;
+  document.getElementById("videoZonePlayerTitle").textContent = title;
+  document.getElementById("videoZonePlayer").classList.add("open");
+  syncBackButton();
+  haptic("light");
+}
+
+function closeVideoPlayer() {
+  document.getElementById("videoZoneIframe").src = "";
+  document.getElementById("videoZonePlayer").classList.remove("open");
+  syncBackButton();
+}
+
+function openOpenLibrary() {
+  document.getElementById("hardcoverPage").classList.add("open");
+  document.getElementById("hardcoverSearchInput").value = "";
+  searchOpenLibrary("");
+  syncBackButton();
+  haptic("light");
+}
+
+function closeOpenLibrary() {
+  document.getElementById("hardcoverPage").classList.remove("open");
+  syncBackButton();
+}
+
 function openBookmarksPage() {
   document.getElementById("bookmarksPage").classList.add("open");
   renderBookmarksPage();
@@ -1690,7 +3159,7 @@ async function loadState() {
     } catch (e) {}
     state[post.id] = {
       liked: false, likeCount: likeData.count,
-      bookmarked, gifted: false,
+      bookmarked, gifted: false, expanded: false,
       comments: commentData, showComments: false, draftImage: null
     };
   }
@@ -1704,6 +3173,16 @@ async function toggleLike(id) {
   haptic("light");
   render();
   try { await window.storage.set(`likes:${id}`, JSON.stringify({ count: s.likeCount }), true); } catch (e) {}
+}
+
+function truncatedExcerpt(post, s) {
+  if (post.excerpt.length <= 200 || s.expanded) return escapeHtml(post.excerpt);
+  return escapeHtml(post.excerpt.slice(0, 200).trimEnd()) + "\u2026";
+}
+
+function toggleExpand(id) {
+  state[id].expanded = !state[id].expanded;
+  render();
 }
 
 function toggleBookmark(id) {
@@ -1796,6 +3275,11 @@ function escapeHtml(str) {
 function render() {
   const feed = document.getElementById("feed");
 
+  const userPostsHtml = USER_POSTS
+    .filter(p => userPostState[p.id])
+    .map(userPostCardHTML)
+    .join("");
+
   const blogPostsHtml = POSTS.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
@@ -1824,15 +3308,10 @@ function render() {
 
           <div class="post-text">
             ${post.title ? `<span class="title">${post.title}</span>` : ""}
-            <span class="excerpt">${post.excerpt}</span>
-          </div>
-
-          <div class="link-card">
-            <div class="link-card-media" style="background:${post.cardColor}">${post.cardTitle}</div>
-            <a class="read-more-btn" href="${post.url}" target="_blank" rel="noreferrer">
-              Read More
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
-            </a>
+            <span class="excerpt">${truncatedExcerpt(post, s)}</span>
+            ${post.excerpt.length > 200 ? `
+              <button class="read-more-toggle" onclick="toggleExpand('${post.id}')">${s.expanded ? "Show less" : "Read more"}</button>
+            ` : ""}
           </div>
 
           <div class="stat-row">
@@ -1880,10 +3359,12 @@ function render() {
     `;
   }).join("");
 
-  feed.innerHTML = blogPostsHtml;
+  feed.innerHTML = userPostsHtml + blogPostsHtml;
 }
 
+loadMyProfile();
 loadState();
+loadUserPosts();
 </script>
 
 </body>
