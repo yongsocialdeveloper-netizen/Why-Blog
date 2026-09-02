@@ -1157,6 +1157,70 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  .toast-progress-row, .toast-success-row { display: flex; align-items: center; gap: 10px; }
+  .toast-progress-track {
+    width: 60px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.15); overflow: hidden;
+  }
+  .toast-progress-bar {
+    width: 40%; height: 100%; border-radius: 2px;
+    background: var(--accent);
+    animation: toastProgressSlide 1s ease-in-out infinite;
+  }
+  @keyframes toastProgressSlide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+  .toast-success-row { color: var(--accent); }
+
+  .discard-overlay, .drafts-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .discard-overlay.open, .drafts-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .discard-popup {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: min(300px, calc(100vw - 48px));
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; padding: 20px 18px;
+    z-index: 91; opacity: 0; pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    text-align: center;
+  }
+  .discard-popup.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+  .discard-title { font-size: 15.5px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .discard-sub { font-size: 13px; color: var(--ink-soft); margin-bottom: 16px; }
+  .discard-btn {
+    display: block; width: 100%; padding: 11px; margin-top: 8px;
+    border-radius: 999px; font-size: 14px; font-weight: 700;
+  }
+  .discard-btn-save { background: var(--accent); color: #0d1116; }
+  .discard-btn-delete { background: transparent; border: 1.5px solid #e0555a; color: #e0555a; }
+  .discard-btn-cancel { background: transparent; color: var(--ink-soft); margin-top: 12px; }
+
+  .drafts-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    max-height: 60vh; background: var(--card); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; z-index: 91;
+    transform: translateY(100%); transition: transform 0.22s ease;
+    display: flex; flex-direction: column;
+  }
+  .drafts-sheet.open { transform: translateY(0); }
+  .drafts-body { overflow-y: auto; padding: 4px 14px 20px; }
+  .drafts-empty { padding: 30px 0; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+  .draft-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px; border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .draft-item:last-child { border-bottom: none; }
+  .draft-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+  .draft-text { flex: 1; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-delete { color: var(--ink-faint); flex-shrink: 0; display: flex; }
+  .draft-delete:hover { color: #e0555a; }
+
   /* ---------- settings / snooze topics sheet ---------- */
   .sheet-overlay {
     position: fixed;
@@ -1981,7 +2045,7 @@
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
       <div class="compose-topbar-right">
-        <span class="compose-drafts">Drafts</span>
+        <span class="compose-drafts" onclick="openDraftsSheet()">Drafts</span>
         <button class="compose-post-btn" id="composePostBtn" onclick="submitCompose()">Post</button>
       </div>
     </div>
@@ -2027,6 +2091,24 @@
     </div>
     <input type="file" id="composeFile" accept="image/*" style="display:none" onchange="handleComposeImageSelect(this)" />
     <input type="file" id="composeCameraFile" accept="image/*" capture="environment" style="display:none" onchange="handleComposeImageSelect(this)" />
+  </div>
+
+  <div class="discard-overlay" id="discardOverlay" onclick="cancelDiscardPost()"></div>
+  <div class="discard-popup" id="discardPopup">
+    <div class="discard-title">Save this post as a draft?</div>
+    <div class="discard-sub">You can find it later in Drafts.</div>
+    <button class="discard-btn discard-btn-save" onclick="saveComposeDraft()">Save to Drafts</button>
+    <button class="discard-btn discard-btn-delete" onclick="discardComposePost()">Delete</button>
+    <button class="discard-btn discard-btn-cancel" onclick="cancelDiscardPost()">Cancel</button>
+  </div>
+
+  <div class="drafts-overlay" id="draftsOverlay" onclick="closeDraftsSheet()"></div>
+  <div class="drafts-sheet" id="draftsSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">Drafts</div>
+    </div>
+    <div class="drafts-body" id="draftsBody"></div>
   </div>
 
   <div class="search-page" id="searchPage">
@@ -2232,36 +2314,37 @@ function ensureTelegramPostProfile(post) {
 
 async function loadUserPosts() {
   try {
-    const list = await window.storage.list("userpost:", true);
-    if (list && list.keys && list.keys.length) {
+    if (firebaseDb) {
+      const snapshot = await firebaseDb.collection("posts").orderBy("createdAt", "desc").get();
       const posts = [];
-      for (const key of list.keys) {
-        try {
-          const res = await window.storage.get(key, true);
-          if (res) {
-            const post = JSON.parse(res.value);
-            ensureTelegramPostProfile(post);
-            posts.push(post);
-          }
-        } catch (e) {}
-      }
-      posts.sort((a, b) => (b.id < a.id ? -1 : 1));
+      snapshot.forEach(doc => {
+        const post = doc.data();
+        post.id = doc.id;
+        ensureTelegramPostProfile(post);
+        posts.push(post);
+      });
       USER_POSTS = posts;
     }
   } catch (e) {}
 
   for (const post of USER_POSTS) {
-    let likeData = { count: 0 };
+    let liked = false;
     let comments = [];
     try {
-      const res = await window.storage.get(`userpostlikes:${post.id}`, true);
-      if (res) likeData = JSON.parse(res.value);
+      if (firebaseDb) {
+        const likeDoc = await firebaseDb.collection("posts").doc(post.id)
+          .collection("likes").doc(String(telegramUser.id)).get();
+        liked = likeDoc.exists;
+      }
     } catch (e) {}
     try {
-      const res = await window.storage.get(`userpostcomments:${post.id}`, true);
-      if (res) comments = JSON.parse(res.value);
+      if (firebaseDb) {
+        const commentsSnap = await firebaseDb.collection("posts").doc(post.id)
+          .collection("comments").orderBy("createdAt", "asc").get();
+        commentsSnap.forEach(doc => comments.push({ id: doc.id, ...doc.data() }));
+      }
     } catch (e) {}
-    userPostState[post.id] = { liked: false, likeCount: likeData.count, bookmarked: false, gifted: false, comments, showComments: false };
+    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false };
   }
   render();
 }
@@ -2272,7 +2355,16 @@ function toggleUserPostLike(id) {
   s.likeCount += s.liked ? 1 : -1;
   haptic("light");
   render();
-  window.storage.set(`userpostlikes:${id}`, JSON.stringify({ count: s.likeCount }), true).catch(() => {});
+  if (!firebaseDb) return;
+  const postRef = firebaseDb.collection("posts").doc(id);
+  const likeRef = postRef.collection("likes").doc(String(telegramUser.id));
+  const delta = s.liked ? 1 : -1;
+  postRef.update({ likeCount: firebase.firestore.FieldValue.increment(delta) }).catch(() => {});
+  if (s.liked) {
+    likeRef.set({ userId: telegramUser.id, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+  } else {
+    likeRef.delete().catch(() => {});
+  }
 }
 
 function toggleUserPostBookmark(id) {
@@ -2300,16 +2392,23 @@ async function submitUserPostComment(id) {
   const input = document.getElementById(`upinput-${id}`);
   const text = input.value.trim();
   if (!text) return;
-  userPostState[id].comments.push({
+  const comment = {
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
     text
-  });
+  };
+  userPostState[id].comments.push(comment);
   input.value = "";
   render();
-  try { await window.storage.set(`userpostcomments:${id}`, JSON.stringify(userPostState[id].comments), true); } catch (e) {}
+  if (!firebaseDb) return;
+  try {
+    await firebaseDb.collection("posts").doc(id).collection("comments").add({
+      ...comment,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {}
 }
 
 function updateUserPostCommentCount(id) {
@@ -2421,6 +2520,108 @@ function truncateToWeightedLimit(text, limit) {
   return text.slice(0, limit);
 }
 
+let currentDraftId = null;
+let toastTimer = null;
+
+function showToast(message, opts) {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  clearTimeout(toastTimer);
+  toast.classList.remove("toast-progress");
+  toast.innerHTML = escapeHtml(message);
+  toast.classList.add("show");
+  const duration = (opts && opts.duration) || 2200;
+  toastTimer = setTimeout(() => toast.classList.remove("show"), duration);
+}
+
+function showPostingProgressToast() {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  clearTimeout(toastTimer);
+  toast.innerHTML = `
+    <div class="toast-progress-row">
+      <span>Posting…</span>
+      <div class="toast-progress-track"><div class="toast-progress-bar"></div></div>
+    </div>
+  `;
+  toast.classList.add("show", "toast-progress");
+}
+
+function showPostedSuccessToast() {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  clearTimeout(toastTimer);
+  toast.classList.remove("toast-progress");
+  toast.innerHTML = `
+    <div class="toast-success-row">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>Posted!</span>
+    </div>
+  `;
+  toast.classList.add("show");
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+function loadDrafts() {
+  try { return JSON.parse(localStorage.getItem("whyblog_drafts") || "[]"); } catch (e) { return []; }
+}
+function persistDrafts(drafts) {
+  try { localStorage.setItem("whyblog_drafts", JSON.stringify(drafts)); } catch (e) {}
+}
+function removeDraft(id) {
+  persistDrafts(loadDrafts().filter(d => d.id !== id));
+}
+
+function openDraftsSheet() {
+  renderDraftsList();
+  document.getElementById("draftsOverlay").classList.add("open");
+  document.getElementById("draftsSheet").classList.add("open");
+}
+function closeDraftsSheet() {
+  document.getElementById("draftsOverlay").classList.remove("open");
+  document.getElementById("draftsSheet").classList.remove("open");
+}
+function renderDraftsList() {
+  const body = document.getElementById("draftsBody");
+  const drafts = loadDrafts();
+  if (!drafts.length) {
+    body.innerHTML = `<div class="drafts-empty">No saved drafts</div>`;
+    return;
+  }
+  body.innerHTML = drafts.map(d => `
+    <div class="draft-item" onclick="openDraft('${d.id}')">
+      ${d.image ? `<img class="draft-thumb" src="${d.image}" alt="" />` : ""}
+      <div class="draft-text">${escapeHtml((d.text || "").slice(0, 80)) || "(image only)"}</div>
+      <button class="draft-delete" onclick="event.stopPropagation(); deleteDraft('${d.id}')" aria-label="Delete draft">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `).join("");
+}
+function openDraft(id) {
+  const drafts = loadDrafts();
+  const draft = drafts.find(d => d.id === id);
+  if (!draft) return;
+  closeDraftsSheet();
+  currentDraftId = id;
+  document.getElementById("composeTextarea").value = draft.text || "";
+  composeImage = draft.image || null;
+  if (composeImage) {
+    document.getElementById("composeImagePreviewImg").src = composeImage;
+    document.getElementById("composeImagePreview").style.display = "block";
+  } else {
+    document.getElementById("composeImagePreview").style.display = "none";
+  }
+  document.getElementById("composePage").classList.add("open");
+  updateComposeState();
+  syncBackButton();
+  setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+}
+function deleteDraft(id) {
+  removeDraft(id);
+  renderDraftsList();
+}
+
 function openCompose() {
   if (!requireTelegramSession()) return;
   document.getElementById("composePage").classList.add("open");
@@ -2429,14 +2630,48 @@ function openCompose() {
   setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
 }
 
-function closeCompose() {
-  const textarea = document.getElementById("composeTextarea");
-  if ((textarea.value.trim() || composeImage) && !confirm("Discard this post?")) return;
+function resetComposeUI() {
+  currentDraftId = null;
   document.getElementById("composePage").classList.remove("open");
-  textarea.value = "";
+  document.getElementById("composeTextarea").value = "";
   removeComposeImage();
   updateComposeState();
   syncBackButton();
+}
+
+function closeCompose() {
+  const textarea = document.getElementById("composeTextarea");
+  if (textarea.value.trim() || composeImage) {
+    document.getElementById("discardOverlay").classList.add("open");
+    document.getElementById("discardPopup").classList.add("open");
+    return;
+  }
+  resetComposeUI();
+}
+
+function cancelDiscardPost() {
+  document.getElementById("discardOverlay").classList.remove("open");
+  document.getElementById("discardPopup").classList.remove("open");
+}
+
+function discardComposePost() {
+  cancelDiscardPost();
+  if (currentDraftId) removeDraft(currentDraftId);
+  resetComposeUI();
+}
+
+function saveComposeDraft() {
+  cancelDiscardPost();
+  const textarea = document.getElementById("composeTextarea");
+  const text = textarea.value.trim();
+  const drafts = loadDrafts();
+  const id = currentDraftId || `draft-${Date.now()}`;
+  const draft = { id, text: text || null, image: composeImage, savedAt: Date.now() };
+  const idx = drafts.findIndex(d => d.id === id);
+  if (idx >= 0) drafts[idx] = draft; else drafts.unshift(draft);
+  persistDrafts(drafts);
+  resetComposeUI();
+  showToast("Saved to Drafts");
 }
 
 function updateComposeState() {
@@ -2467,8 +2702,8 @@ function handleComposeImageSelect(input) {
     input.value = "";
     return;
   }
-  if (file.size > 3 * 1024 * 1024) {
-    alert("Please choose an image under 3MB.");
+  if (file.size > 650 * 1024) {
+    alert("Please choose an image under 650KB.");
     input.value = "";
     return;
   }
@@ -2492,13 +2727,23 @@ function removeComposeImage() {
 
 async function submitCompose() {
   if (!requireTelegramSession()) return;
+  if (!firebaseDb) { showToast("Can't post right now — try again in a moment."); return; }
   const textarea = document.getElementById("composeTextarea");
   const text = textarea.value.trim();
   if (!text && !composeImage) return;
 
-  const id = `u${String(telegramUser.id)}-${Date.now()}`;
+  const pendingText = text;
+  const pendingImage = composeImage;
+  const pendingDraftId = currentDraftId;
+
+  // Close the composer immediately and show posting progress.
+  resetComposeUI();
+  showPostingProgressToast();
+
+  const docRef = firebaseDb.collection("posts").doc();
+  const id = docRef.id;
   const newPost = {
-    id, text: text || null, image: composeImage,
+    id, text: pendingText || null, image: pendingImage,
     name: telegramUser.name,
     username: telegramUser.username,
     userId: telegramUser.id,
@@ -2508,19 +2753,23 @@ async function submitCompose() {
     profileId: "you",
     time: "now"
   };
-  USER_POSTS.unshift(newPost);
-  userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false };
-  try { await window.storage.set(`userpost:${id}`, JSON.stringify(newPost), true); } catch (e) {}
 
-  render();
-  haptic("medium");
-  showToast("Posted to For You");
-  textarea.value = "";
-  composeImage = null;
-  document.getElementById("composeImagePreview").style.display = "none";
-  document.getElementById("composePage").classList.remove("open");
-  updateComposeState();
-  syncBackButton();
+  try {
+    await docRef.set({
+      ...newPost,
+      likeCount: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    USER_POSTS.unshift(newPost);
+    userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false };
+    render();
+    haptic("medium");
+    if (pendingDraftId) removeDraft(pendingDraftId);
+    showPostedSuccessToast();
+  } catch (e) {
+    haptic("medium");
+    showToast("Couldn't save your post. Please try again.");
+  }
 }
 
 
@@ -2899,6 +3148,8 @@ function anyOverlayOpen() {
     || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
+    || document.getElementById("discardPopup").classList.contains("open")
+    || document.getElementById("draftsSheet").classList.contains("open")
     || document.getElementById("videoZonePlayer").classList.contains("open")
     || document.getElementById("videoZonePage").classList.contains("open");
 }
@@ -2908,6 +3159,10 @@ function closeTopOverlay() {
     closeVideoPlayer();
   } else if (document.getElementById("videoZonePage").classList.contains("open")) {
     closeVideoZone();
+  } else if (document.getElementById("discardPopup").classList.contains("open")) {
+    cancelDiscardPost();
+  } else if (document.getElementById("draftsSheet").classList.contains("open")) {
+    closeDraftsSheet();
   } else if (document.getElementById("composePage").classList.contains("open")) {
     closeCompose();
   } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
