@@ -1459,6 +1459,7 @@
   }
   .comment-bubble { background: var(--paper); border-radius: 13px; padding: 6px 11px; font-size: 13px; line-height: 1.4; }
   .comment-author { font-weight: 700; margin-right: 5px; }
+  .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
 
   .comment-form { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
@@ -1985,31 +1986,6 @@
     </div>
   </div>
 
-  <div class="form-sheet-overlay" id="editProfileOverlay" onclick="closeEditProfile()"></div>
-  <div class="form-sheet" id="editProfileSheet">
-    <div class="form-sheet-header">
-      <div class="form-sheet-title">Edit profile</div>
-      <button class="form-sheet-close" onclick="closeEditProfile()" aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="form-sheet-body">
-      <div class="form-field">
-        <label class="form-label">Bio</label>
-        <textarea class="form-textarea" id="editBioInput" maxlength="160" placeholder="Tell people what you're into" oninput="updateBioCount()"></textarea>
-        <div class="form-char-count" id="editBioCount"></div>
-      </div>
-      <div class="form-field">
-        <label class="form-label">Vibes</label>
-        <div class="form-sublabel">Pick what fits — this shapes what shows up in your feed.</div>
-        <div class="form-vibe-grid" id="editVibeGrid"></div>
-      </div>
-    </div>
-    <div class="form-sheet-footer">
-      <button class="form-submit-btn" onclick="saveEditProfile()">Save profile</button>
-    </div>
-  </div>
-
   <div class="form-sheet-overlay" id="blogSubmitOverlay" onclick="closeBlogSubmit()"></div>
   <div class="form-sheet" id="blogSubmitSheet">
     <div class="form-sheet-header">
@@ -2202,27 +2178,10 @@ const PROFILES = {
 
 let currentProfileId = null;
 
-function openProfile(id) {
+function renderProfileMeta(id) {
+  if (currentProfileId !== id) return;
   const p = PROFILES[id];
   if (!p) return;
-  currentProfileId = id;
-  document.getElementById("profileTopbarName").textContent = p.name;
-  document.getElementById("profileBanner").style.background = `linear-gradient(135deg, ${p.color}, #16202b)`;
-  const avatar = document.getElementById("profileAvatar");
-  setAvatarElement(avatar, p, p.color);
-  document.getElementById("profileName").textContent = p.name;
-  document.getElementById("profileVerified").innerHTML = p.verified ? verifiedBadge() : "";
-  document.getElementById("profileBio").textContent = p.bio;
-
-  const actionBtn = document.getElementById("profileActionBtn");
-  if (id === "you") {
-    actionBtn.textContent = "Edit profile";
-    actionBtn.onclick = openEditProfile;
-  } else {
-    actionBtn.textContent = "Message";
-    actionBtn.onclick = messageProfile;
-  }
-
   const meta = [];
   if (p.blogUrl) {
     meta.push(`<div class="profile-meta-item">${linkIcon()}<a href="https://${p.blogUrl}" target="_blank" rel="noreferrer">${p.blogUrl}</a></div>`);
@@ -2238,6 +2197,43 @@ function openProfile(id) {
   }
   meta.push(`<div class="profile-meta-item">${calendarIcon()}Joined ${p.joined}</div>`);
   document.getElementById("profileMeta").innerHTML = meta.join("");
+}
+
+async function fetchProfileSignupEmail(id) {
+  const p = PROFILES[id];
+  if (!p || p.email || !firebaseDb || p.telegramId === null || p.telegramId === undefined) return;
+  try {
+    const doc = await firebaseDb.collection("telegramLinks").doc(String(p.telegramId)).get();
+    if (doc.exists && doc.data().email) {
+      p.email = doc.data().email;
+      renderProfileMeta(id);
+    }
+  } catch (e) {}
+}
+
+function openProfile(id) {
+  const p = PROFILES[id];
+  if (!p) return;
+  currentProfileId = id;
+  document.getElementById("profileTopbarName").textContent = p.name;
+  document.getElementById("profileBanner").style.background = `linear-gradient(135deg, ${p.color}, #16202b)`;
+  const avatar = document.getElementById("profileAvatar");
+  setAvatarElement(avatar, p, p.color);
+  document.getElementById("profileName").textContent = p.name;
+  document.getElementById("profileVerified").innerHTML = p.verified ? verifiedBadge() : "";
+  document.getElementById("profileBio").textContent = p.bio;
+
+  const actionBtn = document.getElementById("profileActionBtn");
+  if (id === "you") {
+    actionBtn.style.display = "none";
+  } else {
+    actionBtn.style.display = "";
+    actionBtn.textContent = "Message";
+    actionBtn.onclick = messageProfile;
+  }
+
+  renderProfileMeta(id);
+  fetchProfileSignupEmail(id);
 
   document.getElementById("profileVibes").innerHTML = (p.vibes || [])
     .map(v => `<span class="profile-vibe-chip" style="background:${p.color}">${v}</span>`).join("");
@@ -2320,6 +2316,9 @@ async function loadUserPosts() {
       snapshot.forEach(doc => {
         const post = doc.data();
         post.id = doc.id;
+        post.createdAtMillis = post.createdAt && post.createdAt.toMillis
+          ? post.createdAt.toMillis()
+          : Date.now();
         ensureTelegramPostProfile(post);
         posts.push(post);
       });
@@ -2341,7 +2340,12 @@ async function loadUserPosts() {
       if (firebaseDb) {
         const commentsSnap = await firebaseDb.collection("posts").doc(post.id)
           .collection("comments").orderBy("createdAt", "asc").get();
-        commentsSnap.forEach(doc => comments.push({ id: doc.id, ...doc.data() }));
+        commentsSnap.forEach(doc => {
+          const c = doc.data();
+          c.id = doc.id;
+          c.createdAtMillis = c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : Date.now();
+          comments.push(c);
+        });
       }
     } catch (e) {}
     userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false };
@@ -2397,15 +2401,17 @@ async function submitUserPostComment(id) {
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
-    text
+    text,
+    createdAtMillis: Date.now()
   };
   userPostState[id].comments.push(comment);
   input.value = "";
   render();
   if (!firebaseDb) return;
   try {
+    const { createdAtMillis, ...commentData } = comment;
     await firebaseDb.collection("posts").doc(id).collection("comments").add({
-      ...comment,
+      ...commentData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   } catch (e) {}
@@ -2435,7 +2441,10 @@ function userPostCardHTML(post) {
     ? s.comments.map(c => `
         <div class="comment">
           ${avatarMarkup(c, "comment-avatar")}
-          <div class="comment-bubble"><span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}</div>
+          <div class="comment-bubble">
+            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+            <span class="comment-time">${formatRelativeTime(c.createdAtMillis)}</span>
+          </div>
         </div>`).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
@@ -2446,7 +2455,7 @@ function userPostCardHTML(post) {
         <div class="post-meta">
           <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
           <span class="post-dot">·</span>
-          <span class="post-time">${post.time}</span>
+          <span class="post-time" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
         ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
@@ -2742,6 +2751,7 @@ async function submitCompose() {
 
   const docRef = firebaseDb.collection("posts").doc();
   const id = docRef.id;
+  const nowMillis = Date.now();
   const newPost = {
     id, text: pendingText || null, image: pendingImage,
     name: telegramUser.name,
@@ -2751,12 +2761,13 @@ async function submitCompose() {
     initials: telegramUser.initials,
     color: telegramUser.color,
     profileId: "you",
-    time: "now"
+    createdAtMillis: nowMillis
   };
 
   try {
+    const { createdAtMillis, ...postData } = newPost;
     await docRef.set({
-      ...newPost,
+      ...postData,
       likeCount: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -2929,6 +2940,7 @@ function authErrorMessage(error) {
   if (code === "failed-precondition") return "Create the Firestore database for this Firebase project before linking accounts.";
   if (code === "telegram/required") return "Open WhyBlog inside Telegram so your Telegram ID can be linked.";
   if (code === "telegram/already-linked") return "This Telegram account is already linked to another email.";
+  if (code === "telegram/wrong-telegram") return "This email is already linked to a different Telegram account. Log in from that Telegram account instead.";
   if (code === "telegram/link-failed") return "Your account was created, but the Telegram link could not be saved. Check Firestore rules.";
   return error && error.message ? error.message : "Something went wrong. Please try again.";
 }
@@ -2984,9 +2996,10 @@ function showAuthGate() {
   }
 }
 
-function showAuthenticatedApp() {
+function showAuthenticatedApp(user) {
   document.getElementById("authGate").style.display = "none";
   document.getElementById("appShell").style.display = "";
+  if (user && user.email) PROFILES.you.email = user.email;
   if (appBooted) return;
   appBooted = true;
   initTelegramIdentity();
@@ -3009,10 +3022,21 @@ async function linkTelegramIdentity(user) {
 
   const telegramId = String(telegramUser.id);
   const linkRef = firebaseDb.collection("telegramLinks").doc(telegramId);
-  const linkSnapshot = await linkRef.get();
+  const userRef = firebaseDb.collection("users").doc(user.uid);
+
+  const [linkSnapshot, userSnapshot] = await Promise.all([linkRef.get(), userRef.get()]);
+
+  // This Telegram ID is already claimed by a different account.
   if (linkSnapshot.exists && linkSnapshot.data().firebaseUid !== user.uid) {
-    const error = new Error("This Telegram account is already linked.");
+    const error = new Error("This Telegram account is already linked to another email.");
     error.code = "telegram/already-linked";
+    throw error;
+  }
+
+  // This account is already permanently bound to a different Telegram ID.
+  if (userSnapshot.exists && userSnapshot.data().telegramId && userSnapshot.data().telegramId !== telegramId) {
+    const error = new Error("This email is already linked to a different Telegram account.");
+    error.code = "telegram/wrong-telegram";
     throw error;
   }
 
@@ -3028,7 +3052,7 @@ async function linkTelegramIdentity(user) {
 
   try {
     await linkRef.set(identity, { merge: true });
-    await firebaseDb.collection("users").doc(user.uid).set(identity, { merge: true });
+    await userRef.set(identity, { merge: true });
     await user.updateProfile({
       displayName: telegramUser.name,
       photoURL: telegramUser.photoUrl || null
@@ -3112,7 +3136,7 @@ function startFirebaseAuth() {
       setAuthBusy(true);
       try {
         await linkTelegramIdentity(user);
-        showAuthenticatedApp();
+        showAuthenticatedApp(user);
       } catch (error) {
         await firebaseAuth.signOut();
         setAuthBusy(false);
@@ -3145,7 +3169,6 @@ function anyOverlayOpen() {
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
-    || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
@@ -3165,8 +3188,6 @@ function closeTopOverlay() {
     closeDraftsSheet();
   } else if (document.getElementById("composePage").classList.contains("open")) {
     closeCompose();
-  } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
-    closeEditProfile();
   } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
     closeBlogSubmit();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
@@ -3326,69 +3347,6 @@ function toggleMenu(open) {
 }
 
 const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
-
-const VIBE_OPTIONS = ["Bookish", "Streetstyle", "Foodie", "Travel", "Studio", "Sketch", "Crypto", "Science & Technology"];
-let editVibeSelection = [];
-
-function renderEditVibeGrid() {
-  const grid = document.getElementById("editVibeGrid");
-  grid.innerHTML = VIBE_OPTIONS.map(v => {
-    const selected = editVibeSelection.includes(v);
-    return `<button class="form-vibe-chip ${selected ? 'selected' : ''}" style="${selected ? 'background:#2fa393' : ''}" onclick="toggleEditVibe('${v}')">${v}</button>`;
-  }).join("");
-}
-
-function toggleEditVibe(v) {
-  if (editVibeSelection.includes(v)) {
-    editVibeSelection = editVibeSelection.filter(x => x !== v);
-  } else {
-    if (editVibeSelection.length >= 4) return;
-    editVibeSelection.push(v);
-  }
-  haptic("light");
-  renderEditVibeGrid();
-}
-
-function updateBioCount() {
-  const input = document.getElementById("editBioInput");
-  const counter = document.getElementById("editBioCount");
-  counter.textContent = `${input.value.length}/160`;
-}
-
-function openEditProfile() {
-  if (!requireTelegramSession()) return;
-  const p = PROFILES.you;
-  document.getElementById("editBioInput").value = p.bio === "Add a bio to tell people what you're into." ? "" : p.bio;
-  editVibeSelection = [...(p.vibes || [])];
-  updateBioCount();
-  renderEditVibeGrid();
-  document.getElementById("editProfileOverlay").classList.add("open");
-  document.getElementById("editProfileSheet").classList.add("open");
-  syncBackButton();
-}
-
-function closeEditProfile() {
-  document.getElementById("editProfileOverlay").classList.remove("open");
-  document.getElementById("editProfileSheet").classList.remove("open");
-  syncBackButton();
-}
-
-async function saveEditProfile() {
-  const bio = document.getElementById("editBioInput").value.trim();
-  PROFILES.you.bio = bio || "Add a bio to tell people what you're into.";
-  PROFILES.you.vibes = [...editVibeSelection];
-  try {
-    await window.storage.set(
-      `telegram-profile:${String(telegramUser.id)}`,
-      JSON.stringify({ bio: PROFILES.you.bio, vibes: PROFILES.you.vibes }),
-      false
-    );
-  } catch (e) {}
-  haptic("medium");
-  showToast("Profile updated");
-  closeEditProfile();
-  if (currentProfileId === "you") openProfile("you");
-}
 
 async function loadMyProfile() {
   try {
@@ -3892,6 +3850,22 @@ function fmt(n) {
   return String(n);
 }
 
+function formatRelativeTime(millis) {
+  if (!millis) return "now";
+  const diffSec = Math.floor((Date.now() - millis) / 1000);
+  if (diffSec < 5) return "now";
+  if (diffSec < 60) return `${diffSec}s`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d`;
+  const date = new Date(millis);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
@@ -3999,6 +3973,10 @@ function render() {
 }
 
 startFirebaseAuth();
+
+setInterval(() => {
+  if (USER_POSTS.length && !anyOverlayOpen()) render();
+}, 30000);
 </script>
 
 </body>
