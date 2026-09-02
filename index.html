@@ -1043,13 +1043,14 @@
   .profile-action-btn {
     padding: 8px 18px;
     border-radius: 999px;
-    background: var(--accent);
-    color: #0d1116;
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
     font-weight: 700;
     font-size: 13.5px;
     margin-bottom: 6px;
   }
-  .profile-action-btn:hover { background: #37bba9; }
+  .profile-action-btn:hover { background: rgba(47,163,147,0.12); }
 
   .profile-name-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
   .profile-name { font-size: 19px; font-weight: 700; }
@@ -1772,13 +1773,13 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
        Settings and privacy
     </a>
-    <a class="menu-item auth-signout" href="#" onclick="event.preventDefault(); toggleMenu(false); signOutUser();">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 00-2-2h-7"/></svg>
-      Sign out
-    </a>
     <a class="menu-item" href="#">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2.5 3.5"/><path d="M12 17.5h.01"/></svg>
       Help Centre
+    </a>
+    <a class="menu-item auth-signout" href="#" onclick="event.preventDefault(); toggleMenu(false); signOutUser();">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 00-2-2h-7"/></svg>
+      Sign out
     </a>
 
     <hr class="menu-divider" />
