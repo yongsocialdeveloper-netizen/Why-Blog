@@ -998,6 +998,13 @@
   }
   .profile-page.open { transform: translateX(0); }
 
+  .feed-empty {
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .feed-empty-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .feed-empty-sub { font-size: 13.5px; color: var(--ink-soft); }
+
   .profile-topbar {
     position: sticky;
     top: 0;
@@ -2187,72 +2194,7 @@ function calendarIcon() {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 }
 
-const POSTS = [
-  {
-    id: "p1",
-    source: "Cointelegraph",
-    handle: "@Cointelegraph",
-    initials: "CT",
-    color: "#2f6f4f",
-    verified: true,
-    time: "6h",
-    title: "",
-    excerpt: "ADOPTION: Sber, Russia's largest bank, plans to accept Bitcoin, Ether and USDT as loan collateral as the country's new crypto regulations take effect on September 1.",
-    url: "https://cointelegraph.com",
-    cardTitle: "Sberbank",
-    cardColor: "#1d7a6f",
-    economicValue: "12.4K",
-    profileId: "cointelegraph"
-  },
-  {
-    id: "p2",
-    source: "kottke.org",
-    handle: "@kottke",
-    initials: "K",
-    color: "#4a5b8c",
-    verified: true,
-    time: "2h",
-    title: "The quiet death of the RSS reader, and its unlikely revival",
-    excerpt: "For a decade everyone said RSS was dead. Turns out people just wanted a feed without an algorithm deciding what they see.",
-    url: "https://kottke.org",
-    cardTitle: "kottke.org",
-    cardColor: "#4a5b8c",
-    economicValue: "3.1K",
-    profileId: "kottke"
-  },
-  {
-    id: "p3",
-    source: "Simon Willison's Weblog",
-    handle: "@simonw",
-    initials: "SW",
-    color: "#9c5a2e",
-    verified: false,
-    time: "5h",
-    title: "Small tools beat big platforms for personal publishing",
-    excerpt: "The best blogging setups I've seen lately are the ones nobody else could copy: a static site, a cron job, and opinions.",
-    url: "https://simonwillison.net",
-    cardTitle: "simonwillison.net",
-    cardColor: "#9c5a2e",
-    economicValue: "1.8K",
-    profileId: "simonw"
-  },
-  {
-    id: "p4",
-    source: "Dense Discovery",
-    handle: "@densediscovery",
-    initials: "DD",
-    color: "#7a4a8c",
-    verified: true,
-    time: "1d",
-    title: "Slow media is having a moment",
-    excerpt: "Newsletters and blogs are filling the gap left by feeds that optimized for outrage over insight.",
-    url: "https://densediscovery.com",
-    cardTitle: "Dense Discovery",
-    cardColor: "#7a4a8c",
-    economicValue: "6.7K",
-    profileId: "densediscovery"
-  }
-];
+const POSTS = [];
 
 let state = {};
 
@@ -3787,6 +3729,16 @@ function render() {
       </article>
     `;
   }).join("");
+
+  if (!USER_POSTS.length && !POSTS.length) {
+    feed.innerHTML = `
+      <div class="feed-empty">
+        <div class="feed-empty-title">No posts yet</div>
+        <div class="feed-empty-sub">Be the first to share something.</div>
+      </div>
+    `;
+    return;
+  }
 
   feed.innerHTML = userPostsHtml + blogPostsHtml;
 }
