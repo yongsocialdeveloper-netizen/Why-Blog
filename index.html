@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -140,7 +139,47 @@
     margin-bottom: 12px;
   }
 
+  .menu-avatar img,
+  .compose-avatar img,
+  .avatar img,
+  .comment-avatar img,
+  .profile-avatar-lg img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    border-radius: inherit;
+  }
+
+  .menu-avatar.has-photo,
+  .compose-avatar.has-photo,
+  .avatar.has-photo,
+  .comment-avatar.has-photo,
+  .profile-avatar-lg.has-photo {
+    background: var(--paper) !important;
+    color: transparent;
+    overflow: hidden;
+  }
+
   .menu-name { font-size: 17px; font-weight: 700; }
+  .menu-handle { color: var(--ink-soft); font-size: 13px; margin-top: 3px; }
+  .menu-telegram-id { color: var(--ink-faint); font-size: 12px; margin-top: 3px; }
+  .menu-access-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--accent);
+    font-size: 11.5px;
+    font-weight: 700;
+    margin-top: 8px;
+  }
+  .menu-access-status.preview { color: #f5a623; }
+  .menu-access-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
 
   .menu-divider { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
 
@@ -1440,161 +1479,11 @@
     0%, 100% { opacity: 1; box-shadow: 0 0 0 2px var(--card), 0 0 8px 2px rgba(47,163,147,0.9); }
     50% { opacity: 0.6; box-shadow: 0 0 0 2px var(--card), 0 0 4px 1px rgba(47,163,147,0.6); }
   }
-
-  /* ---------- avatar photos ---------- */
-  .avatar img, .menu-avatar img, .profile-avatar-lg img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  /* ---------- auth gate ---------- */
-  #appShell { display: none; }
-  body.authed #appShell { display: flex; }
-
-  .auth-gate {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    max-width: 600px;
-    margin: 0 auto;
-    background: var(--paper);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-  body.authed .auth-gate { display: none; }
-
-  .auth-gate-inner {
-    width: 100%;
-    max-width: 340px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .auth-gate.checking .auth-gate-inner { display: none; }
-
-  .auth-gate-spinner {
-    display: none;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 3px solid var(--line);
-    border-top-color: var(--accent);
-    animation: spin 0.8s linear infinite;
-  }
-  .auth-gate.checking .auth-gate-spinner { display: block; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .auth-gate-sub {
-    color: var(--ink-soft);
-    font-size: 14.5px;
-    line-height: 1.5;
-    margin: 10px 0 26px;
-  }
-
-  .auth-google-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 13px 18px;
-    border-radius: 12px;
-    background: #ffffff;
-    color: #1f1f1f;
-    font-size: 15px;
-    font-weight: 700;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  }
-  .auth-google-btn:hover { background: #f4f4f4; }
-  .auth-google-btn:disabled { opacity: 0.6; pointer-events: none; }
-
-  .auth-gate-note {
-    margin-top: 16px;
-    font-size: 12.5px;
-    color: var(--ink-faint);
-    min-height: 16px;
-  }
-  .auth-gate-note.error { color: var(--heart); }
-
-  .auth-gate-telegram-hint {
-    margin-top: 22px;
-    font-size: 12px;
-    color: var(--ink-faint);
-    line-height: 1.5;
-  }
 </style>
-
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-  import {
-    getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
-    getRedirectResult, onAuthStateChanged, signOut
-  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import {
-    getFirestore, doc, setDoc, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyDKJ_zQou8nJX0B778OHZgDFhnuRCpqKr0",
-    authDomain: "why-blog-app.firebaseapp.com",
-    projectId: "why-blog-app",
-    storageBucket: "why-blog-app.firebasestorage.app",
-    messagingSenderId: "480733026452",
-    appId: "1:480733026452:web:d525b6f6fce19a9b7bbc81"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const googleProvider = new GoogleAuthProvider();
-
-  // Bridge these into the classic (non-module) app script below.
-  window.__firebase = {
-    auth, db, googleProvider,
-    signInWithPopup, signInWithRedirect, getRedirectResult,
-    onAuthStateChanged, signOut, doc, setDoc, serverTimestamp
-  };
-
-  // Resolve any pending redirect-based sign-in (used as a fallback when
-  // popups are blocked, e.g. inside the Telegram in-app browser).
-  getRedirectResult(auth).catch((err) => {
-    console.warn("Google redirect sign-in error:", err);
-  });
-
-  onAuthStateChanged(auth, (user) => {
-    if (typeof window.onFirebaseAuthStateChanged === "function") {
-      window.onFirebaseAuthStateChanged(user);
-    }
-  });
-</script>
-
 </head>
 <body>
 
-<!-- Auth gate: blocks access to the app until the user signs in with Google -->
-<div class="auth-gate checking" id="authGate">
-  <div class="auth-gate-spinner" id="authGateSpinner"></div>
-  <div class="auth-gate-inner" id="authGateInner">
-    <div class="wordmark" style="font-size:32px;margin-bottom:4px;"><span class="why">Why</span><span class="blog">Blog</span><span class="mark">?</span></div>
-    <p class="auth-gate-sub">Sign in with Google to continue. We'll link your Telegram profile automatically.</p>
-    <button class="auth-google-btn" id="authGoogleBtn" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.9 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4c-7.5 0-14 4.2-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.5c-2 1.5-4.6 2.4-7.5 2.4-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.9 39.7 16.4 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.9l6.5 5.5C41.5 36 44 30.6 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-      Continue with Google
-    </button>
-    <div class="auth-gate-note" id="authGateNote"></div>
-    <div class="auth-gate-telegram-hint">Opened this from a Telegram bot? Your Telegram name, photo, and account ID sync in automatically once you sign in.</div>
-  </div>
-</div>
-
-<div class="shell" id="appShell">
+<div class="shell">
 
   <div class="topbar">
     <div class="topbar-row">
@@ -1642,6 +1531,9 @@
   <aside class="menu-panel" id="menuPanel">
     <div class="menu-avatar" id="menuAvatar">Y</div>
     <div class="menu-name" id="menuName">You</div>
+    <div class="menu-handle" id="menuHandle"></div>
+    <div class="menu-telegram-id" id="menuTelegramId"></div>
+    <div class="menu-access-status preview" id="menuAccessStatus"><span class="menu-access-dot"></span>Browser preview</div>
     <div class="eco-value" style="margin:8px 0 4px;">$0 <span style="opacity:.7;font-weight:500;">· private</span><button class="eco-info" onclick="event.stopPropagation(); toggleEcoTooltip(true)" aria-label="What is this?"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg></button></div>
 
     <hr class="menu-divider" />
@@ -1675,10 +1567,6 @@
     <a class="menu-item" href="#">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2.5 3.5"/><path d="M12 17.5h.01"/></svg>
       Help Centre
-    </a>
-    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); handleSignOut();">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      Sign out
     </a>
 
     <hr class="menu-divider" />
@@ -1879,7 +1767,7 @@
     </div>
     <div class="compose-body">
       <div class="compose-row">
-        <div class="compose-avatar">Y</div>
+        <div class="compose-avatar" id="composeAvatar">Y</div>
         <div class="compose-main">
           <span class="compose-audience">
             Everyone
@@ -2003,10 +1891,10 @@ const PROFILES = {
   },
   you: {
     name: "You", initials: "Y", color: "#2fa393", verified: false,
+    photoUrl: "", telegramId: null, username: "",
     bio: "Add a bio to tell people what you're into.",
     blogUrl: null, email: null, joined: "Aug 2026",
-    vibes: [], posts: 0, ecoValue: "0",
-    photoUrl: null, telegramId: null, telegramUsername: null
+    vibes: [], posts: 0, ecoValue: "0"
   }
 };
 
@@ -2019,10 +1907,7 @@ function openProfile(id) {
   document.getElementById("profileTopbarName").textContent = p.name;
   document.getElementById("profileBanner").style.background = `linear-gradient(135deg, ${p.color}, #16202b)`;
   const avatar = document.getElementById("profileAvatar");
-  avatar.style.background = p.color;
-  avatar.innerHTML = p.photoUrl
-    ? `<img src="${p.photoUrl}" alt="" referrerpolicy="no-referrer" />`
-    : p.initials;
+  setAvatarElement(avatar, p, p.color);
   document.getElementById("profileName").textContent = p.name;
   document.getElementById("profileVerified").innerHTML = p.verified ? verifiedBadge() : "";
   document.getElementById("profileBio").textContent = p.bio;
@@ -2042,6 +1927,12 @@ function openProfile(id) {
   }
   if (p.email) {
     meta.push(`<div class="profile-meta-item">${mailIcon()}<a href="mailto:${p.email}">${p.email}</a></div>`);
+  }
+  if (id === "you" && p.telegramId !== null && p.telegramId !== undefined) {
+    meta.push(`<div class="profile-meta-item">${linkIcon()}Telegram ID: ${escapeHtml(String(p.telegramId))}</div>`);
+    if (p.username) {
+      meta.push(`<div class="profile-meta-item">${linkIcon()}@${escapeHtml(p.username)}</div>`);
+    }
   }
   meta.push(`<div class="profile-meta-item">${calendarIcon()}Joined ${p.joined}</div>`);
   document.getElementById("profileMeta").innerHTML = meta.join("");
@@ -2155,6 +2046,35 @@ let state = {};
 let USER_POSTS = [];
 let userPostState = {};
 
+function ensureTelegramPostProfile(post) {
+  if (!post || post.userId === undefined || post.userId === null) return;
+  if (String(post.userId) === String(telegramUser.id)) {
+    post.profileId = "you";
+    return;
+  }
+
+  const profileId = `telegram-${String(post.userId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  post.profileId = profileId;
+  if (!PROFILES[profileId]) {
+    PROFILES[profileId] = {
+      name: post.name || "Telegram user",
+      initials: post.initials || "T",
+      color: post.color || "#2fa393",
+      photoUrl: safeTelegramPhotoUrl(post.photoUrl),
+      telegramId: post.userId,
+      username: post.username || "",
+      verified: false,
+      bio: "Telegram user on WhyBlog.",
+      blogUrl: null,
+      email: null,
+      joined: "Recently",
+      vibes: [],
+      posts: 0,
+      ecoValue: null
+    };
+  }
+}
+
 async function loadUserPosts() {
   try {
     const list = await window.storage.list("userpost:", true);
@@ -2163,7 +2083,11 @@ async function loadUserPosts() {
       for (const key of list.keys) {
         try {
           const res = await window.storage.get(key, true);
-          if (res) posts.push(JSON.parse(res.value));
+          if (res) {
+            const post = JSON.parse(res.value);
+            ensureTelegramPostProfile(post);
+            posts.push(post);
+          }
         } catch (e) {}
       }
       posts.sort((a, b) => (b.id < a.id ? -1 : 1));
@@ -2217,10 +2141,17 @@ function toggleUserPostComments(id) {
 }
 
 async function submitUserPostComment(id) {
+  if (!requireTelegramSession()) return;
   const input = document.getElementById(`upinput-${id}`);
   const text = input.value.trim();
   if (!text) return;
-  userPostState[id].comments.push({ author: "You", text });
+  userPostState[id].comments.push({
+    author: telegramUser.name,
+    userId: telegramUser.id,
+    initials: telegramUser.initials,
+    photoUrl: telegramUser.photoUrl,
+    text
+  });
   input.value = "";
   render();
   try { await window.storage.set(`userpostcomments:${id}`, JSON.stringify(userPostState[id].comments), true); } catch (e) {}
@@ -2249,17 +2180,17 @@ function userPostCardHTML(post) {
   const commentsHtml = s.comments.length
     ? s.comments.map(c => `
         <div class="comment">
-          <div class="comment-avatar">${c.author === "You" ? "Y" : c.author[0]}</div>
-          <div class="comment-bubble"><span class="comment-author">${c.author}</span>${escapeHtml(c.text)}</div>
+          ${avatarMarkup(c, "comment-avatar")}
+          <div class="comment-bubble"><span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}</div>
         </div>`).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post">
-      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.photoUrl ? `<img src="${post.photoUrl}" alt="" referrerpolicy="no-referrer" />` : post.initials}</div>
+      <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${post.name}</span>
+          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
           <span class="post-dot">·</span>
           <span class="post-time">${post.time}</span>
         </div>
@@ -2336,6 +2267,7 @@ function truncateToWeightedLimit(text, limit) {
 }
 
 function openCompose() {
+  if (!requireTelegramSession()) return;
   document.getElementById("composePage").classList.add("open");
   updateComposeState();
   syncBackButton();
@@ -2404,15 +2336,22 @@ function removeComposeImage() {
 }
 
 async function submitCompose() {
+  if (!requireTelegramSession()) return;
   const textarea = document.getElementById("composeTextarea");
   const text = textarea.value.trim();
   if (!text && !composeImage) return;
 
-  const id = "u" + Date.now();
+  const id = `u${String(telegramUser.id)}-${Date.now()}`;
   const newPost = {
     id, text: text || null, image: composeImage,
-    name: PROFILES.you.name, initials: PROFILES.you.initials, color: PROFILES.you.color,
-    photoUrl: PROFILES.you.photoUrl, profileId: "you", time: "now"
+    name: telegramUser.name,
+    username: telegramUser.username,
+    userId: telegramUser.id,
+    photoUrl: telegramUser.photoUrl,
+    initials: telegramUser.initials,
+    color: telegramUser.color,
+    profileId: "you",
+    time: "now"
   };
   USER_POSTS.unshift(newPost);
   userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false };
@@ -2461,6 +2400,97 @@ function infoIcon() {
 
 // ---------- Telegram Mini App integration ----------
 const tg = window.Telegram && window.Telegram.WebApp;
+const telegramRawUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user
+  ? tg.initDataUnsafe.user
+  : null;
+const isTelegramSession = Boolean(tg && telegramRawUser && tg.initData);
+const telegramUser = normalizeTelegramUser(telegramRawUser || {
+  id: "preview",
+  first_name: "You",
+  last_name: "",
+  username: "",
+  photo_url: ""
+});
+
+function normalizeTelegramUser(user) {
+  const firstName = String(user.first_name || "").trim();
+  const lastName = String(user.last_name || "").trim();
+  const username = String(user.username || "").trim();
+  const name = [firstName, lastName].filter(Boolean).join(" ")
+    || (username ? `@${username}` : "Telegram user");
+  const initials = (firstName || username || "T")
+    .slice(0, 2)
+    .toUpperCase();
+  return {
+    id: user.id,
+    firstName,
+    lastName,
+    username,
+    name,
+    initials,
+    photoUrl: safeTelegramPhotoUrl(user.photo_url),
+    color: "#2fa393"
+  };
+}
+
+function safeTelegramPhotoUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? parsed.href : "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function setAvatarElement(element, user, fallbackColor) {
+  if (!element || !user) return;
+  const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
+  element.classList.toggle("has-photo", Boolean(photoUrl));
+  element.style.background = fallbackColor || user.color || "#2fa393";
+  if (photoUrl) {
+    element.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" />`;
+  } else {
+    element.textContent = user.initials || "T";
+  }
+}
+
+function avatarMarkup(user, className, fallbackColor) {
+  const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
+  const color = fallbackColor || user.color || "#2fa393";
+  if (photoUrl) {
+    return `<div class="${className} has-photo" style="background:${color}"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" /></div>`;
+  }
+  return `<div class="${className}" style="background:${color}">${escapeHtml(user.initials || "T")}</div>`;
+}
+
+function initTelegramIdentity() {
+  const profile = PROFILES.you;
+  profile.name = telegramUser.name;
+  profile.initials = telegramUser.initials;
+  profile.photoUrl = telegramUser.photoUrl;
+  profile.telegramId = telegramUser.id;
+  profile.username = telegramUser.username;
+  profile.color = telegramUser.color;
+
+  setAvatarElement(document.getElementById("menuAvatar"), telegramUser);
+  setAvatarElement(document.getElementById("composeAvatar"), telegramUser);
+  document.getElementById("menuName").textContent = telegramUser.name;
+  document.getElementById("menuHandle").textContent = telegramUser.username
+    ? `@${telegramUser.username}`
+    : "Telegram profile";
+  document.getElementById("menuTelegramId").textContent = `Telegram ID: ${telegramUser.id}`;
+
+  const status = document.getElementById("menuAccessStatus");
+  status.classList.toggle("preview", !isTelegramSession);
+  status.innerHTML = `<span class="menu-access-dot"></span>${isTelegramSession ? "Signed in with Telegram" : "Browser preview — open in Telegram to sign in"}`;
+}
+
+function requireTelegramSession() {
+  if (isTelegramSession) return true;
+  showToast("Open WhyBlog from Telegram to use your account");
+  return false;
+}
 
 if (tg) {
   tg.ready();
@@ -2473,148 +2503,6 @@ if (tg) {
 function haptic(style) {
   if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style || "light");
 }
-
-// ---------- Google sign-in gate + Telegram profile sync ----------
-let currentUser = null;
-let appInitialized = false;
-
-function setAuthGateNote(text, isError) {
-  const note = document.getElementById("authGateNote");
-  note.textContent = text || "";
-  note.classList.toggle("error", !!isError);
-}
-
-async function signInWithGoogle() {
-  const fb = window.__firebase;
-  if (!fb) { setAuthGateNote("Sign-in isn't ready yet. Try again in a moment.", true); return; }
-  const btn = document.getElementById("authGoogleBtn");
-  btn.disabled = true;
-  setAuthGateNote("");
-  try {
-    await fb.signInWithPopup(fb.auth, fb.googleProvider);
-    // onAuthStateChanged picks it up from here.
-  } catch (err) {
-    console.warn("Google sign-in popup failed:", err && err.code);
-    const popupBlocked = err && (
-      err.code === "auth/popup-blocked" ||
-      err.code === "auth/cancelled-popup-request" ||
-      err.code === "auth/operation-not-supported-in-this-environment"
-    );
-    if (popupBlocked) {
-      // Telegram's in-app browser and some mobile webviews block popups.
-      try {
-        await fb.signInWithRedirect(fb.auth, fb.googleProvider);
-        return;
-      } catch (redirectErr) {
-        console.warn("Google sign-in redirect failed:", redirectErr);
-      }
-    }
-    if (err && err.code !== "auth/cancelled-popup-request" && err.code !== "auth/popup-closed-by-user") {
-      setAuthGateNote("Sign-in failed. Please try again.", true);
-    }
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function handleSignOut() {
-  const fb = window.__firebase;
-  if (!fb) return;
-  try {
-    await fb.signOut(fb.auth);
-    appInitialized = false;
-  } catch (err) {
-    console.warn("Sign-out failed:", err);
-  }
-}
-
-function getTelegramUser() {
-  return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
-}
-
-function applyIdentityToUI() {
-  const p = PROFILES.you;
-  const menuAvatar = document.getElementById("menuAvatar");
-  const menuName = document.getElementById("menuName");
-  if (menuAvatar) {
-    menuAvatar.style.background = p.color;
-    menuAvatar.innerHTML = p.photoUrl
-      ? `<img src="${p.photoUrl}" alt="" referrerpolicy="no-referrer" />`
-      : p.initials;
-  }
-  if (menuName) menuName.textContent = p.name;
-  if (currentProfileId === "you") openProfile("you");
-}
-
-function initialsFromName(name) {
-  if (!name) return "Y";
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0] ? parts[0][0] : "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase() || "Y";
-}
-
-// Merges the signed-in Google account with the Telegram identity (id, name,
-// username, and profile photo) and syncs the combined profile to Firestore
-// so the Telegram account stays linked to this user going forward.
-async function syncTelegramProfile(user) {
-  const tgUser = getTelegramUser();
-
-  const googleName = user.displayName || (user.email ? user.email.split("@")[0] : "You");
-  const telegramName = tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") : null;
-  const displayName = telegramName || googleName;
-
-  PROFILES.you.name = displayName;
-  PROFILES.you.initials = initialsFromName(displayName);
-  PROFILES.you.email = user.email || PROFILES.you.email;
-  PROFILES.you.photoUrl = (tgUser && tgUser.photo_url) || user.photoURL || PROFILES.you.photoUrl;
-  PROFILES.you.telegramId = tgUser ? tgUser.id : PROFILES.you.telegramId;
-  PROFILES.you.telegramUsername = tgUser ? (tgUser.username || null) : PROFILES.you.telegramUsername;
-
-  applyIdentityToUI();
-
-  const fb = window.__firebase;
-  if (!fb) return;
-  try {
-    await fb.setDoc(fb.doc(fb.db, "users", user.uid), {
-      googleUid: user.uid,
-      googleDisplayName: user.displayName || null,
-      googleEmail: user.email || null,
-      googlePhotoUrl: user.photoURL || null,
-      telegramId: tgUser ? tgUser.id : null,
-      telegramUsername: tgUser ? (tgUser.username || null) : null,
-      telegramFirstName: tgUser ? (tgUser.first_name || null) : null,
-      telegramLastName: tgUser ? (tgUser.last_name || null) : null,
-      telegramPhotoUrl: tgUser ? (tgUser.photo_url || null) : null,
-      lastSeen: fb.serverTimestamp()
-    }, { merge: true });
-  } catch (err) {
-    // Non-fatal: the person can still use the app even if the sync write fails
-    // (e.g. Firestore security rules not yet configured for this project).
-    console.warn("Telegram profile sync to Firestore failed:", err);
-  }
-}
-
-window.onFirebaseAuthStateChanged = async function (user) {
-  const gate = document.getElementById("authGate");
-  gate.classList.remove("checking");
-  currentUser = user;
-
-  if (!user) {
-    document.body.classList.remove("authed");
-    return;
-  }
-
-  document.body.classList.add("authed");
-  await syncTelegramProfile(user);
-
-  if (!appInitialized) {
-    appInitialized = true;
-    loadMyProfile();
-    loadState();
-    loadUserPosts();
-  }
-};
 
 function anyOverlayOpen() {
   return document.getElementById("menuPanel").classList.contains("open")
@@ -2829,6 +2717,7 @@ function updateBioCount() {
 }
 
 function openEditProfile() {
+  if (!requireTelegramSession()) return;
   const p = PROFILES.you;
   document.getElementById("editBioInput").value = p.bio === "Add a bio to tell people what you're into." ? "" : p.bio;
   editVibeSelection = [...(p.vibes || [])];
@@ -2850,7 +2739,11 @@ async function saveEditProfile() {
   PROFILES.you.bio = bio || "Add a bio to tell people what you're into.";
   PROFILES.you.vibes = [...editVibeSelection];
   try {
-    await window.storage.set("myProfile", JSON.stringify({ bio: PROFILES.you.bio, vibes: PROFILES.you.vibes }), false);
+    await window.storage.set(
+      `telegram-profile:${String(telegramUser.id)}`,
+      JSON.stringify({ bio: PROFILES.you.bio, vibes: PROFILES.you.vibes }),
+      false
+    );
   } catch (e) {}
   haptic("medium");
   showToast("Profile updated");
@@ -2860,7 +2753,7 @@ async function saveEditProfile() {
 
 async function loadMyProfile() {
   try {
-    const res = await window.storage.get("myProfile", false);
+    const res = await window.storage.get(`telegram-profile:${String(telegramUser.id)}`, false);
     if (res) {
       const data = JSON.parse(res.value);
       if (data.bio) PROFILES.you.bio = data.bio;
@@ -3335,11 +3228,19 @@ function updateCommentCount(id) {
 }
 
 async function submitComment(id) {
+  if (!requireTelegramSession()) return;
   const input = document.getElementById(`input-${id}`);
   const text = input.value.trim();
   const image = state[id].draftImage;
   if (!text && !image) return;
-  const entry = { author: "You", text, image: image || null };
+  const entry = {
+    author: telegramUser.name,
+    userId: telegramUser.id,
+    initials: telegramUser.initials,
+    photoUrl: telegramUser.photoUrl,
+    text,
+    image: image || null
+  };
   state[id].comments.push(entry);
   input.value = "";
   state[id].draftImage = null;
@@ -3371,9 +3272,9 @@ function render() {
     const commentsHtml = s.comments.length
       ? s.comments.map(c => `
           <div class="comment">
-            <div class="comment-avatar">${c.author === "You" ? "Y" : c.author[0]}</div>
+            ${avatarMarkup(c, "comment-avatar")}
             <div class="comment-bubble">
-              <span class="comment-author">${c.author}</span>${escapeHtml(c.text)}
+              <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
               ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
             </div>
           </div>`).join("")
@@ -3381,7 +3282,7 @@ function render() {
 
     return `
       <article class="post">
-        <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.initials}</div>
+        <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
         <div class="post-body">
           <div class="post-meta">
             <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${post.source}</span>
@@ -3443,14 +3344,15 @@ function render() {
         </div>
       </article>
     `;
-  }).join("")
+  }).join("");
 
   feed.innerHTML = userPostsHtml + blogPostsHtml;
 }
 
-// App data now loads only after Google sign-in succeeds — see
-// window.onFirebaseAuthStateChanged above, which calls loadMyProfile(),
-// loadState(), and loadUserPosts() once a user is authenticated.
+initTelegramIdentity();
+loadMyProfile();
+loadState();
+loadUserPosts();
 </script>
 
 </body>
