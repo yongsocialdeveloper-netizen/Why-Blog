@@ -1111,6 +1111,10 @@
     margin-bottom: 6px;
   }
   .profile-action-btn:hover { background: rgba(47,163,147,0.12); }
+  .profile-action-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .profile-action-row .profile-action-btn { margin-bottom: 0; }
+  .profile-star-btn { display: flex; align-items: center; gap: 5px; }
+  .profile-star-btn.starred { background: var(--accent); color: #fff; }
 
   .profile-name-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
   .profile-name { font-size: 19px; font-weight: 700; }
@@ -2064,7 +2068,12 @@
     <div class="profile-header">
       <div class="profile-avatar-row">
         <div class="profile-avatar-lg" id="profileAvatar"></div>
-        <button class="profile-action-btn" id="profileActionBtn" onclick="messageProfile()">Message</button>
+        <div class="profile-action-row">
+          <button class="profile-action-btn profile-star-btn" id="profileStarBtn" onclick="toggleStar(currentProfileId)" style="display:none">
+            <span id="profileStarBtnIcon"></span><span id="profileStarBtnLabel">Star</span>
+          </button>
+          <button class="profile-action-btn" id="profileActionBtn" onclick="messageProfile()">Message</button>
+        </div>
       </div>
       <div class="profile-name-row">
         <div class="profile-name" id="profileName"></div>
@@ -2075,6 +2084,16 @@
       <div class="profile-vibe-row" id="profileVibes"></div>
       <div class="profile-stats-row" id="profileStats"></div>
     </div>
+  </div>
+
+  <div class="bookmarks-page" id="starrersPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closeStarrersPage()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title" id="starrersTitle">Stars</div>
+    </div>
+    <div class="bookmarks-body" id="starrersBody"></div>
   </div>
 
   <div class="bookmarks-page" id="bookmarksPage">
@@ -2384,16 +2403,21 @@ function openProfile(id) {
   document.getElementById("profileBio").textContent = p.bio;
 
   const actionBtn = document.getElementById("profileActionBtn");
+  const starBtn = document.getElementById("profileStarBtn");
   if (id === "you") {
     actionBtn.style.display = "none";
+    starBtn.style.display = "none";
   } else {
     actionBtn.style.display = "";
     actionBtn.textContent = "Message";
     actionBtn.onclick = messageProfile;
+    starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "" : "none";
   }
 
   renderProfileMeta(id);
   fetchProfileSignupEmail(id);
+  renderStarButton(id);
+  loadStarState(id);
 
   document.getElementById("profileVibes").innerHTML = (p.vibes || [])
     .map(v => `<span class="profile-vibe-chip" style="background:${p.color}">${v}</span>`).join("");
@@ -2402,6 +2426,8 @@ function openProfile(id) {
   if (p.ecoValue !== null && p.ecoValue !== undefined) {
     stats.push(`<div class="profile-stat"><b>$${p.ecoValue}</b><span>Est. value</span></div>`);
   }
+  const starCount = (starState[id] && starState[id].count) || 0;
+  stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
   document.getElementById("profileStats").innerHTML = stats.join("");
 
   document.getElementById("profilePage").classList.add("open");
@@ -2420,6 +2446,142 @@ function messageProfile() {
   } else {
     alert("This creator hasn't added a contact email yet.");
   }
+}
+
+// ---------- Stars (lightweight "follow" signal on a profile) ----------
+let starState = {}; // profileId -> { starred: bool, count: number }
+
+function renderStarButton(id) {
+  if (currentProfileId !== id) return;
+  const s = starState[id] || { starred: false, count: 0 };
+  const btn = document.getElementById("profileStarBtn");
+  btn.classList.toggle("starred", s.starred);
+  document.getElementById("profileStarBtnIcon").innerHTML = starIcon(s.starred);
+  document.getElementById("profileStarBtnLabel").textContent = s.starred ? "Starred" : "Star";
+  const statEl = document.getElementById("profileStarStat");
+  if (statEl) statEl.querySelector("b").textContent = s.count;
+}
+
+async function loadStarState(id) {
+  const p = PROFILES[id];
+  if (!sb || !p || p.telegramId === null || p.telegramId === undefined) return;
+  const toId = String(p.telegramId);
+  try {
+    const [{ count }, mine] = await Promise.all([
+      sb.from("stars").select("*", { count: "exact", head: true }).eq("to_telegram_id", toId),
+      sb.from("stars").select("to_telegram_id").eq("from_telegram_id", String(telegramUser.id)).eq("to_telegram_id", toId).maybeSingle()
+    ]);
+    starState[id] = { starred: Boolean(mine.data), count: count || 0 };
+  } catch (e) {
+    starState[id] = starState[id] || { starred: false, count: 0 };
+  }
+  renderStarButton(id);
+}
+
+function toggleStar(id) {
+  if (!id) return;
+  const p = PROFILES[id];
+  if (!p || p.telegramId === null || p.telegramId === undefined) return;
+  if (!requireTelegramSession()) return;
+
+  const s = starState[id] || { starred: false, count: 0 };
+  s.starred = !s.starred;
+  s.count += s.starred ? 1 : -1;
+  starState[id] = s;
+  haptic("light");
+  renderStarButton(id);
+
+  if (!sb) return;
+  const fromId = String(telegramUser.id);
+  const toId = String(p.telegramId);
+  if (s.starred) {
+    sb.from("stars").insert({ from_telegram_id: fromId, to_telegram_id: toId }).then(() => {});
+  } else {
+    sb.from("stars").delete().eq("from_telegram_id", fromId).eq("to_telegram_id", toId).then(() => {});
+  }
+}
+
+function openStarrers(id) {
+  const p = PROFILES[id];
+  if (!p) return;
+  document.getElementById("starrersTitle").textContent = id === "you" ? "Your stars" : `Stars for ${p.name}`;
+  document.getElementById("starrersBody").innerHTML = `<div class="search-empty">Loading\u2026</div>`;
+  document.getElementById("starrersPage").classList.add("open");
+  syncBackButton();
+  renderStarrersPage(id);
+}
+
+function closeStarrersPage() {
+  document.getElementById("starrersPage").classList.remove("open");
+  syncBackButton();
+}
+
+async function renderStarrersPage(id) {
+  const body = document.getElementById("starrersBody");
+  const p = PROFILES[id];
+  if (!sb || !p || p.telegramId === null || p.telegramId === undefined) {
+    body.innerHTML = `<div class="search-empty">No stars yet.</div>`;
+    return;
+  }
+  try {
+    const { data: starRows } = await sb.from("stars")
+      .select("from_telegram_id, created_at")
+      .eq("to_telegram_id", String(p.telegramId))
+      .order("created_at", { ascending: false });
+
+    if (!starRows || !starRows.length) {
+      body.innerHTML = `<div class="search-empty">No stars yet.<br />Be the first to star this profile.</div>`;
+      return;
+    }
+
+    const ids = starRows.map(r => r.from_telegram_id);
+    const { data: linkRows } = await sb.from("telegram_links")
+      .select("telegram_id, telegram_name, telegram_username, telegram_photo_url")
+      .in("telegram_id", ids);
+    const linkById = {};
+    (linkRows || []).forEach(r => { linkById[r.telegram_id] = r; });
+
+    body.innerHTML = starRows.map(row => {
+      const link = linkById[row.from_telegram_id];
+      const isYou = String(row.from_telegram_id) === String(telegramUser.id);
+      const profileId = isYou ? "you" : `telegram-${String(row.from_telegram_id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+      const name = isYou ? "You" : (link ? link.telegram_name : "Telegram user") || "Telegram user";
+      const initials = (name || "T").slice(0, 2).toUpperCase();
+      const photoUrl = link ? safeTelegramPhotoUrl(link.telegram_photo_url) : "";
+
+      if (!isYou && !PROFILES[profileId]) {
+        PROFILES[profileId] = {
+          name, initials, color: "#2fa393", photoUrl,
+          telegramId: row.from_telegram_id,
+          username: link ? link.telegram_username : "",
+          verified: false, bio: "Telegram user on WhyBlog.",
+          blogUrl: null, email: null, joined: "Recently",
+          vibes: [], posts: 0, ecoValue: null
+        };
+      }
+
+      const avatarInner = photoUrl
+        ? `<img src="${photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+        : escapeHtml(initials);
+
+      return `
+        <div class="bookmark-item" style="cursor:pointer" onclick="openStarrerProfile('${profileId}')">
+          <div class="avatar" style="background:#2fa393">${avatarInner}</div>
+          <div class="bookmark-item-body">
+            <div class="bookmark-item-source">${escapeHtml(name)}</div>
+            <div class="bookmark-item-excerpt">Starred ${formatRelativeTime(new Date(row.created_at).getTime())}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    body.innerHTML = `<div class="search-empty">Couldn't load stars. Try again later.</div>`;
+  }
+}
+
+function openStarrerProfile(profileId) {
+  closeStarrersPage();
+  openProfile(profileId);
 }
 
 function linkIcon() {
@@ -3469,6 +3631,9 @@ function replyIcon() {
 function bookmarkIcon(filled) {
   return `<svg width="18" height="18" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>`;
 }
+function starIcon(filled) {
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2.5l2.9 6.3 6.8.7-5.1 4.6 1.5 6.8L12 17.6l-6.1 3.3 1.5-6.8-5.1-4.6 6.8-.7z" stroke-linejoin="round"/></svg>`;
+}
 function giftIcon(filled) {
   return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1" fill="${filled ? 'currentColor' : 'none'}"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>`;
 }
@@ -3857,6 +4022,7 @@ function anyOverlayOpen() {
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
+    || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
@@ -3886,6 +4052,8 @@ function closeTopOverlay() {
     closeCompose();
   } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
     closeBlogSubmit();
+  } else if (document.getElementById("starrersPage").classList.contains("open")) {
+    closeStarrersPage();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
     closeBookmarksPage();
   } else if (document.getElementById("profilePage").classList.contains("open")) {
