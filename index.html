@@ -1195,8 +1195,9 @@
   .toast {
     position: fixed;
     left: 50%;
-    bottom: 90px;
-    transform: translateX(-50%) translateY(10px);
+    top: max(env(safe-area-inset-top, 0px), 8px);
+    margin-top: 54px;
+    transform: translateX(-50%) translateY(-10px);
     background: var(--card);
     border: 1px solid var(--line);
     color: var(--ink);
@@ -1205,7 +1206,7 @@
     padding: 10px 18px;
     border-radius: 999px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-    z-index: 60;
+    z-index: 95;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease;
@@ -1449,6 +1450,38 @@
   .post-handle, .post-dot, .post-time { color: var(--ink-faint); font-size: 14.5px; white-space: nowrap; }
   .post-handle { overflow: hidden; text-overflow: ellipsis; }
   .post-more { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; }
+  .post-more-btn { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; display: flex; padding: 2px; }
+  .post-more-btn:hover { color: var(--ink); }
+
+  .comment { position: relative; }
+  .comment-more {
+    position: absolute; top: 2px; right: 0; color: var(--ink-faint);
+    display: flex; padding: 4px;
+  }
+  .comment-more:hover { color: var(--ink); }
+
+  .post-options-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 96; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .post-options-overlay.open { opacity: 1; pointer-events: auto; }
+  .post-options-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    max-width: 600px; margin: 0 auto;
+    background: var(--card); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; z-index: 97;
+    transform: translateY(100%); transition: transform 0.22s ease;
+    padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  .post-options-sheet.open { transform: translateY(0); }
+  .post-options-btn {
+    display: block; width: 100%; text-align: center;
+    padding: 14px; font-size: 15px; font-weight: 600; color: var(--ink);
+    border-bottom: 1px solid var(--line);
+  }
+  .post-options-btn:last-child { border-bottom: none; }
+  .post-options-delete { color: #e0555a; }
+  .post-options-cancel { color: var(--ink-soft); margin-top: 6px; border-bottom: none; }
 
   .eco-value {
     display: inline-flex;
@@ -2206,6 +2239,13 @@
     </div>
   </div>
 
+  <div class="post-options-overlay" id="postOptionsOverlay" onclick="closePostOptions()"></div>
+  <div class="post-options-sheet" id="postOptionsSheet">
+    <button class="post-options-btn" id="postOptionsEditBtn">Edit</button>
+    <button class="post-options-btn post-options-delete" id="postOptionsDeleteBtn">Delete</button>
+    <button class="post-options-btn post-options-cancel" onclick="closePostOptions()">Cancel</button>
+  </div>
+
   <div class="search-page" id="searchPage">
     <div class="search-header">
       <button class="search-back" onclick="closeSearch()" aria-label="Back">
@@ -2525,7 +2565,25 @@ async function submitUserPostComment(id) {
   const input = document.getElementById(`upinput-${id}`);
   const text = input.value.trim();
   if (!text) return;
+  const s = userPostState[id];
+
+  if (s.editingCommentId) {
+    const commentId = s.editingCommentId;
+    const comment = s.comments.find(c => c.id === commentId);
+    if (comment) comment.text = text;
+    s.editingCommentId = null;
+    input.value = "";
+    render();
+    if (firebaseDb) {
+      firebaseDb.collection("posts").doc(id).collection("comments").doc(commentId)
+        .update({ text }).catch(() => {});
+    }
+    return;
+  }
+
+  const commentRef = firebaseDb ? firebaseDb.collection("posts").doc(id).collection("comments").doc() : null;
   const comment = {
+    id: commentRef ? commentRef.id : `local-${Date.now()}`,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
@@ -2533,17 +2591,40 @@ async function submitUserPostComment(id) {
     text,
     createdAtMillis: Date.now()
   };
-  userPostState[id].comments.push(comment);
+  s.comments.push(comment);
   input.value = "";
   render();
-  if (!firebaseDb) return;
+  if (!commentRef) return;
   try {
-    const { createdAtMillis, ...commentData } = comment;
-    await firebaseDb.collection("posts").doc(id).collection("comments").add({
+    const { createdAtMillis, id: commentId, ...commentData } = comment;
+    await commentRef.set({
       ...commentData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   } catch (e) {}
+}
+
+function editUserComment(postId, commentId) {
+  const s = userPostState[postId];
+  if (!s) return;
+  const comment = s.comments.find(c => c.id === commentId);
+  if (!comment) return;
+  s.editingCommentId = commentId;
+  s.showComments = true;
+  render();
+  setTimeout(() => {
+    const input = document.getElementById(`upinput-${postId}`);
+    if (input) { input.value = comment.text; input.focus(); }
+  }, 50);
+}
+
+function deleteUserComment(postId, commentId) {
+  const s = userPostState[postId];
+  if (!s) return;
+  s.comments = s.comments.filter(c => c.id !== commentId);
+  render();
+  if (!firebaseDb) return;
+  firebaseDb.collection("posts").doc(postId).collection("comments").doc(commentId).delete().catch(() => {});
 }
 
 function updateUserPostCommentCount(id) {
@@ -2637,15 +2718,22 @@ async function voteOnPoll(postId, optionIndex) {
 function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
+  const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const commentsHtml = s.comments.length
-    ? s.comments.map(c => `
+    ? s.comments.map(c => {
+        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
+        return `
         <div class="comment">
           ${avatarMarkup(c, "comment-avatar")}
           <div class="comment-bubble">
             <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
             <span class="comment-time">${formatRelativeTime(c.createdAtMillis)}</span>
           </div>
-        </div>`).join("")
+          ${isOwnComment ? `
+            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
+          ` : ""}
+        </div>`;
+      }).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -2654,8 +2742,12 @@ function userPostCardHTML(post) {
       <div class="post-body">
         <div class="post-meta">
           <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${isOwnPost ? `
+            <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
+          ` : ""}
         </div>
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
@@ -2698,6 +2790,7 @@ const POLL_OPTION_MAX = 150;
 const POLL_MAX_OPTIONS = 6;
 let composeMode = "text";
 let pollOptions = ["", ""];
+let editingPostId = null;
 
 function isEmojiSegment(segment) {
   return /\p{Extended_Pictographic}/u.test(segment);
@@ -2913,6 +3006,7 @@ function openCompose() {
 
 function resetComposeUI() {
   currentDraftId = null;
+  editingPostId = null;
   document.getElementById("composePage").classList.remove("open");
   document.getElementById("composeTextarea").value = "";
   removeComposeImage();
@@ -2923,6 +3017,9 @@ function resetComposeUI() {
   document.getElementById("composeImageToolBtn").classList.remove("disabled");
   document.getElementById("composePollToolBtn").classList.remove("active");
   document.getElementById("composeTextarea").style.display = "";
+  document.getElementById("composePostBtn").textContent = "Post";
+  const toolbar = document.querySelector(".compose-toolbar");
+  if (toolbar) toolbar.style.display = "";
   updateComposeState();
   syncBackButton();
 }
@@ -2954,14 +3051,14 @@ function togglePollMode() {
   updateComposeState();
 }
 
-function renderPollOptions() {
+function renderPollOptions(locked) {
   const list = document.getElementById("pollOptionsList");
   list.innerHTML = pollOptions.map((val, i) => `
     <div class="poll-option-row">
       <input class="poll-option-input" type="text" maxlength="${POLL_OPTION_MAX}"
         placeholder="Option ${i + 1}" value="${escapeHtml(val)}"
         oninput="updatePollOption(${i}, this.value)" />
-      ${pollOptions.length > 2 ? `
+      ${!locked && pollOptions.length > 2 ? `
         <button class="poll-option-remove" onclick="removePollOption(${i})" aria-label="Remove option">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
         </button>
@@ -2969,6 +3066,7 @@ function renderPollOptions() {
     </div>
   `).join("");
   const addBtn = document.getElementById("pollAddOptionBtn");
+  addBtn.style.display = locked ? "none" : "";
   addBtn.classList.toggle("disabled", pollOptions.length >= POLL_MAX_OPTIONS);
 }
 
@@ -2993,6 +3091,20 @@ function removePollOption(i) {
 }
 
 function closeCompose() {
+  if (editingPostId) {
+    const post = USER_POSTS.find(p => p.id === editingPostId);
+    let changed = true;
+    if (post && post.type === "poll") {
+      changed = document.getElementById("pollQuestionInput").value.trim() !== (post.question || "")
+        || pollOptions.some((v, i) => v.trim() !== ((post.options[i] && post.options[i].text) || ""));
+    } else if (post) {
+      changed = document.getElementById("composeTextarea").value.trim() !== (post.text || "")
+        || composeImage !== (post.image || null);
+    }
+    if (changed && !confirm("Discard your changes?")) return;
+    resetComposeUI();
+    return;
+  }
   const textarea = document.getElementById("composeTextarea");
   const hasPollContent = composeMode === "poll"
     && (document.getElementById("pollQuestionInput").value.trim() || pollOptions.some(o => o.trim()));
@@ -3037,6 +3149,119 @@ function saveComposeDraft() {
   persistDrafts(drafts);
   resetComposeUI();
   showToast("Saved to Drafts");
+}
+
+function openPostOptions(postId) {
+  const post = USER_POSTS.find(p => p.id === postId);
+  if (!post) return;
+  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserPost(postId); };
+  document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserPost(postId); };
+  document.getElementById("postOptionsOverlay").classList.add("open");
+  document.getElementById("postOptionsSheet").classList.add("open");
+}
+
+function openCommentOptions(postId, commentId) {
+  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId); };
+  document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
+  document.getElementById("postOptionsOverlay").classList.add("open");
+  document.getElementById("postOptionsSheet").classList.add("open");
+}
+
+function closePostOptions() {
+  document.getElementById("postOptionsOverlay").classList.remove("open");
+  document.getElementById("postOptionsSheet").classList.remove("open");
+}
+
+function editUserPost(postId) {
+  const post = USER_POSTS.find(p => p.id === postId);
+  if (!post) return;
+  editingPostId = postId;
+  currentDraftId = null;
+
+  const toolbar = document.querySelector(".compose-toolbar");
+  if (toolbar) toolbar.style.display = "none";
+
+  if (post.type === "poll") {
+    composeMode = "poll";
+    pollOptions = post.options.map(o => o.text);
+    document.getElementById("pollQuestionInput").value = post.question || "";
+    document.getElementById("composePollBlock").style.display = "";
+    document.getElementById("composeTextarea").style.display = "none";
+    renderPollOptions(true);
+  } else {
+    composeMode = "text";
+    document.getElementById("composeTextarea").value = post.text || "";
+    composeImage = post.image || null;
+    if (composeImage) {
+      document.getElementById("composeImagePreviewImg").src = composeImage;
+      document.getElementById("composeImagePreview").style.display = "block";
+    } else {
+      document.getElementById("composeImagePreview").style.display = "none";
+    }
+  }
+
+  document.getElementById("composePostBtn").textContent = "Save";
+  document.getElementById("composePage").classList.add("open");
+  updateComposeState();
+  syncBackButton();
+  if (composeMode === "text") {
+    setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+  }
+}
+
+async function submitPostEdit() {
+  const id = editingPostId;
+  const post = USER_POSTS.find(p => p.id === id);
+  if (!post) { resetComposeUI(); return; }
+
+  let updateData;
+  if (post.type === "poll") {
+    const question = document.getElementById("pollQuestionInput").value.trim();
+    if (!question) return;
+    const newOptions = post.options.map((opt, i) => ({
+      text: (pollOptions[i] || "").trim() || opt.text,
+      votes: opt.votes || 0
+    }));
+    post.question = question;
+    post.options = newOptions;
+    updateData = { question, options: newOptions };
+  } else {
+    const text = document.getElementById("composeTextarea").value.trim();
+    if (!text && !composeImage) return;
+    post.text = text || null;
+    post.image = composeImage;
+    updateData = { text: post.text, image: post.image };
+  }
+
+  resetComposeUI();
+  showPostingProgressToast();
+  render();
+
+  if (!firebaseDb) { showPostedSuccessToast(); return; }
+  try {
+    await firebaseDb.collection("posts").doc(id).update({
+      ...updateData,
+      editedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showPostedSuccessToast();
+  } catch (e) {
+    showToast("Couldn't save changes. Please try again.");
+  }
+}
+
+async function deleteUserPost(postId) {
+  if (!confirm("Delete this post? This can't be undone.")) return;
+  USER_POSTS = USER_POSTS.filter(p => p.id !== postId);
+  delete userPostState[postId];
+  render();
+  haptic("medium");
+  if (!firebaseDb) return;
+  try {
+    await firebaseDb.collection("posts").doc(postId).delete();
+    showToast("Post deleted");
+  } catch (e) {
+    showToast("Couldn't delete post.");
+  }
 }
 
 function updateComposeState() {
@@ -3112,6 +3337,8 @@ function removeComposeImage() {
 async function submitCompose() {
   if (!requireTelegramSession()) return;
   if (!firebaseDb) { showToast("Can't post right now — try again in a moment."); return; }
+
+  if (editingPostId) return submitPostEdit();
 
   if (composeMode === "poll") {
     const question = document.getElementById("pollQuestionInput").value.trim();
@@ -3595,6 +3822,7 @@ function anyOverlayOpen() {
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
     || document.getElementById("draftViewPage").classList.contains("open")
+    || document.getElementById("postOptionsSheet").classList.contains("open")
     || document.getElementById("videoZonePlayer").classList.contains("open")
     || document.getElementById("videoZonePage").classList.contains("open");
 }
@@ -3606,6 +3834,8 @@ function closeTopOverlay() {
     closeVideoZone();
   } else if (document.getElementById("discardPopup").classList.contains("open")) {
     cancelDiscardPost();
+  } else if (document.getElementById("postOptionsSheet").classList.contains("open")) {
+    closePostOptions();
   } else if (document.getElementById("draftViewPage").classList.contains("open")) {
     closeDraftView();
     document.getElementById("draftsOverlay").classList.add("open");
