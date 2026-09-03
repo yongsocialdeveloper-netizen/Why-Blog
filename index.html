@@ -6,6 +6,7 @@
 <title>WhyBlog</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <style>
   :root {
     --ink: #e7ecef;
@@ -1461,6 +1462,27 @@
     gap: 10px;
     padding: 12px 14px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .post-ad {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .post-ad-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+  .post-ad adsgram-task {
+    --adsgram-task-font-size: 14.5px;
+    --adsgram-task-icon-size: 42px;
+    --adsgram-task-icon-title-gap: 10px;
+    --adsgram-task-icon-border-radius: 10px;
+    --adsgram-task-button-width: auto;
+    color: var(--ink);
   }
 
   .avatar {
@@ -4928,7 +4950,40 @@ function render() {
     return;
   }
 
-  feed.innerHTML = feedPosts.map(userPostCardHTML).concat(blogPostParts).join("");
+  feed.innerHTML = insertNativeAds(feedPosts.map(userPostCardHTML).concat(blogPostParts)).join("");
+}
+
+let adSlotCounter = 0;
+
+function nativeAdHTML() {
+  adSlotCounter++;
+  return `
+    <div class="post-ad">
+      <div class="post-ad-label">Sponsored</div>
+      <adsgram-task
+        data-block-id="task-45929"
+        data-debug="true"
+        data-debug-console="false"
+        class="task"
+        id="adsgram-slot-${adSlotCounter}"
+      ></adsgram-task>
+    </div>
+  `;
+}
+
+// Ad placement: first ad appears after the 2nd post, then an ad appears
+// after every 4 subsequent posts (i.e. every 5th post is an ad slot).
+function insertNativeAds(parts) {
+  if (!parts.length) return parts;
+  const withAds = [];
+  parts.forEach((part, i) => {
+    withAds.push(part);
+    const position = i + 1; // 1-based post count
+    if (position === 2 || (position > 2 && (position - 2) % 5 === 0)) {
+      withAds.push(nativeAdHTML());
+    }
+  });
+  return withAds;
 }
 
 startSupabaseAuth();
