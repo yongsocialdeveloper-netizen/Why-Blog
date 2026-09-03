@@ -7,6 +7,14 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
+<script>
+  window.TelegramAdsController = new TelegramAdsController();
+  window.TelegramAdsController.initialize({
+    pubId: "1021848",
+    appId: "8748",
+  });
+</script>
 <style>
   :root {
     --ink: #e7ecef;
@@ -2142,6 +2150,7 @@
           <button class="profile-action-btn profile-star-btn" id="profileStarBtn" onclick="toggleStar(currentProfileId)" style="display:none">
             <span id="profileStarBtnIcon"></span><span id="profileStarBtnLabel">Star</span>
           </button>
+          <button class="profile-action-btn" id="profileEditBtn" onclick="openEditProfile()" style="display:none">Edit profile</button>
           <button class="profile-action-btn" id="profileActionBtn" onclick="messageProfile()">Message</button>
         </div>
       </div>
@@ -2232,6 +2241,32 @@
     </div>
     <div class="form-sheet-footer">
       <button class="form-submit-btn" id="blogSubmitBtn" onclick="submitBlogListing()">Submit for review</button>
+    </div>
+  </div>
+
+  <div class="form-sheet-overlay" id="editProfileOverlay" onclick="closeEditProfile()"></div>
+  <div class="form-sheet" id="editProfileSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Edit profile</div>
+      <button class="form-sheet-close" onclick="closeEditProfile()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-field">
+        <label class="form-label">Bio</label>
+        <textarea class="form-textarea" id="editBioInput" maxlength="200" placeholder="Tell people what you're into" oninput="updateEditBioCount()"></textarea>
+        <div class="form-char-count" id="editBioCount"></div>
+        <div class="form-note" id="editBioCooldownNote" style="display:none"></div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">TON wallet address</label>
+        <input class="form-input" id="editWalletInput" type="text" placeholder="UQ..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+        <div class="form-note">Used to send you creator support payments in TON.</div>
+      </div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" id="editProfileSaveBtn" onclick="saveEditProfile()">Save</button>
     </div>
   </div>
 
@@ -2418,7 +2453,8 @@ const PROFILES = {
     photoUrl: "", telegramId: null, username: "",
     bio: "Add a bio to tell people what you're into.",
     blogUrl: null, email: null, joined: "Aug 2026",
-    vibes: [], posts: 0, ecoValue: "0"
+    vibes: [], posts: 0, ecoValue: "0",
+    bioUpdatedAt: null, tonWallet: ""
   }
 };
 
@@ -2474,14 +2510,17 @@ function openProfile(id) {
 
   const actionBtn = document.getElementById("profileActionBtn");
   const starBtn = document.getElementById("profileStarBtn");
+  const editBtn = document.getElementById("profileEditBtn");
   if (id === "you") {
     actionBtn.style.display = "none";
     starBtn.style.display = "none";
+    editBtn.style.display = "";
   } else {
     actionBtn.style.display = "";
     actionBtn.textContent = "Message";
     actionBtn.onclick = messageProfile;
     starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "" : "none";
+    editBtn.style.display = "none";
   }
 
   renderProfileMeta(id);
@@ -4131,6 +4170,7 @@ function anyOverlayOpen() {
     || document.getElementById("bookmarksPage").classList.contains("open")
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
+    || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
@@ -4159,6 +4199,8 @@ function closeTopOverlay() {
     closeCompose();
   } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
     closeBlogSubmit();
+  } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
+    closeEditProfile();
   } else if (document.getElementById("starrersPage").classList.contains("open")) {
     closeStarrersPage();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
@@ -4323,15 +4365,119 @@ async function loadMyProfile() {
   if (!sb) return;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes")
+      .select("bio, vibes, bio_updated_at, ton_wallet")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
       if (data.bio) PROFILES.you.bio = data.bio;
       if (data.vibes) PROFILES.you.vibes = data.vibes;
+      if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
+      if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       renderProfileMeta("you");
     }
   } catch (e) {}
+}
+
+const BIO_EDIT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+function bioEditCooldownRemainingMs() {
+  const last = PROFILES.you.bioUpdatedAt;
+  if (!last) return 0;
+  const elapsed = Date.now() - new Date(last).getTime();
+  const remaining = BIO_EDIT_COOLDOWN_MS - elapsed;
+  return remaining > 0 ? remaining : 0;
+}
+
+function formatCooldownRemaining(ms) {
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  if (days > 0) return `${days} day${days === 1 ? "" : "s"}${hours > 0 ? ` ${hours}h` : ""}`;
+  const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function updateEditBioCount() {
+  const input = document.getElementById("editBioInput");
+  const counter = document.getElementById("editBioCount");
+  counter.textContent = `${input.value.length}/200`;
+}
+
+function openEditProfile() {
+  const p = PROFILES.you;
+  const bioInput = document.getElementById("editBioInput");
+  const note = document.getElementById("editBioCooldownNote");
+  const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
+  bioInput.value = isPlaceholder ? "" : (p.bio || "");
+  document.getElementById("editWalletInput").value = p.tonWallet || "";
+  updateEditBioCount();
+
+  const remaining = bioEditCooldownRemainingMs();
+  if (remaining > 0) {
+    bioInput.disabled = true;
+    note.style.display = "";
+    note.textContent = `You can change your bio again in ${formatCooldownRemaining(remaining)}.`;
+  } else {
+    bioInput.disabled = false;
+    note.style.display = "none";
+  }
+
+  const btn = document.getElementById("editProfileSaveBtn");
+  btn.textContent = "Save";
+  btn.style.pointerEvents = "auto";
+  btn.style.opacity = "1";
+
+  document.getElementById("editProfileOverlay").classList.add("open");
+  document.getElementById("editProfileSheet").classList.add("open");
+  syncBackButton();
+}
+
+function closeEditProfile() {
+  document.getElementById("editProfileOverlay").classList.remove("open");
+  document.getElementById("editProfileSheet").classList.remove("open");
+  syncBackButton();
+}
+
+async function saveEditProfile() {
+  const p = PROFILES.you;
+  const bioInput = document.getElementById("editBioInput");
+  const newBio = bioInput.value.trim();
+  const newWallet = document.getElementById("editWalletInput").value.trim();
+
+  const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
+  const currentBio = isPlaceholder ? "" : (p.bio || "");
+  const bioChanged = !bioInput.disabled && newBio !== currentBio;
+
+  if (bioChanged && bioEditCooldownRemainingMs() > 0) {
+    alert("You can only change your bio once every 7 days.");
+    return;
+  }
+
+  const update = { telegram_id: String(telegramUser.id), ton_wallet: newWallet };
+  if (bioChanged) {
+    update.bio = newBio || null;
+    update.bio_updated_at = new Date().toISOString();
+  }
+
+  try {
+    if (sb) await sb.from("profiles").upsert(update, { onConflict: "telegram_id" });
+  } catch (e) {}
+
+  p.tonWallet = newWallet;
+  if (bioChanged) {
+    p.bio = newBio || "Add a bio to tell people what you're into.";
+    p.bioUpdatedAt = update.bio_updated_at;
+  }
+  if (currentProfileId === "you") {
+    document.getElementById("profileBio").textContent = p.bio;
+  }
+
+  haptic("medium");
+  const btn = document.getElementById("editProfileSaveBtn");
+  btn.textContent = "Saved";
+  btn.style.pointerEvents = "none";
+  btn.style.opacity = "0.7";
+  setTimeout(() => closeEditProfile(), 1000);
 }
 
 function updatePitchCount() {
