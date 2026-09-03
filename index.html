@@ -2348,7 +2348,7 @@ async function loadUserPosts() {
         });
       }
     } catch (e) {}
-    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false };
+    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false, textExpanded: false };
   }
   render();
 }
@@ -2434,6 +2434,26 @@ function updateUserPostCommentCount(id) {
   }
 }
 
+const POST_TEXT_LIMIT = 200;
+
+function renderPostText(id, text, expanded) {
+  if (text.length <= POST_TEXT_LIMIT) {
+    return `<div class="post-text"><span class="excerpt">${escapeHtml(text)}</span></div>`;
+  }
+  const shown = expanded ? text : text.slice(0, POST_TEXT_LIMIT).trimEnd() + "…";
+  return `<div class="post-text">
+    <span class="excerpt">${escapeHtml(shown)}</span>
+    <button class="read-more-toggle" onclick="event.stopPropagation(); toggleUserPostText('${id}')">${expanded ? "Show less" : "Read more"}</button>
+  </div>`;
+}
+
+function toggleUserPostText(id) {
+  const s = userPostState[id];
+  if (!s) return;
+  s.textExpanded = !s.textExpanded;
+  render();
+}
+
 function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
@@ -2457,7 +2477,7 @@ function userPostCardHTML(post) {
           <span class="post-dot">·</span>
           <span class="post-time" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
-        ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
+        ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         <div class="stat-row">
           <button class="stat reply" onclick="toggleUserPostComments('${post.id}')">
@@ -2772,7 +2792,7 @@ async function submitCompose() {
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     USER_POSTS.unshift(newPost);
-    userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false };
+    userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false };
     render();
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
