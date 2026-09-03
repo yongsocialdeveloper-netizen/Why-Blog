@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WhyBlog</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --ink: #e7ecef;
@@ -2360,11 +2358,14 @@ function renderProfileMeta(id) {
 
 async function fetchProfileSignupEmail(id) {
   const p = PROFILES[id];
-  if (!p || p.email || !firebaseDb || p.telegramId === null || p.telegramId === undefined) return;
+  if (!p || p.email || !sb || p.telegramId === null || p.telegramId === undefined) return;
   try {
-    const doc = await firebaseDb.collection("telegramLinks").doc(String(p.telegramId)).get();
-    if (doc.exists && doc.data().email) {
-      p.email = doc.data().email;
+    const { data } = await sb.from("telegram_links")
+      .select("email")
+      .eq("telegram_id", String(p.telegramId))
+      .maybeSingle();
+    if (data && data.email) {
+      p.email = data.email;
       renderProfileMeta(id);
     }
   } catch (e) {}
@@ -2467,57 +2468,87 @@ function ensureTelegramPostProfile(post) {
   }
 }
 
+function mapPostRow(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    text: row.text,
+    image: row.image,
+    question: row.question,
+    options: row.options,
+    name: row.name,
+    username: row.username,
+    userId: row.telegram_id,
+    photoUrl: row.photo_url,
+    initials: row.initials,
+    color: row.color,
+    likeCount: row.like_count || 0,
+    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+  };
+}
+
+function mapCommentRow(row) {
+  return {
+    id: row.id,
+    author: row.author,
+    userId: row.telegram_id,
+    initials: row.initials,
+    photoUrl: row.photo_url,
+    text: row.text,
+    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+  };
+}
+
 async function loadUserPosts() {
   try {
-    if (firebaseDb) {
-      const snapshot = await firebaseDb.collection("posts").orderBy("createdAt", "desc").get();
-      const posts = [];
-      snapshot.forEach(doc => {
-        const post = doc.data();
-        post.id = doc.id;
-        post.createdAtMillis = post.createdAt && post.createdAt.toMillis
-          ? post.createdAt.toMillis()
-          : Date.now();
-        ensureTelegramPostProfile(post);
-        posts.push(post);
-      });
+    if (sb) {
+      const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      const posts = (data || []).map(mapPostRow);
+      posts.forEach(ensureTelegramPostProfile);
       USER_POSTS = posts;
     }
   } catch (e) {}
 
-  for (const post of USER_POSTS) {
-    let liked = false;
-    let comments = [];
-    try {
-      if (firebaseDb) {
-        const likeDoc = await firebaseDb.collection("posts").doc(post.id)
-          .collection("likes").doc(String(telegramUser.id)).get();
-        liked = likeDoc.exists;
-      }
-    } catch (e) {}
-    try {
-      if (firebaseDb) {
-        const commentsSnap = await firebaseDb.collection("posts").doc(post.id)
-          .collection("comments").orderBy("createdAt", "asc").get();
-        commentsSnap.forEach(doc => {
-          const c = doc.data();
-          c.id = doc.id;
-          c.createdAtMillis = c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : Date.now();
-          comments.push(c);
-        });
-      }
-    } catch (e) {}
-    let pollVoted = null;
-    if (post.type === "poll") {
-      try {
-        if (firebaseDb) {
-          const voteDoc = await firebaseDb.collection("posts").doc(post.id)
-            .collection("votes").doc(String(telegramUser.id)).get();
-          if (voteDoc.exists) pollVoted = voteDoc.data().optionIndex;
-        }
-      } catch (e) {}
+  if (!USER_POSTS.length) { render(); return; }
+
+  const ids = USER_POSTS.map(p => p.id);
+  let likedIds = new Set();
+  let bookmarkedIds = new Set();
+  let commentsByPost = {};
+  let votesByPost = {};
+
+  try {
+    if (sb) {
+      const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
+        sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+        currentSupabaseUser
+          ? sb.from("bookmarks").select("post_id").eq("user_id", currentSupabaseUser.id).in("post_id", ids)
+          : Promise.resolve({ data: [] }),
+        sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
+        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
+      ]);
+      (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
+      (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
+      (commentsRes.data || []).forEach(r => {
+        if (!commentsByPost[r.post_id]) commentsByPost[r.post_id] = [];
+        commentsByPost[r.post_id].push(mapCommentRow(r));
+      });
+      (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
     }
-    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false, textExpanded: false, pollVoted };
+  } catch (e) {}
+
+  for (const post of USER_POSTS) {
+    userPostState[post.id] = {
+      liked: likedIds.has(post.id),
+      likeCount: post.likeCount || 0,
+      bookmarked: bookmarkedIds.has(post.id),
+      gifted: false,
+      comments: commentsByPost[post.id] || [],
+      showComments: false,
+      textExpanded: false,
+      pollVoted: post.type === "poll" ? (votesByPost[post.id] ?? null) : null
+    };
   }
   render();
 }
@@ -2528,22 +2559,29 @@ function toggleUserPostLike(id) {
   s.likeCount += s.liked ? 1 : -1;
   haptic("light");
   render();
-  if (!firebaseDb) return;
-  const postRef = firebaseDb.collection("posts").doc(id);
-  const likeRef = postRef.collection("likes").doc(String(telegramUser.id));
+  if (!sb) return;
   const delta = s.liked ? 1 : -1;
-  postRef.update({ likeCount: firebase.firestore.FieldValue.increment(delta) }).catch(() => {});
+  const telegramId = String(telegramUser.id);
+  sb.rpc("increment_like_count", { p_post_id: id, p_telegram_id: telegramId, p_delta: delta }).then(() => {});
   if (s.liked) {
-    likeRef.set({ userId: telegramUser.id, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+    sb.from("likes").insert({ post_id: id, telegram_id: telegramId }).then(() => {});
   } else {
-    likeRef.delete().catch(() => {});
+    sb.from("likes").delete().eq("post_id", id).eq("telegram_id", telegramId).then(() => {});
   }
 }
 
 function toggleUserPostBookmark(id) {
-  userPostState[id].bookmarked = !userPostState[id].bookmarked;
+  const s = userPostState[id];
+  s.bookmarked = !s.bookmarked;
   haptic("light");
   render();
+  if (!sb || !currentSupabaseUser) return;
+  if (s.bookmarked) {
+    sb.from("bookmarks").insert({ user_id: currentSupabaseUser.id, post_id: id }).then(() => {});
+  } else {
+    sb.from("bookmarks").delete().eq("user_id", currentSupabaseUser.id).eq("post_id", id).then(() => {});
+  }
+  if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
 }
 
 function sendUserPostGift(id) {
@@ -2574,16 +2612,15 @@ async function submitUserPostComment(id) {
     s.editingCommentId = null;
     input.value = "";
     render();
-    if (firebaseDb) {
-      firebaseDb.collection("posts").doc(id).collection("comments").doc(commentId)
-        .update({ text }).catch(() => {});
+    if (sb) {
+      sb.from("comments").update({ text }).eq("id", commentId).then(() => {});
     }
     return;
   }
 
-  const commentRef = firebaseDb ? firebaseDb.collection("posts").doc(id).collection("comments").doc() : null;
+  const localId = `local-${Date.now()}`;
   const comment = {
-    id: commentRef ? commentRef.id : `local-${Date.now()}`,
+    id: localId,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
@@ -2594,13 +2631,17 @@ async function submitUserPostComment(id) {
   s.comments.push(comment);
   input.value = "";
   render();
-  if (!commentRef) return;
+  if (!sb) return;
   try {
-    const { createdAtMillis, id: commentId, ...commentData } = comment;
-    await commentRef.set({
-      ...commentData,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const { data, error } = await sb.from("comments").insert({
+      post_id: id,
+      telegram_id: String(telegramUser.id),
+      author: telegramUser.name,
+      initials: telegramUser.initials,
+      photo_url: telegramUser.photoUrl,
+      text
+    }).select().single();
+    if (!error && data) { comment.id = data.id; render(); }
   } catch (e) {}
 }
 
@@ -2623,8 +2664,8 @@ function deleteUserComment(postId, commentId) {
   if (!s) return;
   s.comments = s.comments.filter(c => c.id !== commentId);
   render();
-  if (!firebaseDb) return;
-  firebaseDb.collection("posts").doc(postId).collection("comments").doc(commentId).delete().catch(() => {});
+  if (!sb) return;
+  sb.from("comments").delete().eq("id", commentId).then(() => {});
 }
 
 function updateUserPostCommentCount(id) {
@@ -2699,19 +2740,14 @@ async function voteOnPoll(postId, optionIndex) {
   haptic("light");
   render();
 
-  if (!firebaseDb) return;
-  const postRef = firebaseDb.collection("posts").doc(postId);
-  const voteRef = postRef.collection("votes").doc(String(telegramUser.id));
+  if (!sb) return;
   try {
-    await firebaseDb.runTransaction(async tx => {
-      const voteDoc = await tx.get(voteRef);
-      if (voteDoc.exists) throw new Error("already-voted");
-      const postDoc = await tx.get(postRef);
-      const options = postDoc.data().options || [];
-      options[optionIndex] = { ...options[optionIndex], votes: (options[optionIndex].votes || 0) + 1 };
-      tx.update(postRef, { options });
-      tx.set(voteRef, { optionIndex, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    const { data, error } = await sb.rpc("cast_poll_vote", {
+      p_post_id: postId,
+      p_telegram_id: String(telegramUser.id),
+      p_option_index: optionIndex
     });
+    if (!error && data) { post.options = data; render(); }
   } catch (e) {}
 }
 
@@ -3237,12 +3273,16 @@ async function submitPostEdit() {
   showPostingProgressToast();
   render();
 
-  if (!firebaseDb) { showPostedSuccessToast(); return; }
+  if (!sb) { showPostedSuccessToast(); return; }
   try {
-    await firebaseDb.collection("posts").doc(id).update({
-      ...updateData,
-      editedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const dbUpdate = {};
+    if ("question" in updateData) dbUpdate.question = updateData.question;
+    if ("options" in updateData) dbUpdate.options = updateData.options;
+    if ("text" in updateData) dbUpdate.text = updateData.text;
+    if ("image" in updateData) dbUpdate.image = updateData.image;
+    dbUpdate.edited_at = new Date().toISOString();
+    const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
+    if (error) throw error;
     showPostedSuccessToast();
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
@@ -3255,9 +3295,10 @@ async function deleteUserPost(postId) {
   delete userPostState[postId];
   render();
   haptic("medium");
-  if (!firebaseDb) return;
+  if (!sb) return;
   try {
-    await firebaseDb.collection("posts").doc(postId).delete();
+    const { error } = await sb.from("posts").delete().eq("id", postId);
+    if (error) throw error;
     showToast("Post deleted");
   } catch (e) {
     showToast("Couldn't delete post.");
@@ -3336,7 +3377,7 @@ function removeComposeImage() {
 
 async function submitCompose() {
   if (!requireTelegramSession()) return;
-  if (!firebaseDb) { showToast("Can't post right now — try again in a moment."); return; }
+  if (!sb) { showToast("Can't post right now — try again in a moment."); return; }
 
   if (editingPostId) return submitPostEdit();
 
@@ -3349,31 +3390,24 @@ async function submitCompose() {
     resetComposeUI();
     showPostingProgressToast();
 
-    const docRef = firebaseDb.collection("posts").doc();
-    const id = docRef.id;
-    const nowMillis = Date.now();
-    const newPost = {
-      id, type: "poll", question,
-      options: options.map(text => ({ text, votes: 0 })),
-      name: telegramUser.name,
-      username: telegramUser.username,
-      userId: telegramUser.id,
-      photoUrl: telegramUser.photoUrl,
-      initials: telegramUser.initials,
-      color: telegramUser.color,
-      profileId: "you",
-      createdAtMillis: nowMillis
-    };
-
     try {
-      const { createdAtMillis, ...postData } = newPost;
-      await docRef.set({
-        ...postData,
-        likeCount: 0,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      const { data, error } = await sb.from("posts").insert({
+        type: "poll",
+        question,
+        options: options.map(text => ({ text, votes: 0 })),
+        name: telegramUser.name,
+        username: telegramUser.username,
+        telegram_id: String(telegramUser.id),
+        photo_url: telegramUser.photoUrl,
+        initials: telegramUser.initials,
+        color: telegramUser.color,
+        like_count: 0
+      }).select().single();
+      if (error) throw error;
+      const newPost = mapPostRow(data);
+      newPost.profileId = "you";
       USER_POSTS.unshift(newPost);
-      userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, pollVoted: null };
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, pollVoted: null };
       render();
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
@@ -3397,30 +3431,24 @@ async function submitCompose() {
   resetComposeUI();
   showPostingProgressToast();
 
-  const docRef = firebaseDb.collection("posts").doc();
-  const id = docRef.id;
-  const nowMillis = Date.now();
-  const newPost = {
-    id, text: pendingText || null, image: pendingImage,
-    name: telegramUser.name,
-    username: telegramUser.username,
-    userId: telegramUser.id,
-    photoUrl: telegramUser.photoUrl,
-    initials: telegramUser.initials,
-    color: telegramUser.color,
-    profileId: "you",
-    createdAtMillis: nowMillis
-  };
-
   try {
-    const { createdAtMillis, ...postData } = newPost;
-    await docRef.set({
-      ...postData,
-      likeCount: 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const { data, error } = await sb.from("posts").insert({
+      type: "text",
+      text: pendingText || null,
+      image: pendingImage,
+      name: telegramUser.name,
+      username: telegramUser.username,
+      telegram_id: String(telegramUser.id),
+      photo_url: telegramUser.photoUrl,
+      initials: telegramUser.initials,
+      color: telegramUser.color,
+      like_count: 0
+    }).select().single();
+    if (error) throw error;
+    const newPost = mapPostRow(data);
+    newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false };
     render();
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
@@ -3555,18 +3583,12 @@ function requireTelegramSession() {
   return false;
 }
 
-// ---------- Firebase email/password authentication ----------
-const firebaseConfig = {
-  apiKey: "AIzaSyDKJ_zQou8nJX0B778OHZgDFhnuRCpqKr0",
-  authDomain: "why-blog-app.firebaseapp.com",
-  projectId: "why-blog-app",
-  storageBucket: "why-blog-app.firebasestorage.app",
-  messagingSenderId: "480733026452",
-  appId: "1:480733026452:web:d525b6f6fce19a9b7bbc81"
-};
+// ---------- Supabase email/password authentication ----------
+const SUPABASE_URL = "https://xrunlxchksrycauujkgy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhydW5seGNoa3NyeWNhdXVqa2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzODg4NDAsImV4cCI6MjEwMzk2NDg0MH0.e0I0U3dt5DS40h7LurLLizgr4O4t8DQ7IHx0Rf1cvf8";
 
-let firebaseAuth = null;
-let firebaseDb = null;
+let sb = null;
+let currentSupabaseUser = null;
 let authMode = "login";
 let appBooted = false;
 
@@ -3578,18 +3600,17 @@ function setAuthMessage(message, isError) {
 
 function authErrorMessage(error) {
   const code = error && error.code ? error.code : "";
-  if (code === "auth/email-already-in-use") return "That email is already registered. Try logging in instead.";
-  if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") return "The email or password is incorrect.";
-  if (code === "auth/weak-password") return "Choose a stronger password with at least 6 characters.";
-  if (code === "auth/invalid-email") return "Enter a valid email address.";
-  if (code === "auth/operation-not-allowed") return "Email and password sign-in is disabled in this Firebase project.";
-  if (code === "auth/too-many-requests") return "Too many attempts. Wait a moment and try again.";
-  if (code === "permission-denied") return "Firebase Auth worked, but Firestore rules are blocking the Telegram link.";
-  if (code === "failed-precondition") return "Create the Firestore database for this Firebase project before linking accounts.";
+  const message = (error && error.message ? error.message : "").toLowerCase();
   if (code === "telegram/required") return "Open WhyBlog inside Telegram so your Telegram ID can be linked.";
   if (code === "telegram/already-linked") return "This Telegram account is already linked to another email.";
   if (code === "telegram/wrong-telegram") return "This email is already linked to a different Telegram account. Log in from that Telegram account instead.";
-  if (code === "telegram/link-failed") return "Your account was created, but the Telegram link could not be saved. Check Firestore rules.";
+  if (code === "telegram/link-failed") return "Your account was created, but the Telegram link could not be saved. Check your Supabase RLS policies.";
+  if (message.includes("already registered") || message.includes("already been registered")) return "That email is already registered. Try logging in instead.";
+  if (message.includes("invalid login credentials")) return "The email or password is incorrect.";
+  if (message.includes("password should be at least")) return "Choose a stronger password with at least 6 characters.";
+  if (message.includes("unable to validate email") || message.includes("invalid email")) return "Enter a valid email address.";
+  if (message.includes("email not confirmed")) return "Check your inbox and confirm your email before logging in.";
+  if (message.includes("too many requests") || message.includes("rate limit")) return "Too many attempts. Wait a moment and try again.";
   return error && error.message ? error.message : "Something went wrong. Please try again.";
 }
 
@@ -3647,6 +3668,7 @@ function showAuthGate() {
 function showAuthenticatedApp(user) {
   document.getElementById("authGate").style.display = "none";
   document.getElementById("appShell").style.display = "";
+  currentSupabaseUser = user || null;
   if (user && user.email) PROFILES.you.email = user.email;
   if (appBooted) return;
   appBooted = true;
@@ -3662,48 +3684,46 @@ async function linkTelegramIdentity(user) {
     error.code = "telegram/required";
     throw error;
   }
-  if (!firebaseDb) {
-    const error = new Error("Firestore is not available.");
+  if (!sb) {
+    const error = new Error("Supabase is not available.");
     error.code = "telegram/link-failed";
     throw error;
   }
 
   const telegramId = String(telegramUser.id);
-  const linkRef = firebaseDb.collection("telegramLinks").doc(telegramId);
-  const userRef = firebaseDb.collection("users").doc(user.uid);
 
-  const [linkSnapshot, userSnapshot] = await Promise.all([linkRef.get(), userRef.get()]);
+  const [{ data: linkRow }, { data: ownRow }] = await Promise.all([
+    sb.from("telegram_links").select("telegram_id, user_id").eq("telegram_id", telegramId).maybeSingle(),
+    sb.from("telegram_links").select("telegram_id, user_id").eq("user_id", user.id).maybeSingle()
+  ]);
 
   // This Telegram ID is already claimed by a different account.
-  if (linkSnapshot.exists && linkSnapshot.data().firebaseUid !== user.uid) {
+  if (linkRow && linkRow.user_id !== user.id) {
     const error = new Error("This Telegram account is already linked to another email.");
     error.code = "telegram/already-linked";
     throw error;
   }
 
   // This account is already permanently bound to a different Telegram ID.
-  if (userSnapshot.exists && userSnapshot.data().telegramId && userSnapshot.data().telegramId !== telegramId) {
+  if (ownRow && ownRow.telegram_id && ownRow.telegram_id !== telegramId) {
     const error = new Error("This email is already linked to a different Telegram account.");
     error.code = "telegram/wrong-telegram";
     throw error;
   }
 
-  const identity = {
-    firebaseUid: user.uid,
-    email: user.email || "",
-    telegramId,
-    telegramUsername: telegramUser.username || "",
-    telegramName: telegramUser.name,
-    telegramPhotoUrl: telegramUser.photoUrl || "",
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-
   try {
-    await linkRef.set(identity, { merge: true });
-    await userRef.set(identity, { merge: true });
-    await user.updateProfile({
-      displayName: telegramUser.name,
-      photoURL: telegramUser.photoUrl || null
+    const { error } = await sb.from("telegram_links").upsert({
+      telegram_id: telegramId,
+      user_id: user.id,
+      email: user.email || "",
+      telegram_username: telegramUser.username || "",
+      telegram_name: telegramUser.name,
+      telegram_photo_url: telegramUser.photoUrl || "",
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    await sb.auth.updateUser({
+      data: { display_name: telegramUser.name, avatar_url: telegramUser.photoUrl || null }
     });
   } catch (error) {
     error.code = error.code || "telegram/link-failed";
@@ -3717,8 +3737,8 @@ async function submitAuth(event) {
     setAuthMessage("Open this Mini App from Telegram to continue.", true);
     return;
   }
-  if (!firebaseAuth) {
-    setAuthMessage("Firebase is still loading. Please try again in a moment.", true);
+  if (!sb) {
+    setAuthMessage("Supabase is still loading. Please try again in a moment.", true);
     return;
   }
 
@@ -3734,9 +3754,11 @@ async function submitAuth(event) {
   setAuthBusy(true);
   try {
     if (authMode === "signup") {
-      await firebaseAuth.createUserWithEmailAndPassword(email, password);
+      const { error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
     } else {
-      await firebaseAuth.signInWithEmailAndPassword(email, password);
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     }
   } catch (error) {
     setAuthBusy(false);
@@ -3745,7 +3767,7 @@ async function submitAuth(event) {
 }
 
 async function resetPassword() {
-  if (!firebaseAuth) return;
+  if (!sb) return;
   const email = document.getElementById("authEmail").value.trim();
   if (!email) {
     setAuthMessage("Enter your email address first, then tap Forgot password.", true);
@@ -3753,7 +3775,8 @@ async function resetPassword() {
     return;
   }
   try {
-    await firebaseAuth.sendPasswordResetEmail(email);
+    const { error } = await sb.auth.resetPasswordForEmail(email);
+    if (error) throw error;
     setAuthMessage("Password reset email sent. Check your inbox.");
   } catch (error) {
     setAuthMessage(authErrorMessage(error), true);
@@ -3761,22 +3784,22 @@ async function resetPassword() {
 }
 
 async function signOutUser() {
-  if (firebaseAuth) await firebaseAuth.signOut();
+  if (sb) await sb.auth.signOut();
 }
 
-function startFirebaseAuth() {
+function startSupabaseAuth() {
   updateAuthTelegramCard();
   showAuthGate();
-  if (!window.firebase) {
-    setAuthMessage("Firebase could not load. Check your network connection.", true);
+  if (!window.supabase) {
+    setAuthMessage("Supabase could not load. Check your network connection.", true);
     return;
   }
   try {
-    firebase.initializeApp(firebaseConfig);
-    firebaseAuth = firebase.auth();
-    firebaseDb = firebase.firestore();
-    firebaseAuth.onAuthStateChanged(async user => {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb.auth.onAuthStateChange(async (event, session) => {
+      const user = session && session.user;
       if (!user) {
+        currentSupabaseUser = null;
         setAuthBusy(false);
         showAuthGate();
         return;
@@ -3786,14 +3809,14 @@ function startFirebaseAuth() {
         await linkTelegramIdentity(user);
         showAuthenticatedApp(user);
       } catch (error) {
-        await firebaseAuth.signOut();
+        await sb.auth.signOut();
         setAuthBusy(false);
         showAuthGate();
         setAuthMessage(authErrorMessage(error), true);
       }
     });
   } catch (error) {
-    setAuthMessage("Firebase could not start. Check the Firebase project configuration.", true);
+    setAuthMessage("Supabase could not start. Check your project URL and anon key.", true);
   }
 }
 
@@ -4005,12 +4028,16 @@ function toggleMenu(open) {
 const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
 
 async function loadMyProfile() {
+  if (!sb) return;
   try {
-    const res = await window.storage.get(`telegram-profile:${String(telegramUser.id)}`, false);
-    if (res) {
-      const data = JSON.parse(res.value);
+    const { data } = await sb.from("profiles")
+      .select("bio, vibes")
+      .eq("telegram_id", String(telegramUser.id))
+      .maybeSingle();
+    if (data) {
       if (data.bio) PROFILES.you.bio = data.bio;
       if (data.vibes) PROFILES.you.vibes = data.vibes;
+      renderProfileMeta("you");
     }
   } catch (e) {}
 }
@@ -4051,9 +4078,8 @@ async function submitBlogListing() {
     return;
   }
 
-  const submission = { url, email, pitch, submittedAt: new Date().toISOString() };
   try {
-    await window.storage.set(`blogsubmission:${Date.now()}`, JSON.stringify(submission), true);
+    if (sb) await sb.from("blog_submissions").insert({ url, email, pitch });
   } catch (e) {}
 
   haptic("medium");
@@ -4273,7 +4299,7 @@ function closeBookmarksPage() {
 
 function renderBookmarksPage() {
   const body = document.getElementById("bookmarksBody");
-  const saved = POSTS.filter(p => state[p.id] && state[p.id].bookmarked);
+  const saved = USER_POSTS.filter(p => userPostState[p.id] && userPostState[p.id].bookmarked);
 
   if (saved.length === 0) {
     body.innerHTML = `<div class="search-empty">No bookmarks yet.<br />Tap the bookmark icon on any post to save it here.</div>`;
@@ -4282,16 +4308,16 @@ function renderBookmarksPage() {
 
   body.innerHTML = saved.map(post => `
     <div class="bookmark-item">
-      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${post.initials}</div>
+      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.initials || "T")}</div>
       <div class="bookmark-item-body">
         <div class="bookmark-item-meta">
-          <span class="bookmark-item-source">${post.source}</span>
-          <span>· ${post.time}</span>
+          <span class="bookmark-item-source">${escapeHtml(post.name || "")}</span>
+          <span>· ${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
-        ${post.title ? `<div class="bookmark-item-title">${post.title}</div>` : ""}
-        <div class="bookmark-item-excerpt">${post.excerpt}</div>
+        ${post.question ? `<div class="bookmark-item-title">${escapeHtml(post.question)}</div>` : ""}
+        <div class="bookmark-item-excerpt">${escapeHtml(post.text || "")}</div>
       </div>
-      <button class="bookmark-remove" onclick="toggleBookmark('${post.id}')" aria-label="Remove bookmark">
+      <button class="bookmark-remove" onclick="toggleUserPostBookmark('${post.id}')" aria-label="Remove bookmark">
         ${bookmarkIcon(true)}
       </button>
     </div>
@@ -4628,7 +4654,7 @@ function render() {
   feed.innerHTML = userPostsHtml + blogPostsHtml;
 }
 
-startFirebaseAuth();
+startSupabaseAuth();
 
 setInterval(() => {
   if (USER_POSTS.length && !anyOverlayOpen()) render();
