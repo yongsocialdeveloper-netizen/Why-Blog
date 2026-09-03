@@ -6,6 +6,7 @@
 <meta name="mnd-ver" content="ebqpmqunnzslkkasqdzq" />
 <title>WhyBlog</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script async src="https://ss.mrmnd.com/native.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
@@ -1092,6 +1093,8 @@
     text-align: center;
   }
   .feed-empty-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .native-ad { padding: 14px; border-bottom: 1px solid var(--line); }
+  .native-ad-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
   .feed-empty-sub { font-size: 13.5px; color: var(--ink-soft); }
 
   .profile-topbar {
@@ -4825,6 +4828,25 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Native ads: first ad after the 2nd post, then after every 5th post.
+const NATIVE_AD_ZONE = "133ddddf-7a46-4037-9ebe-2f6f9ea9d7bc";
+let nativeAdCounter = 0;
+function nativeAdSlotHTML() {
+  return `
+    <div class="native-ad">
+      <div class="native-ad-label">Sponsored</div>
+      <div data-mndazid="${NATIVE_AD_ZONE}" data-mndslot="slot-${++nativeAdCounter}"></div>
+    </div>`;
+}
+function injectNativeAds(parts) {
+  // positions: after index 1 (2nd post), then every 5 posts -> 6, 11, 16, ...
+  const adAfterIndexes = [1];
+  for (let i = 6; i < parts.length; i += 5) adAfterIndexes.push(i);
+  return parts
+    .map((html, i) => html + (adAfterIndexes.includes(i) ? nativeAdSlotHTML() : ""))
+    .join("");
+}
+
 function render() {
   const feed = document.getElementById("feed");
   const isStarsFeed = activeFeedTab === "stars";
@@ -4833,11 +4855,9 @@ function render() {
   if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
   }
-  const userPostsHtml = feedPosts.map(userPostCardHTML).join("");
-
   // Stars is exclusively the posts from profiles the current user starred.
   // Do not append the general blog feed here, or this tab becomes identical to For You.
-  const blogPostsHtml = isStarsFeed ? "" : POSTS.map(post => {
+  const blogPostParts = isStarsFeed ? [] : POSTS.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
       ? s.comments.map(c => `
@@ -4914,7 +4934,7 @@ function render() {
         </div>
       </article>
     `;
-  }).join("");
+  });
 
   if (!feedPosts.length && (isStarsFeed || !POSTS.length)) {
     feed.innerHTML = isStarsFeed ? `
@@ -4931,7 +4951,7 @@ function render() {
     return;
   }
 
-  feed.innerHTML = userPostsHtml + blogPostsHtml;
+  feed.innerHTML = injectNativeAds(feedPosts.map(userPostCardHTML).concat(blogPostParts));
 }
 
 startSupabaseAuth();
