@@ -1,20 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src='//libtl.com/sdk.js' data-zone='11716919' data-sdk='show_11716919'></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WhyBlog</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-<script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
-<script>
-  window.TelegramAdsController = new TelegramAdsController();
-  window.TelegramAdsController.initialize({
-    pubId: "1021848",
-    appId: "8748",
-  });
-</script>
 <style>
   :root {
     --ink: #e7ecef;
@@ -1472,27 +1464,6 @@
     border-bottom: 1px solid var(--line);
   }
 
-  .post-ad {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--line);
-  }
-  .post-ad-label {
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    margin-bottom: 8px;
-  }
-  .post-ad adsgram-task {
-    --adsgram-task-font-size: 14.5px;
-    --adsgram-task-icon-size: 42px;
-    --adsgram-task-icon-title-gap: 10px;
-    --adsgram-task-icon-border-radius: 10px;
-    --adsgram-task-button-width: auto;
-    color: var(--ink);
-  }
-
   .avatar {
     width: 42px;
     height: 42px;
@@ -2721,6 +2692,7 @@ async function setFeedTab(tab) {
   document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
   document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
   haptic("light");
+  maybeShowRewardedAd();
   render();
   if (tab === "stars") {
     await loadMyStarredIds();
@@ -5113,85 +5085,22 @@ function render() {
     return;
   }
 
-  feed.innerHTML = insertNativeAds(feedPosts.map(userPostCardHTML).concat(blogPostParts)).join("");
-  wireNativeAdSlots();
+  feed.innerHTML = feedPosts.map(userPostCardHTML).concat(blogPostParts).join("");
 }
 
-// Set to true while testing so ADSGRAM DEBUG LOG entries show up in the
-// console (F12). Flip both of these back to false before you ship.
-const ADSGRAM_DEBUG = false;
-const ADSGRAM_DEBUG_CONSOLE = false;
+// Monetag rewarded popup: shown every 5th time the user switches between
+// the "For You" and "Stars" feed tabs.
+let feedTabSwitchCount = 0;
 
-// TODO: replace with your Reward/Interstitial blockId from partner.adsgram.ai
-// (this is a DIFFERENT block from the "task-45929" native/Task block above \u2014
-// Reward and Interstitial blocks use numeric or "int-xxx" ids, not "task-xxx").
-const ADSGRAM_INTERSTITIAL_BLOCK_ID = "int-45932";
-
-let giftAdController = null;
-try {
-  giftAdController = window.Adsgram?.init({
-    blockId: ADSGRAM_INTERSTITIAL_BLOCK_ID,
-    debug: ADSGRAM_DEBUG,
+function maybeShowRewardedAd() {
+  feedTabSwitchCount++;
+  if (feedTabSwitchCount % 5 !== 0) return;
+  if (typeof window.show_11716919 !== "function") return;
+  window.show_11716919("pop").then(() => {
+    // user watched the ad to the end or closed it
+  }).catch(() => {
+    // user got an error during playback — do nothing
   });
-} catch (e) {
-  console.error("[AdsGram] failed to init interstitial controller", e);
-}
-
-let adSlotCounter = 0;
-
-function nativeAdHTML() {
-  adSlotCounter++;
-  return `
-    <div class="post-ad" id="ad-wrap-${adSlotCounter}">
-      <div class="post-ad-label">Sponsored</div>
-      <adsgram-task
-        data-block-id="task-45929"
-        data-debug="${ADSGRAM_DEBUG}"
-        data-debug-console="${ADSGRAM_DEBUG_CONSOLE}"
-        class="task"
-        id="adsgram-slot-${adSlotCounter}"
-      ></adsgram-task>
-    </div>
-  `;
-}
-
-// The .post-ad wrapper (including the "Sponsored" label) always renders as
-// part of the feed HTML, whether or not AdsGram actually has a banner to
-// fill it with — the wrapper is just a placeholder slot, not a real ad on
-// its own. This hides the whole slot if AdsGram reports no fill / an error,
-// so an empty-looking "ad" never sits in the feed.
-function wireNativeAdSlots() {
-  document.querySelectorAll(".post-ad adsgram-task").forEach(el => {
-    if (el.dataset.wired) return;
-    el.dataset.wired = "1";
-    const wrap = el.closest(".post-ad");
-    el.addEventListener("onBannerNotFound", () => {
-      console.warn("[AdsGram] no banner for slot", el.id);
-      if (wrap) wrap.style.display = "none";
-    });
-    el.addEventListener("onError", (e) => {
-      console.error("[AdsGram] error loading slot", el.id, e.detail || e);
-      if (wrap) wrap.style.display = "none";
-    });
-    el.addEventListener("reward", () => {
-      console.log("[AdsGram] task completed", el.id);
-    });
-  });
-}
-
-// Ad placement: first ad appears after the 2nd post, then an ad appears
-// after every 4 subsequent posts (i.e. every 5th post is an ad slot).
-function insertNativeAds(parts) {
-  if (!parts.length) return parts;
-  const withAds = [];
-  parts.forEach((part, i) => {
-    withAds.push(part);
-    const position = i + 1; // 1-based post count
-    if (position === 2 || (position > 2 && (position - 2) % 5 === 0)) {
-      withAds.push(nativeAdHTML());
-    }
-  });
-  return withAds;
 }
 
 startSupabaseAuth();
