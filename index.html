@@ -4808,7 +4808,8 @@ function render() {
   }
   const userPostsHtml = feedPosts.map(userPostCardHTML).join("");
 
-  const blogPostsHtml = POSTS.map(post => {
+  const blogPosts = activeFeedTab === "stars" ? [] : POSTS;
+  const blogPostsHtml = blogPosts.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
       ? s.comments.map(c => `
@@ -4887,7 +4888,7 @@ function render() {
     `;
   }).join("");
 
-  if (!feedPosts.length && !POSTS.length) {
+  if (!feedPosts.length && !blogPosts.length) {
     feed.innerHTML = activeFeedTab === "stars" ? `
       <div class="feed-empty">
         <div class="feed-empty-title">No starred posts yet</div>
