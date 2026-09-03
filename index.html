@@ -1193,6 +1193,26 @@
   .profile-stat b { font-size: 15px; display: block; }
   .profile-stat span { font-size: 12px; color: var(--ink-faint); }
 
+  .profile-posts { border-top: 1px solid var(--line); }
+  .post-preview { cursor: pointer; }
+  .post-preview:active { background: rgba(255,255,255,0.03); }
+
+  /* ---------- post detail page ---------- */
+  .post-detail-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 46;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .post-detail-page.open { transform: translateX(0); }
+  .post-detail-article { border-bottom: none; }
+
   .profile-section-title {
     font-size: 14px;
     font-weight: 700;
@@ -1591,28 +1611,6 @@
     display: block;
   }
 
-  .video-post {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--line);
-  }
-  .video-embed {
-    position: relative;
-    width: 100%;
-    padding-top: 56.25%; /* 16:9 */
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid var(--line);
-    background: var(--paper);
-  }
-  .video-embed iframe {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
-  }
-
   .read-more-toggle {
     display: inline-block;
     margin-top: 4px;
@@ -1658,14 +1656,6 @@
   .comment-author { font-weight: 700; margin-right: 5px; }
   .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
-
-  .comment-video {
-    padding: 8px 0;
-  }
-  .comment-video .video-embed {
-    border-radius: 12px;
-    max-width: 320px;
-  }
 
   .comment-form { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .comment-count {
@@ -2164,6 +2154,18 @@
       <div class="profile-vibe-row" id="profileVibes"></div>
       <div class="profile-stats-row" id="profileStats"></div>
     </div>
+    <div class="profile-section-title">Posts</div>
+    <div class="profile-posts" id="profilePosts"></div>
+  </div>
+
+  <div class="post-detail-page" id="postDetailPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closePostDetail()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title">Post</div>
+    </div>
+    <div class="bookmarks-body" id="postDetailBody"></div>
   </div>
 
   <div class="bookmarks-page" id="starrersPage">
@@ -2540,6 +2542,8 @@ function openProfile(id) {
   stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
   document.getElementById("profileStats").innerHTML = stats.join("");
 
+  renderProfilePosts();
+
   document.getElementById("profilePage").classList.add("open");
   syncBackButton();
 }
@@ -2547,6 +2551,223 @@ function openProfile(id) {
 function closeProfile() {
   document.getElementById("profilePage").classList.remove("open");
   syncBackButton();
+}
+
+function renderProfilePosts() {
+  const container = document.getElementById("profilePosts");
+  if (!container || !currentProfileId) return;
+  const posts = USER_POSTS.filter(p => p.profileId === currentProfileId && userPostState[p.id]);
+  if (!posts.length) {
+    container.innerHTML = `
+      <div class="feed-empty">
+        <div class="feed-empty-title">No posts yet</div>
+        <div class="feed-empty-sub">Posts shared here will show up on this profile.</div>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = posts.map(profilePostCardHTML).join("");
+}
+
+function profilePostCardHTML(post) {
+  const s = userPostState[post.id];
+  if (!s) return "";
+  const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
+  return `
+    <article class="post post-preview" onclick="openPostDetail('${post.id}')">
+      <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-source" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
+          <span class="post-dot">·</span>
+          <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${isOwnPost ? `
+            <button class="post-more-btn" onclick="event.stopPropagation(); openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
+          ` : ""}
+        </div>
+        ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
+        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.type === "poll" ? renderPollPost(post, s) : ""}
+        <div class="stat-row">
+          <button class="stat reply" onclick="event.stopPropagation(); openPostDetail('${post.id}')">
+            ${replyIcon()}<span>${s.comments.length || ""}</span>
+          </button>
+          <button class="stat like ${s.liked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostLike('${post.id}')">
+            ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
+          </button>
+          <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostBookmark('${post.id}')">
+            ${bookmarkIcon(s.bookmarked)}
+          </button>
+          <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="event.stopPropagation(); sendUserPostGift('${post.id}')" aria-label="Support creator">
+            ${giftIcon(s.gifted)}
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+let currentPostDetailId = null;
+
+function findUserPostById(id) {
+  return USER_POSTS.find(p => String(p.id) === String(id));
+}
+
+function openPostDetail(id) {
+  const post = findUserPostById(id);
+  if (!post || !userPostState[post.id]) return;
+  currentPostDetailId = id;
+  renderPostDetail();
+  document.getElementById("postDetailPage").classList.add("open");
+  syncBackButton();
+}
+
+function closePostDetail() {
+  document.getElementById("postDetailPage").classList.remove("open");
+  currentPostDetailId = null;
+  syncBackButton();
+}
+
+function renderPostDetail() {
+  const body = document.getElementById("postDetailBody");
+  if (!body) return;
+  const post = findUserPostById(currentPostDetailId);
+  if (!post || !userPostState[post.id]) { body.innerHTML = ""; return; }
+  body.innerHTML = postDetailCardHTML(post);
+}
+
+function postDetailCardHTML(post) {
+  const s = userPostState[post.id];
+  if (!s) return "";
+  const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
+  const commentsHtml = s.comments.length
+    ? s.comments.map(c => {
+        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
+        return `
+        <div class="comment">
+          ${avatarMarkup(c, "comment-avatar")}
+          <div class="comment-bubble">
+            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
+          </div>
+          ${isOwnComment ? `
+            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
+          ` : ""}
+        </div>`;
+      }).join("")
+    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+
+  return `
+    <article class="post post-detail-article">
+      <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
+          <span class="post-dot">·</span>
+          <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${isOwnPost ? `
+            <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
+          ` : ""}
+        </div>
+        ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
+        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.type === "poll" ? renderPollPost(post, s) : ""}
+        <div class="stat-row">
+          <button class="stat reply">
+            ${replyIcon()}<span>${s.comments.length || ""}</span>
+          </button>
+          <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
+            ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
+          </button>
+          <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleUserPostBookmark('${post.id}')">
+            ${bookmarkIcon(s.bookmarked)}
+          </button>
+          <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="sendUserPostGift('${post.id}')" aria-label="Support creator">
+            ${giftIcon(s.gifted)}
+          </button>
+        </div>
+        <div class="comments">
+          ${commentsHtml}
+          <div class="comment-form">
+            <input id="detail-upinput-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updatePostDetailCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitPostDetailComment('${post.id}')" />
+            <button class="comment-send" onclick="submitPostDetailComment('${post.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </div>
+          <div class="comment-count" id="detail-upcount-${post.id}"></div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function updatePostDetailCommentCount(id) {
+  const input = document.getElementById(`detail-upinput-${id}`);
+  const counter = document.getElementById(`detail-upcount-${id}`);
+  if (!input || !counter) return;
+  const remaining = 280 - input.value.length;
+  counter.className = "comment-count";
+  if (remaining <= 0) {
+    counter.textContent = "0 characters left";
+    counter.classList.add("limit");
+  } else if (remaining <= 30) {
+    counter.textContent = `${remaining} characters left`;
+    counter.classList.add("warn");
+  } else {
+    counter.textContent = "";
+  }
+}
+
+async function submitPostDetailComment(id) {
+  if (!requireTelegramSession()) return;
+  const input = document.getElementById(`detail-upinput-${id}`);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const s = userPostState[id];
+  if (!s) return;
+
+  if (s.editingCommentId) {
+    const commentId = s.editingCommentId;
+    const comment = s.comments.find(c => c.id === commentId);
+    if (comment) comment.text = text;
+    s.editingCommentId = null;
+    input.value = "";
+    render();
+    if (sb) {
+      sb.from("comments").update({ text }).eq("id", commentId).then(() => {});
+    }
+    return;
+  }
+
+  const localId = `local-${Date.now()}`;
+  const comment = {
+    id: localId,
+    author: telegramUser.name,
+    userId: telegramUser.id,
+    initials: telegramUser.initials,
+    photoUrl: telegramUser.photoUrl,
+    text,
+    createdAtMillis: Date.now()
+  };
+  s.comments.push(comment);
+  input.value = "";
+  render();
+  trackCommentAction();
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from("comments").insert({
+      post_id: id,
+      telegram_id: String(telegramUser.id),
+      author: telegramUser.name,
+      initials: telegramUser.initials,
+      photo_url: telegramUser.photoUrl,
+      text
+    }).select().single();
+    if (!error && data) { comment.id = data.id; render(); }
+  } catch (e) {}
 }
 
 function messageProfile() {
@@ -3023,7 +3244,7 @@ function renderPollPost(post, s) {
     const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
     const isVotedOption = s.pollVoted === i;
     return `
-      <div class="poll-post-option ${isVotedOption ? 'voted' : ''}" onclick="voteOnPoll('${post.id}', ${i})">
+      <div class="poll-post-option ${isVotedOption ? 'voted' : ''}" onclick="event.stopPropagation(); voteOnPoll('${post.id}', ${i})">
         ${voted ? `<div class="poll-post-option-fill" style="width:${pct}%"></div>` : ""}
         <div class="poll-post-option-row">
           <span class="poll-post-option-text">${escapeHtml(opt.text)}${isVotedOption ? " ✓" : ""}</span>
@@ -3067,7 +3288,7 @@ function userPostCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => {
+    ? s.comments.map(c => {
         const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
         return `
         <div class="comment">
@@ -3080,7 +3301,7 @@ function userPostCardHTML(post) {
             <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
           ` : ""}
         </div>`;
-      })).join("")
+      }).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -4174,6 +4395,7 @@ function anyOverlayOpen() {
     || document.getElementById("searchPage").classList.contains("open")
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
+    || document.getElementById("postDetailPage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("blogSubmitSheet").classList.contains("open")
@@ -4210,6 +4432,8 @@ function closeTopOverlay() {
     closeEditProfile();
   } else if (document.getElementById("starrersPage").classList.contains("open")) {
     closeStarrersPage();
+  } else if (document.getElementById("postDetailPage").classList.contains("open")) {
+    closePostDetail();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
     closeBookmarksPage();
   } else if (document.getElementById("profilePage").classList.contains("open")) {
@@ -5019,71 +5243,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Featured video shown after the 2nd post, then again after every 5th
-// post following that (positions 2, 7, 12, 17, ...).
-const FEATURED_VIDEO_PLAYLIST_ID = "PLUOAoye2Rd5I";
-const FEATURED_VIDEO_FIRST_AT = 2;
-const FEATURED_VIDEO_REPEAT_EVERY = 5;
-
-// Same video shown inside comment lists, after the 4th comment, then
-// again after every 9th comment following that (positions 4, 13, 22, 31, ...).
-const COMMENT_VIDEO_FIRST_AT = 4;
-const COMMENT_VIDEO_REPEAT_EVERY = 9;
-
-function featuredVideoHTML() {
-  return `
-    <div class="video-post">
-      <div class="video-embed">
-        <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${FEATURED_VIDEO_PLAYLIST_ID}"
-          title="Featured video"
-          loading="lazy"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen
-        ></iframe>
-      </div>
-    </div>
-  `;
-}
-
-function commentVideoHTML() {
-  return `
-    <div class="comment-video">
-      <div class="video-embed">
-        <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${FEATURED_VIDEO_PLAYLIST_ID}"
-          title="Featured video"
-          loading="lazy"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen
-        ></iframe>
-      </div>
-    </div>
-  `;
-}
-
-function interleaveAtInterval(items, buildInsertHTML, firstAt, repeatEvery) {
-  const out = [];
-  let nextAt = firstAt;
-  items.forEach((html, i) => {
-    out.push(html);
-    const position = i + 1;
-    if (position === nextAt) {
-      out.push(buildInsertHTML());
-      nextAt += repeatEvery;
-    }
-  });
-  return out;
-}
-
-function interleaveFeaturedVideo(items) {
-  return interleaveAtInterval(items, featuredVideoHTML, FEATURED_VIDEO_FIRST_AT, FEATURED_VIDEO_REPEAT_EVERY);
-}
-
-function interleaveCommentVideo(items) {
-  return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
-}
-
 function render() {
   const feed = document.getElementById("feed");
   const isStarsFeed = activeFeedTab === "stars";
@@ -5097,14 +5256,14 @@ function render() {
   const blogPostParts = isStarsFeed ? [] : POSTS.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
-      ? interleaveCommentVideo(s.comments.map(c => `
+      ? s.comments.map(c => `
           <div class="comment">
             ${avatarMarkup(c, "comment-avatar")}
             <div class="comment-bubble">
               <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
               ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
             </div>
-          </div>`)).join("")
+          </div>`).join("")
       : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
     return `
@@ -5173,9 +5332,6 @@ function render() {
     `;
   });
 
-  const allPostParts = feedPosts.map(userPostCardHTML).concat(blogPostParts);
-  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
-
   if (!feedPosts.length && (isStarsFeed || !POSTS.length)) {
     feed.innerHTML = isStarsFeed ? `
       <div class="feed-empty">
@@ -5191,7 +5347,14 @@ function render() {
     return;
   }
 
-  feed.innerHTML = feedHtml;
+  feed.innerHTML = feedPosts.map(userPostCardHTML).concat(blogPostParts).join("");
+
+  if (document.getElementById("profilePage").classList.contains("open")) {
+    renderProfilePosts();
+  }
+  if (document.getElementById("postDetailPage").classList.contains("open")) {
+    renderPostDetail();
+  }
 }
 
 // Monetag in-app interstitial: shows automatically in the background based
