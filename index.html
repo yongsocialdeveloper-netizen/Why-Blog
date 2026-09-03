@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src='//libtl.com/sdk.js' data-zone='11716919' data-sdk='show_11716919'></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WhyBlog</title>
@@ -2394,7 +2393,7 @@ const PROFILES = {
     photoUrl: "", telegramId: null, username: "",
     bio: "Add a bio to tell people what you're into.",
     email: null, joined: "Aug 2026",
-    vibes: [], posts: 0, ecoValue: "0",
+    vibes: [],
     bioUpdatedAt: null, tonWallet: ""
   }
 };
@@ -2469,10 +2468,8 @@ function openProfile(id) {
   document.getElementById("profileVibes").innerHTML = (p.vibes || [])
     .map(v => `<span class="profile-vibe-chip" style="background:${p.color}">${v}</span>`).join("");
 
-  const stats = [`<div class="profile-stat"><b>${p.posts}</b><span>Posts</span></div>`];
-  if (p.ecoValue !== null && p.ecoValue !== undefined) {
-    stats.push(`<div class="profile-stat"><b>$${p.ecoValue}</b><span>Est. value</span></div>`);
-  }
+  const postCount = USER_POSTS.filter(post => post.profileId === id).length;
+  const stats = [`<div class="profile-stat" style="cursor:pointer" id="profilePostStat" onclick="scrollToProfilePosts()"><b>${postCount}</b><span>Posts</span></div>`];
   const starCount = (starState[id] && starState[id].count) || 0;
   stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
   document.getElementById("profileStats").innerHTML = stats.join("");
@@ -2488,10 +2485,20 @@ function closeProfile() {
   syncBackButton();
 }
 
+function scrollToProfilePosts() {
+  const target = document.getElementById("profilePosts");
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderProfilePosts() {
   const container = document.getElementById("profilePosts");
   if (!container || !currentProfileId) return;
   const posts = USER_POSTS.filter(p => p.profileId === currentProfileId && userPostState[p.id]);
+  const postStat = document.getElementById("profilePostStat");
+  if (postStat) {
+    const count = postStat.querySelector("b");
+    if (count) count.textContent = posts.length;
+  }
   if (!posts.length) {
     container.innerHTML = `
       <div class="feed-empty">
@@ -2706,7 +2713,6 @@ async function submitPostDetailComment(id) {
   input.value = "";
   s.draftImage = null;
   render();
-  trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
@@ -2842,7 +2848,7 @@ async function renderStarrersPage(id) {
           username: link ? link.telegram_username : "",
           verified: false, bio: "Telegram user on WhyBlog.",
           email: null, joined: "Recently",
-          vibes: [], posts: 0, ecoValue: null
+          vibes: []
         };
       }
 
@@ -2937,9 +2943,7 @@ function ensureTelegramPostProfile(post) {
       bio: "Telegram user on WhyBlog.",
       email: null,
       joined: "Recently",
-      vibes: [],
-      posts: 0,
-      ecoValue: null
+      vibes: []
     };
   }
 }
@@ -3039,7 +3043,6 @@ function toggleUserPostLike(id) {
   s.likeCount += s.liked ? 1 : -1;
   haptic("light");
   render();
-  if (s.liked) trackLikeAction();
   if (!sb) return;
   const delta = s.liked ? 1 : -1;
   const telegramId = String(telegramUser.id);
@@ -3117,7 +3120,6 @@ async function submitUserPostComment(id) {
   input.value = "";
   s.draftImage = null;
   render();
-  trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
@@ -3794,7 +3796,7 @@ async function submitPostEdit() {
   showPostingProgressToast();
   render();
 
-  if (!sb) { showPostedSuccessToast(); showInterstitialAd(); return; }
+  if (!sb) { showPostedSuccessToast(); return; }
   try {
     const dbUpdate = {};
     if ("question" in updateData) dbUpdate.question = updateData.question;
@@ -3805,7 +3807,6 @@ async function submitPostEdit() {
     const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
     if (error) throw error;
     showPostedSuccessToast();
-    showInterstitialAd();
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
   }
@@ -3817,7 +3818,6 @@ async function deleteUserPost(postId) {
   delete userPostState[postId];
   render();
   haptic("medium");
-  trackDeletePostAction();
   if (!sb) return;
   try {
     const { error } = await sb.from("posts").delete().eq("id", postId);
@@ -3935,7 +3935,6 @@ async function submitCompose() {
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
       showPostedSuccessToast();
-      trackPostAction();
     } catch (e) {
       haptic("medium");
       showToast("Couldn't save your post. Please try again.");
@@ -3977,7 +3976,6 @@ async function submitCompose() {
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
     showPostedSuccessToast();
-    trackPostAction();
   } catch (e) {
     haptic("medium");
     showToast("Couldn't save your post. Please try again.");
@@ -4065,10 +4063,13 @@ function safeTelegramPhotoUrl(url) {
 function setAvatarElement(element, user, fallbackColor) {
   if (!element || !user) return;
   const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
+  const initials = escapeHtml(user.initials || "T");
   element.classList.toggle("has-photo", Boolean(photoUrl));
   element.style.background = fallbackColor || user.color || "#2fa393";
   if (photoUrl) {
-    element.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" />`;
+    // If the photo URL fails to load (expired/blocked), fall back to initials
+    // instead of leaving a broken image icon in place.
+    element.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.classList.remove('has-photo'); this.parentElement.textContent='${initials}';" />`;
   } else {
     element.textContent = user.initials || "T";
   }
@@ -4077,10 +4078,13 @@ function setAvatarElement(element, user, fallbackColor) {
 function avatarMarkup(user, className, fallbackColor) {
   const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
   const color = fallbackColor || user.color || "#2fa393";
+  const initials = escapeHtml(user.initials || "T");
   if (photoUrl) {
-    return `<div class="${className} has-photo" style="background:${color}"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" /></div>`;
+    // If the photo URL fails to load (expired/blocked), fall back to initials
+    // instead of leaving a broken image icon in place.
+    return `<div class="${className} has-photo" style="background:${color}"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.classList.remove('has-photo'); this.parentElement.textContent='${initials}';" /></div>`;
   }
-  return `<div class="${className}" style="background:${color}">${escapeHtml(user.initials || "T")}</div>`;
+  return `<div class="${className}" style="background:${color}">${initials}</div>`;
 }
 
 function initTelegramIdentity() {
@@ -4151,10 +4155,11 @@ function updateAuthTelegramCard() {
   const avatar = document.getElementById("authTelegramAvatar");
   const name = document.getElementById("authTelegramName");
   const photoUrl = telegramUser.photoUrl;
+  const initials = escapeHtml(telegramUser.initials);
   avatar.style.background = telegramUser.color;
   avatar.innerHTML = photoUrl
-    ? `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" />`
-    : escapeHtml(telegramUser.initials);
+    ? `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.textContent='${initials}';" />`
+    : initials;
   name.textContent = isTelegramSession
     ? `${telegramUser.name}${telegramUser.username ? ` · @${telegramUser.username}` : ""}`
     : "Open this app from Telegram to continue";
@@ -4693,7 +4698,6 @@ async function saveEditProfile() {
   btn.textContent = "Saved";
   btn.style.pointerEvents = "none";
   btn.style.opacity = "0.7";
-  showInterstitialAd();
   setTimeout(() => closeEditProfile(), 1000);
 }
 
@@ -5212,58 +5216,6 @@ function render() {
   if (document.getElementById("postDetailPage").classList.contains("open")) {
     renderPostDetail();
   }
-}
-
-// Monetag in-app interstitial: shows automatically in the background based
-// on the settings below (no manual show_11716919() call needed for this part).
-// 2 ads within 0.1 hours (6 min), 30s apart, first one after a 5s delay.
-// Trailing 0 = session persists across page navigation (1 would reset it).
-if (typeof window.show_11716919 === "function") {
-  window.show_11716919({
-    type: "inApp",
-    inAppSettings: {
-      frequency: 2,
-      capping: 0.1,
-      interval: 30,
-      timeout: 5,
-      everyPage: false
-    }
-  });
-}
-
-// Manual interstitial ad, triggered from specific user actions below.
-function showInterstitialAd() {
-  if (typeof window.show_11716919 !== "function") return;
-  window.show_11716919().catch(() => {
-    // user got an error during playback, or no fill — do nothing
-  });
-}
-
-// Per-action counters that decide when an action-triggered ad should show.
-const adActionCounts = { like: 0, comment: 0, post: 0, deletePost: 0 };
-
-// Every 10th like (i.e. the 9 in between show nothing, the 10th shows an ad).
-function trackLikeAction() {
-  adActionCounts.like++;
-  if (adActionCounts.like % 10 === 0) showInterstitialAd();
-}
-
-// Every 5th comment.
-function trackCommentAction() {
-  adActionCounts.comment++;
-  if (adActionCounts.comment % 5 === 0) showInterstitialAd();
-}
-
-// Every 3rd new post.
-function trackPostAction() {
-  adActionCounts.post++;
-  if (adActionCounts.post % 3 === 0) showInterstitialAd();
-}
-
-// Every 3rd deleted post.
-function trackDeletePostAction() {
-  adActionCounts.deletePost++;
-  if (adActionCounts.deletePost % 3 === 0) showInterstitialAd();
 }
 
 startSupabaseAuth();
