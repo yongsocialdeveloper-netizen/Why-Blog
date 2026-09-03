@@ -1659,6 +1659,14 @@
   .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
 
+  .comment-video {
+    padding: 8px 0;
+  }
+  .comment-video .video-embed {
+    border-radius: 12px;
+    max-width: 320px;
+  }
+
   .comment-form { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .comment-count {
     text-align: right;
@@ -3059,7 +3067,7 @@ function userPostCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const commentsHtml = s.comments.length
-    ? s.comments.map(c => {
+    ? interleaveCommentVideo(s.comments.map(c => {
         const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
         return `
         <div class="comment">
@@ -3072,7 +3080,7 @@ function userPostCardHTML(post) {
             <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
           ` : ""}
         </div>`;
-      }).join("")
+      })).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -5017,6 +5025,11 @@ const FEATURED_VIDEO_PLAYLIST_ID = "PLUOAoye2Rd5I";
 const FEATURED_VIDEO_FIRST_AT = 2;
 const FEATURED_VIDEO_REPEAT_EVERY = 5;
 
+// Same video shown inside comment lists, after the 4th comment, then
+// again after every 9th comment following that (positions 4, 13, 22, 31, ...).
+const COMMENT_VIDEO_FIRST_AT = 4;
+const COMMENT_VIDEO_REPEAT_EVERY = 9;
+
 function featuredVideoHTML() {
   return `
     <div class="video-post">
@@ -5033,18 +5046,42 @@ function featuredVideoHTML() {
   `;
 }
 
-function interleaveFeaturedVideo(items) {
+function commentVideoHTML() {
+  return `
+    <div class="comment-video">
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube.com/embed/videoseries?list=${FEATURED_VIDEO_PLAYLIST_ID}"
+          title="Featured video"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  `;
+}
+
+function interleaveAtInterval(items, buildInsertHTML, firstAt, repeatEvery) {
   const out = [];
-  let nextAt = FEATURED_VIDEO_FIRST_AT;
+  let nextAt = firstAt;
   items.forEach((html, i) => {
     out.push(html);
     const position = i + 1;
     if (position === nextAt) {
-      out.push(featuredVideoHTML());
-      nextAt += FEATURED_VIDEO_REPEAT_EVERY;
+      out.push(buildInsertHTML());
+      nextAt += repeatEvery;
     }
   });
   return out;
+}
+
+function interleaveFeaturedVideo(items) {
+  return interleaveAtInterval(items, featuredVideoHTML, FEATURED_VIDEO_FIRST_AT, FEATURED_VIDEO_REPEAT_EVERY);
+}
+
+function interleaveCommentVideo(items) {
+  return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
 function render() {
@@ -5060,14 +5097,14 @@ function render() {
   const blogPostParts = isStarsFeed ? [] : POSTS.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
-      ? s.comments.map(c => `
+      ? interleaveCommentVideo(s.comments.map(c => `
           <div class="comment">
             ${avatarMarkup(c, "comment-avatar")}
             <div class="comment-bubble">
               <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
               ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
             </div>
-          </div>`).join("")
+          </div>`)).join("")
       : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
     return `
@@ -5137,7 +5174,7 @@ function render() {
   });
 
   const allPostParts = feedPosts.map(userPostCardHTML).concat(blogPostParts);
-  const feedHtml = isStarsFeed ? allPostParts.join("") : interleaveFeaturedVideo(allPostParts).join("");
+  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
 
   if (!feedPosts.length && (isStarsFeed || !POSTS.length)) {
     feed.innerHTML = isStarsFeed ? `
