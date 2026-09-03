@@ -878,6 +878,61 @@
   }
   .compose-tool-btn:hover { background: var(--accent-soft); }
   .compose-tool-btn.disabled { color: var(--ink-faint); opacity: 0.4; pointer-events: none; }
+  .compose-tool-btn.active { background: var(--accent); color: #0d1116; }
+
+  .compose-poll-block {
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .poll-block-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12.5px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .poll-remove-btn { color: var(--ink-faint); display: flex; }
+  .poll-question-input {
+    width: 100%; background: transparent; border: none; outline: none;
+    color: var(--ink); font-size: 15px; font-weight: 600; resize: none;
+    font-family: inherit;
+  }
+  .poll-options-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .poll-option-row { display: flex; align-items: center; gap: 8px; }
+  .poll-option-input {
+    flex: 1; background: var(--bg-soft, rgba(255,255,255,0.04));
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; color: var(--ink); font-size: 14px; font-family: inherit;
+  }
+  .poll-option-remove { color: var(--ink-faint); flex-shrink: 0; display: flex; }
+  .poll-option-remove:hover { color: #e0555a; }
+  .poll-add-option-btn {
+    margin-top: 10px; font-size: 13.5px; font-weight: 700; color: var(--accent);
+  }
+  .poll-add-option-btn.disabled { color: var(--ink-faint); pointer-events: none; }
+
+  .poll-post-question { font-size: 15.5px; font-weight: 700; margin: 2px 0 10px; }
+  .poll-post-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .poll-post-option {
+    position: relative; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; overflow: hidden; cursor: pointer;
+  }
+  .poll-post-option:hover { border-color: var(--accent); }
+  .poll-post-option.voted { border-color: var(--accent); }
+  .poll-post-option-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--accent-soft); z-index: 0;
+    transition: width 0.3s ease;
+  }
+  .poll-post-option-row {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; font-size: 14px;
+  }
+  .poll-post-option-text { color: var(--ink); }
+  .poll-post-option-pct { color: var(--ink-soft); font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .poll-post-votecount { font-size: 12.5px; color: var(--ink-faint); }
 
   .compose-reply-row {
     display: flex;
@@ -1208,6 +1263,49 @@
     display: flex; flex-direction: column;
   }
   .drafts-sheet.open { transform: translateY(0); }
+
+  .draft-view-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 92;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .draft-view-page.open { transform: translateX(0); }
+  .draft-view-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+  }
+  .draft-view-back { display: flex; color: var(--ink); flex-shrink: 0; }
+  .draft-view-title { font-size: 17px; font-weight: 700; flex: 1; }
+  .draft-view-delete { display: flex; color: #e0555a; flex-shrink: 0; }
+  .draft-view-body { flex: 1; overflow-y: auto; padding: 22px 20px; background: #fbf6ea; color: #2b2116; }
+  .draft-view-body .draft-view-text {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 17px; line-height: 1.75; white-space: pre-wrap;
+    color: #2b2116;
+  }
+  .draft-view-body .draft-view-image { width: 100%; border-radius: 10px; margin-top: 16px; display: block; }
+  .draft-view-body .draft-view-timestamp {
+    margin-top: 22px; padding-top: 14px; border-top: 1px dashed rgba(43,33,22,0.25);
+    font-size: 12.5px; color: rgba(43,33,22,0.55);
+  }
+  .draft-view-body .draft-view-question { font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 700; margin-bottom: 14px; color: #2b2116; }
+  .draft-view-body .draft-view-option {
+    font-family: Georgia, 'Times New Roman', serif; font-size: 15.5px;
+    padding: 10px 12px; border: 1px solid rgba(43,33,22,0.25); border-radius: 8px;
+    margin-bottom: 8px; color: #2b2116;
+  }
+  .draft-view-footer { padding: 12px 16px; border-top: 1px solid var(--line); flex-shrink: 0; }
+  .draft-view-continue-btn {
+    width: 100%; padding: 13px; border-radius: 999px;
+    background: var(--accent); color: #0d1116; font-weight: 700; font-size: 15px;
+  }
   .drafts-body { overflow-y: auto; padding: 4px 14px 20px; }
   .drafts-empty { padding: 30px 0; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
   .draft-item {
@@ -1217,7 +1315,9 @@
   }
   .draft-item:last-child { border-bottom: none; }
   .draft-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-  .draft-text { flex: 1; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-item-main { flex: 1; min-width: 0; }
+  .draft-text { font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-time { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
   .draft-delete { color: var(--ink-faint); flex-shrink: 0; display: flex; }
   .draft-delete:hover { color: #e0555a; }
 
@@ -2043,26 +2143,29 @@
           </div>
         </div>
       </div>
+      <div class="compose-poll-block" id="composePollBlock" style="display:none">
+        <div class="poll-block-header">
+          <span>Poll</span>
+          <button class="poll-remove-btn" onclick="togglePollMode()" aria-label="Remove poll">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <textarea class="poll-question-input" id="pollQuestionInput" maxlength="300" placeholder="Ask a question" oninput="updateComposeState()" rows="2"></textarea>
+        <div class="compose-char-count" id="pollQuestionCount"></div>
+        <div class="poll-options-list" id="pollOptionsList"></div>
+        <button class="poll-add-option-btn" id="pollAddOptionBtn" onclick="addPollOption()">+ Add option</button>
+      </div>
     </div>
     <div class="compose-reply-row">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/></svg>
       Everyone can reply
     </div>
     <div class="compose-toolbar">
-      <button class="compose-tool-btn" onclick="document.getElementById('composeFile').click()" aria-label="Add image">
+      <button class="compose-tool-btn" id="composeImageToolBtn" onclick="document.getElementById('composeFile').click()" aria-label="Add image">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
       </button>
-      <button class="compose-tool-btn" onclick="document.getElementById('composeCameraFile').click()" aria-label="Camera">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      </button>
-      <button class="compose-tool-btn disabled" aria-label="GIF (coming soon)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="3"/><text x="6" y="15" font-size="8" fill="currentColor" stroke="none">GIF</text></svg>
-      </button>
-      <button class="compose-tool-btn disabled" aria-label="Poll (coming soon)">
+      <button class="compose-tool-btn" id="composePollToolBtn" onclick="togglePollMode()" aria-label="Poll">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="2"/><path d="M11 7h10"/><circle cx="6" cy="14" r="2"/><path d="M11 14h10"/><circle cx="6" cy="21" r="2"/><path d="M11 21h10"/></svg>
-      </button>
-      <button class="compose-tool-btn disabled" aria-label="Location (coming soon)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 10.5c0 6.5-8.8 11.5-8.8 11.5s-8.8-5-8.8-11.5a8.8 8.8 0 0117.6 0z"/><circle cx="12" cy="10.5" r="3"/></svg>
       </button>
     </div>
     <input type="file" id="composeFile" accept="image/*" style="display:none" onchange="handleComposeImageSelect(this)" />
@@ -2085,6 +2188,22 @@
       <div class="sheet-title">Drafts</div>
     </div>
     <div class="drafts-body" id="draftsBody"></div>
+  </div>
+
+  <div class="draft-view-page" id="draftViewPage">
+    <div class="draft-view-header">
+      <button class="draft-view-back" onclick="closeDraftView()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="draft-view-title">Draft</div>
+      <button class="draft-view-delete" id="draftViewDeleteBtn" aria-label="Delete draft">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+      </button>
+    </div>
+    <div class="draft-view-body" id="draftViewBody"></div>
+    <div class="draft-view-footer">
+      <button class="draft-view-continue-btn" id="draftViewContinueBtn">Continue Editing</button>
+    </div>
   </div>
 
   <div class="search-page" id="searchPage">
@@ -2348,7 +2467,17 @@ async function loadUserPosts() {
         });
       }
     } catch (e) {}
-    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false, textExpanded: false };
+    let pollVoted = null;
+    if (post.type === "poll") {
+      try {
+        if (firebaseDb) {
+          const voteDoc = await firebaseDb.collection("posts").doc(post.id)
+            .collection("votes").doc(String(telegramUser.id)).get();
+          if (voteDoc.exists) pollVoted = voteDoc.data().optionIndex;
+        }
+      } catch (e) {}
+    }
+    userPostState[post.id] = { liked, likeCount: post.likeCount || 0, bookmarked: false, gifted: false, comments, showComments: false, textExpanded: false, pollVoted };
   }
   render();
 }
@@ -2454,6 +2583,57 @@ function toggleUserPostText(id) {
   render();
 }
 
+function renderPollPost(post, s) {
+  const totalVotes = post.options.reduce((sum, o) => sum + (o.votes || 0), 0);
+  const voted = s.pollVoted !== null && s.pollVoted !== undefined;
+  const optionsHtml = post.options.map((opt, i) => {
+    const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
+    const isVotedOption = s.pollVoted === i;
+    return `
+      <div class="poll-post-option ${isVotedOption ? 'voted' : ''}" onclick="voteOnPoll('${post.id}', ${i})">
+        ${voted ? `<div class="poll-post-option-fill" style="width:${pct}%"></div>` : ""}
+        <div class="poll-post-option-row">
+          <span class="poll-post-option-text">${escapeHtml(opt.text)}${isVotedOption ? " ✓" : ""}</span>
+          ${voted ? `<span class="poll-post-option-pct">${pct}%</span>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="post-text"><span class="poll-post-question">${escapeHtml(post.question)}</span></div>
+    <div class="poll-post-options">${optionsHtml}</div>
+    <div class="poll-post-votecount">${fmt(totalVotes)} vote${totalVotes === 1 ? "" : "s"}</div>
+  `;
+}
+
+async function voteOnPoll(postId, optionIndex) {
+  if (!requireTelegramSession()) return;
+  const s = userPostState[postId];
+  if (!s || s.pollVoted !== null && s.pollVoted !== undefined) return;
+  const post = USER_POSTS.find(p => p.id === postId);
+  if (!post || post.type !== "poll") return;
+
+  post.options[optionIndex].votes = (post.options[optionIndex].votes || 0) + 1;
+  s.pollVoted = optionIndex;
+  haptic("light");
+  render();
+
+  if (!firebaseDb) return;
+  const postRef = firebaseDb.collection("posts").doc(postId);
+  const voteRef = postRef.collection("votes").doc(String(telegramUser.id));
+  try {
+    await firebaseDb.runTransaction(async tx => {
+      const voteDoc = await tx.get(voteRef);
+      if (voteDoc.exists) throw new Error("already-voted");
+      const postDoc = await tx.get(postRef);
+      const options = postDoc.data().options || [];
+      options[optionIndex] = { ...options[optionIndex], votes: (options[optionIndex].votes || 0) + 1 };
+      tx.update(postRef, { options });
+      tx.set(voteRef, { optionIndex, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  } catch (e) {}
+}
+
 function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
@@ -2479,6 +2659,7 @@ function userPostCardHTML(post) {
         </div>
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.type === "poll" ? renderPollPost(post, s) : ""}
         <div class="stat-row">
           <button class="stat reply" onclick="toggleUserPostComments('${post.id}')">
             ${replyIcon()}<span>${s.comments.length || ""}</span>
@@ -2512,6 +2693,11 @@ function userPostCardHTML(post) {
 
 let composeImage = null;
 const COMPOSE_MAX = 500;
+const POLL_QUESTION_MAX = 300;
+const POLL_OPTION_MAX = 150;
+const POLL_MAX_OPTIONS = 6;
+let composeMode = "text";
+let pollOptions = ["", ""];
 
 function isEmojiSegment(segment) {
   return /\p{Extended_Pictographic}/u.test(segment);
@@ -2617,35 +2803,101 @@ function renderDraftsList() {
     body.innerHTML = `<div class="drafts-empty">No saved drafts</div>`;
     return;
   }
-  body.innerHTML = drafts.map(d => `
+  body.innerHTML = drafts.map(d => {
+    const preview = d.type === "poll"
+      ? (d.question || "(untitled poll)")
+      : ((d.text || "").slice(0, 80) || "(image only)");
+    return `
     <div class="draft-item" onclick="openDraft('${d.id}')">
-      ${d.image ? `<img class="draft-thumb" src="${d.image}" alt="" />` : ""}
-      <div class="draft-text">${escapeHtml((d.text || "").slice(0, 80)) || "(image only)"}</div>
+      ${d.type !== "poll" && d.image ? `<img class="draft-thumb" src="${d.image}" alt="" />` : ""}
+      <div class="draft-item-main">
+        <div class="draft-text">${d.type === "poll" ? "📊 " : ""}${escapeHtml(preview)}</div>
+        <div class="draft-time">${formatRelativeTime(d.savedAt)}</div>
+      </div>
       <button class="draft-delete" onclick="event.stopPropagation(); deleteDraft('${d.id}')" aria-label="Delete draft">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
+
+let viewingDraftId = null;
+
 function openDraft(id) {
-  const drafts = loadDrafts();
-  const draft = drafts.find(d => d.id === id);
+  const draft = loadDrafts().find(d => d.id === id);
   if (!draft) return;
+  viewingDraftId = id;
   closeDraftsSheet();
-  currentDraftId = id;
-  document.getElementById("composeTextarea").value = draft.text || "";
-  composeImage = draft.image || null;
-  if (composeImage) {
-    document.getElementById("composeImagePreviewImg").src = composeImage;
-    document.getElementById("composeImagePreview").style.display = "block";
+
+  document.getElementById("draftViewDeleteBtn").onclick = () => {
+    removeDraft(id);
+    closeDraftView();
+    showToast("Draft deleted");
+  };
+  document.getElementById("draftViewContinueBtn").onclick = () => continueEditingDraft(id);
+
+  const body = document.getElementById("draftViewBody");
+  if (draft.type === "poll") {
+    body.innerHTML = `
+      <div class="draft-view-question">${escapeHtml(draft.question || "(untitled poll)")}</div>
+      ${(draft.options || []).map(o => `<div class="draft-view-option">${escapeHtml(o)}</div>`).join("")}
+      <div class="draft-view-timestamp">Saved ${formatRelativeTime(draft.savedAt)} · ${new Date(draft.savedAt).toLocaleString()}</div>
+    `;
   } else {
-    document.getElementById("composeImagePreview").style.display = "none";
+    body.innerHTML = `
+      <div class="draft-view-text">${escapeHtml(draft.text || "")}</div>
+      ${draft.image ? `<img class="draft-view-image" src="${draft.image}" alt="" />` : ""}
+      <div class="draft-view-timestamp">Saved ${formatRelativeTime(draft.savedAt)} · ${new Date(draft.savedAt).toLocaleString()}</div>
+    `;
   }
+
+  document.getElementById("draftViewPage").classList.add("open");
+  syncBackButton();
+}
+
+function closeDraftView() {
+  viewingDraftId = null;
+  document.getElementById("draftViewPage").classList.remove("open");
+  syncBackButton();
+}
+
+function continueEditingDraft(id) {
+  const draft = loadDrafts().find(d => d.id === id);
+  if (!draft) return;
+  closeDraftView();
+  currentDraftId = id;
+
+  if (draft.type === "poll") {
+    composeMode = "poll";
+    pollOptions = draft.options && draft.options.length ? [...draft.options] : ["", ""];
+    while (pollOptions.length < 2) pollOptions.push("");
+    document.getElementById("pollQuestionInput").value = draft.question || "";
+    document.getElementById("composePollBlock").style.display = "";
+    document.getElementById("composeTextarea").style.display = "none";
+    document.getElementById("composeImageToolBtn").classList.add("disabled");
+    document.getElementById("composePollToolBtn").classList.add("active");
+    renderPollOptions();
+  } else {
+    composeMode = "text";
+    document.getElementById("composeTextarea").value = draft.text || "";
+    composeImage = draft.image || null;
+    if (composeImage) {
+      document.getElementById("composeImagePreviewImg").src = composeImage;
+      document.getElementById("composeImagePreview").style.display = "block";
+    } else {
+      document.getElementById("composeImagePreview").style.display = "none";
+    }
+  }
+
   document.getElementById("composePage").classList.add("open");
   updateComposeState();
   syncBackButton();
-  setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+  if (composeMode === "text") {
+    setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+  }
 }
+
 function deleteDraft(id) {
   removeDraft(id);
   renderDraftsList();
@@ -2664,13 +2916,87 @@ function resetComposeUI() {
   document.getElementById("composePage").classList.remove("open");
   document.getElementById("composeTextarea").value = "";
   removeComposeImage();
+  composeMode = "text";
+  pollOptions = ["", ""];
+  document.getElementById("pollQuestionInput").value = "";
+  document.getElementById("composePollBlock").style.display = "none";
+  document.getElementById("composeImageToolBtn").classList.remove("disabled");
+  document.getElementById("composePollToolBtn").classList.remove("active");
+  document.getElementById("composeTextarea").style.display = "";
   updateComposeState();
   syncBackButton();
 }
 
+function togglePollMode() {
+  composeMode = composeMode === "poll" ? "text" : "poll";
+  const pollBlock = document.getElementById("composePollBlock");
+  const textarea = document.getElementById("composeTextarea");
+  const imageBtn = document.getElementById("composeImageToolBtn");
+  const pollBtn = document.getElementById("composePollToolBtn");
+  if (composeMode === "poll") {
+    pollBlock.style.display = "";
+    textarea.style.display = "none";
+    removeComposeImage();
+    imageBtn.classList.add("disabled");
+    pollBtn.classList.add("active");
+    if (!pollOptions.length) pollOptions = ["", ""];
+    renderPollOptions();
+    setTimeout(() => document.getElementById("pollQuestionInput").focus(), 150);
+  } else {
+    pollBlock.style.display = "none";
+    textarea.style.display = "";
+    imageBtn.classList.remove("disabled");
+    pollBtn.classList.remove("active");
+    document.getElementById("pollQuestionInput").value = "";
+    pollOptions = ["", ""];
+  }
+  haptic("light");
+  updateComposeState();
+}
+
+function renderPollOptions() {
+  const list = document.getElementById("pollOptionsList");
+  list.innerHTML = pollOptions.map((val, i) => `
+    <div class="poll-option-row">
+      <input class="poll-option-input" type="text" maxlength="${POLL_OPTION_MAX}"
+        placeholder="Option ${i + 1}" value="${escapeHtml(val)}"
+        oninput="updatePollOption(${i}, this.value)" />
+      ${pollOptions.length > 2 ? `
+        <button class="poll-option-remove" onclick="removePollOption(${i})" aria-label="Remove option">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+        </button>
+      ` : ""}
+    </div>
+  `).join("");
+  const addBtn = document.getElementById("pollAddOptionBtn");
+  addBtn.classList.toggle("disabled", pollOptions.length >= POLL_MAX_OPTIONS);
+}
+
+function updatePollOption(i, value) {
+  pollOptions[i] = value;
+  updateComposeState();
+}
+
+function addPollOption() {
+  if (pollOptions.length >= POLL_MAX_OPTIONS) return;
+  pollOptions.push("");
+  renderPollOptions();
+  haptic("light");
+}
+
+function removePollOption(i) {
+  if (pollOptions.length <= 2) return;
+  pollOptions.splice(i, 1);
+  renderPollOptions();
+  updateComposeState();
+  haptic("light");
+}
+
 function closeCompose() {
   const textarea = document.getElementById("composeTextarea");
-  if (textarea.value.trim() || composeImage) {
+  const hasPollContent = composeMode === "poll"
+    && (document.getElementById("pollQuestionInput").value.trim() || pollOptions.some(o => o.trim()));
+  if (textarea.value.trim() || composeImage || hasPollContent) {
     document.getElementById("discardOverlay").classList.add("open");
     document.getElementById("discardPopup").classList.add("open");
     return;
@@ -2692,10 +3018,20 @@ function discardComposePost() {
 function saveComposeDraft() {
   cancelDiscardPost();
   const textarea = document.getElementById("composeTextarea");
-  const text = textarea.value.trim();
   const drafts = loadDrafts();
   const id = currentDraftId || `draft-${Date.now()}`;
-  const draft = { id, text: text || null, image: composeImage, savedAt: Date.now() };
+  let draft;
+  if (composeMode === "poll") {
+    draft = {
+      id, type: "poll",
+      question: document.getElementById("pollQuestionInput").value.trim() || null,
+      options: pollOptions.map(o => o.trim()).filter(Boolean),
+      savedAt: Date.now()
+    };
+  } else {
+    const text = textarea.value.trim();
+    draft = { id, type: "text", text: text || null, image: composeImage, savedAt: Date.now() };
+  }
   const idx = drafts.findIndex(d => d.id === id);
   if (idx >= 0) drafts[idx] = draft; else drafts.unshift(draft);
   persistDrafts(drafts);
@@ -2705,9 +3041,28 @@ function saveComposeDraft() {
 
 function updateComposeState() {
   const textarea = document.getElementById("composeTextarea");
-  const counter = document.getElementById("composeCharCount");
   const btn = document.getElementById("composePostBtn");
 
+  if (composeMode === "poll") {
+    const questionInput = document.getElementById("pollQuestionInput");
+    const counter = document.getElementById("pollQuestionCount");
+    let weighted = questionInput.value.length;
+    if (weighted > POLL_QUESTION_MAX) {
+      questionInput.value = questionInput.value.slice(0, POLL_QUESTION_MAX);
+      weighted = POLL_QUESTION_MAX;
+      haptic("light");
+    }
+    counter.textContent = `${weighted}/${POLL_QUESTION_MAX}`;
+    counter.className = "compose-char-count";
+    if (weighted >= POLL_QUESTION_MAX) counter.classList.add("limit");
+    else if (weighted >= POLL_QUESTION_MAX - 30) counter.classList.add("warn");
+
+    const filledOptions = pollOptions.filter(o => o.trim().length > 0);
+    btn.classList.toggle("enabled", questionInput.value.trim().length > 0 && filledOptions.length >= 2);
+    return;
+  }
+
+  const counter = document.getElementById("composeCharCount");
   let weighted = computeWeightedLength(textarea.value);
   if (weighted > COMPOSE_MAX) {
     textarea.value = truncateToWeightedLimit(textarea.value, COMPOSE_MAX);
@@ -2757,6 +3112,52 @@ function removeComposeImage() {
 async function submitCompose() {
   if (!requireTelegramSession()) return;
   if (!firebaseDb) { showToast("Can't post right now — try again in a moment."); return; }
+
+  if (composeMode === "poll") {
+    const question = document.getElementById("pollQuestionInput").value.trim();
+    const options = pollOptions.map(o => o.trim()).filter(Boolean);
+    if (!question || options.length < 2) return;
+
+    const pendingDraftId = currentDraftId;
+    resetComposeUI();
+    showPostingProgressToast();
+
+    const docRef = firebaseDb.collection("posts").doc();
+    const id = docRef.id;
+    const nowMillis = Date.now();
+    const newPost = {
+      id, type: "poll", question,
+      options: options.map(text => ({ text, votes: 0 })),
+      name: telegramUser.name,
+      username: telegramUser.username,
+      userId: telegramUser.id,
+      photoUrl: telegramUser.photoUrl,
+      initials: telegramUser.initials,
+      color: telegramUser.color,
+      profileId: "you",
+      createdAtMillis: nowMillis
+    };
+
+    try {
+      const { createdAtMillis, ...postData } = newPost;
+      await docRef.set({
+        ...postData,
+        likeCount: 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      USER_POSTS.unshift(newPost);
+      userPostState[id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, pollVoted: null };
+      render();
+      haptic("medium");
+      if (pendingDraftId) removeDraft(pendingDraftId);
+      showPostedSuccessToast();
+    } catch (e) {
+      haptic("medium");
+      showToast("Couldn't save your post. Please try again.");
+    }
+    return;
+  }
+
   const textarea = document.getElementById("composeTextarea");
   const text = textarea.value.trim();
   if (!text && !composeImage) return;
@@ -3193,6 +3594,7 @@ function anyOverlayOpen() {
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
+    || document.getElementById("draftViewPage").classList.contains("open")
     || document.getElementById("videoZonePlayer").classList.contains("open")
     || document.getElementById("videoZonePage").classList.contains("open");
 }
@@ -3204,6 +3606,10 @@ function closeTopOverlay() {
     closeVideoZone();
   } else if (document.getElementById("discardPopup").classList.contains("open")) {
     cancelDiscardPost();
+  } else if (document.getElementById("draftViewPage").classList.contains("open")) {
+    closeDraftView();
+    document.getElementById("draftsOverlay").classList.add("open");
+    document.getElementById("draftsSheet").classList.add("open");
   } else if (document.getElementById("draftsSheet").classList.contains("open")) {
     closeDraftsSheet();
   } else if (document.getElementById("composePage").classList.contains("open")) {
