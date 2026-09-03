@@ -4748,8 +4748,25 @@ function sendGift(id) {
   state[id].gifted = true;
   haptic("medium");
   render();
-  // Placeholder: wire this to real payments before launch.
-  setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
+
+  const finishGiftFlow = () => {
+    // Placeholder: wire this to real payments before launch.
+    setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
+  };
+
+  // Show a Rewarded/Interstitial ad right after the gift action, as a
+  // small monetization moment. If AdsGram isn't loaded, has no fill, or
+  // errors, we don't block the gift \u2014 it still completes normally.
+  if (giftAdController) {
+    giftAdController.show()
+      .then(() => finishGiftFlow())
+      .catch((result) => {
+        console.warn("[AdsGram] interstitial not shown after gift", result);
+        finishGiftFlow();
+      });
+  } else {
+    finishGiftFlow();
+  }
 }
 
 function toggleComments(id) {
@@ -4951,6 +4968,27 @@ function render() {
   }
 
   feed.innerHTML = insertNativeAds(feedPosts.map(userPostCardHTML).concat(blogPostParts)).join("");
+  wireNativeAdSlots();
+}
+
+// Set to true while testing so ADSGRAM DEBUG LOG entries show up in the
+// console (F12). Flip both of these back to false before you ship.
+const ADSGRAM_DEBUG = true;
+const ADSGRAM_DEBUG_CONSOLE = true;
+
+// TODO: replace with your Reward/Interstitial blockId from partner.adsgram.ai
+// (this is a DIFFERENT block from the "task-45929" native/Task block above \u2014
+// Reward and Interstitial blocks use numeric or "int-xxx" ids, not "task-xxx").
+const ADSGRAM_INTERSTITIAL_BLOCK_ID = "int-45932";
+
+let giftAdController = null;
+try {
+  giftAdController = window.Adsgram?.init({
+    blockId: ADSGRAM_INTERSTITIAL_BLOCK_ID,
+    debug: ADSGRAM_DEBUG,
+  });
+} catch (e) {
+  console.error("[AdsGram] failed to init interstitial controller", e);
 }
 
 let adSlotCounter = 0;
@@ -4958,17 +4996,41 @@ let adSlotCounter = 0;
 function nativeAdHTML() {
   adSlotCounter++;
   return `
-    <div class="post-ad">
+    <div class="post-ad" id="ad-wrap-${adSlotCounter}">
       <div class="post-ad-label">Sponsored</div>
       <adsgram-task
         data-block-id="task-45929"
-        data-debug="true"
-        data-debug-console="false"
+        data-debug="${ADSGRAM_DEBUG}"
+        data-debug-console="${ADSGRAM_DEBUG_CONSOLE}"
         class="task"
         id="adsgram-slot-${adSlotCounter}"
       ></adsgram-task>
     </div>
   `;
+}
+
+// The .post-ad wrapper (including the "Sponsored" label) always renders as
+// part of the feed HTML, whether or not AdsGram actually has a banner to
+// fill it with — the wrapper is just a placeholder slot, not a real ad on
+// its own. This hides the whole slot if AdsGram reports no fill / an error,
+// so an empty-looking "ad" never sits in the feed.
+function wireNativeAdSlots() {
+  document.querySelectorAll(".post-ad adsgram-task").forEach(el => {
+    if (el.dataset.wired) return;
+    el.dataset.wired = "1";
+    const wrap = el.closest(".post-ad");
+    el.addEventListener("onBannerNotFound", () => {
+      console.warn("[AdsGram] no banner for slot", el.id);
+      if (wrap) wrap.style.display = "none";
+    });
+    el.addEventListener("onError", (e) => {
+      console.error("[AdsGram] error loading slot", el.id, e.detail || e);
+      if (wrap) wrap.style.display = "none";
+    });
+    el.addEventListener("reward", () => {
+      console.log("[AdsGram] task completed", el.id);
+    });
+  });
 }
 
 // Ad placement: first ad appears after the 2nd post, then an ad appears
