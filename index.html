@@ -4801,15 +4801,17 @@ function escapeHtml(str) {
 
 function render() {
   const feed = document.getElementById("feed");
+  const isStarsFeed = activeFeedTab === "stars";
 
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
-  if (activeFeedTab === "stars") {
+  if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)) || String(p.userId) === String(telegramUser.id));
   }
   const userPostsHtml = feedPosts.map(userPostCardHTML).join("");
 
-  const blogPosts = activeFeedTab === "stars" ? [] : POSTS;
-  const blogPostsHtml = blogPosts.map(post => {
+  // Stars is exclusively the posts from profiles the current user starred.
+  // Do not append the general blog feed here, or this tab becomes identical to For You.
+  const blogPostsHtml = isStarsFeed ? "" : POSTS.map(post => {
     const s = state[post.id];
     const commentsHtml = s.comments.length
       ? s.comments.map(c => `
@@ -4888,8 +4890,8 @@ function render() {
     `;
   }).join("");
 
-  if (!feedPosts.length && !blogPosts.length) {
-    feed.innerHTML = activeFeedTab === "stars" ? `
+  if (!feedPosts.length && (isStarsFeed || !POSTS.length)) {
+    feed.innerHTML = isStarsFeed ? `
       <div class="feed-empty">
         <div class="feed-empty-title">No starred posts yet</div>
         <div class="feed-empty-sub">Star a profile to see their posts here.</div>
