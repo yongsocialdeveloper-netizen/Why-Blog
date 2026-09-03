@@ -49,7 +49,11 @@
     top: 0;
     z-index: 10;
     background: rgba(22,32,43,0.88);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
   }
 
   .topbar-row {
@@ -1094,7 +1098,11 @@
     gap: 14px;
     padding: 10px 14px;
     background: rgba(28,39,51,0.85);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
   }
   .profile-topbar-back { display: flex; color: #fff; flex-shrink: 0; }
   .profile-topbar-name { font-size: 15.5px; font-weight: 700; color: #fff; }
@@ -1692,7 +1700,11 @@
     max-width: 600px;
     margin: 0 auto;
     background: rgba(22,32,43,0.9);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
     border-top: 1px solid var(--line);
     display: flex;
     justify-content: space-around;
@@ -2974,7 +2986,7 @@ function userPostCardHTML(post) {
           ${avatarMarkup(c, "comment-avatar")}
           <div class="comment-bubble">
             <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-            <span class="comment-time">${formatRelativeTime(c.createdAtMillis)}</span>
+            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
           </div>
           ${isOwnComment ? `
             <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
@@ -2991,7 +3003,7 @@ function userPostCardHTML(post) {
           <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
-          <span class="post-time" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
           ${isOwnPost ? `
             <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
           ` : ""}
@@ -4896,9 +4908,14 @@ function render() {
 
 startSupabaseAuth();
 
-setInterval(() => {
-  if (USER_POSTS.length && !anyOverlayOpen()) render();
-}, 30000);
+function refreshRelativeTimes() {
+  document.querySelectorAll("[data-ts]").forEach(el => {
+    const ts = Number(el.dataset.ts);
+    if (!Number.isNaN(ts)) el.textContent = formatRelativeTime(ts);
+  });
+}
+
+setInterval(refreshRelativeTimes, 30000);
 </script>
 
 </body>
