@@ -400,6 +400,7 @@
   .bookmark-item-source { font-weight: 700; color: var(--ink); }
   .bookmark-item-title { font-size: 14.5px; font-weight: 700; margin: 3px 0 2px; }
   .bookmark-item-excerpt { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+  .bookmark-item-deleted .bookmark-item-excerpt { color: var(--ink-faint); font-style: italic; }
   .bookmark-remove {
     display: flex;
     align-items: center;
@@ -706,7 +707,7 @@
   .videozone-player-frame-wrap { width: 100%; aspect-ratio: 16/9; background: #000; flex-shrink: 0; }
   .videozone-player-frame-wrap iframe { width: 100%; height: 100%; border: none; }
 
-  /* ---------- form sheets (edit profile / blog submission) ---------- */
+  /* ---------- form sheets (edit profile) ---------- */
   .form-sheet-overlay {
     position: fixed;
     inset: 0;
@@ -1674,42 +1675,10 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 10px; font-weight: 700; flex-shrink: 0;
   }
-  .comment-body { flex: 1; min-width: 0; }
   .comment-bubble { background: var(--paper); border-radius: 13px; padding: 6px 11px; font-size: 13px; line-height: 1.4; }
   .comment-author { font-weight: 700; margin-right: 5px; }
-  .comment-time { font-size: 11.5px; color: var(--ink-faint); }
+  .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
-
-  .comment-actions { display: flex; align-items: center; gap: 12px; margin: 4px 2px 0; }
-  .comment-like-btn { display: flex; align-items: center; gap: 4px; color: var(--ink-faint); font-size: 11.5px; font-weight: 700; }
-  .comment-like-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
-  .comment-like-btn:hover, .comment-like-btn.active { color: var(--heart); }
-  .comment-like-btn.active svg { fill: var(--heart); }
-  .comment-reply-btn { color: var(--ink-faint); font-size: 11.5px; font-weight: 700; }
-  .comment-reply-btn:hover { color: var(--accent); }
-
-  .comment-thread + .comment-thread { margin-top: 2px; }
-  .comment-replies {
-    margin-left: 14px;
-    padding-left: 12px;
-    margin-top: 2px;
-    border-left: 1px solid var(--line);
-  }
-
-  .comment-replying-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--ink-soft);
-    background: var(--accent-soft);
-    border-radius: 10px;
-    padding: 6px 10px;
-    margin-top: 8px;
-  }
-  .comment-replying-bar strong { color: var(--ink); font-weight: 700; }
-  .comment-replying-bar button { color: var(--accent); font-weight: 700; flex-shrink: 0; }
 
   .comment-video {
     padding: 8px 0;
@@ -2097,10 +2066,6 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
       Quests
     </a>
-    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openBlogSubmit();">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2.5c2 2 3 5 1 9-2.5 5-8 7-8 7s2-5.5 7-8c4-2 7-1 9 1"/><path d="M5 15l-2 6 6-2"/><circle cx="15" cy="9" r="1.5"/></svg>
-      Creator Studio
-    </a>
     <hr class="menu-divider" />
 
     <a class="menu-item" href="#">
@@ -2280,35 +2245,6 @@
     </div>
   </div>
 
-  <div class="form-sheet-overlay" id="blogSubmitOverlay" onclick="closeBlogSubmit()"></div>
-  <div class="form-sheet" id="blogSubmitSheet">
-    <div class="form-sheet-header">
-      <div class="form-sheet-title">List your blog on WhyBlog</div>
-      <button class="form-sheet-close" onclick="closeBlogSubmit()" aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="form-sheet-body">
-      <div class="form-note">Submissions are reviewed before a blog appears in the For You feed. We'll reach out at the email you provide.</div>
-      <div class="form-field">
-        <label class="form-label">Blog or RSS URL</label>
-        <input class="form-input" id="blogUrlInput" type="url" placeholder="https://yourblog.com" />
-      </div>
-      <div class="form-field">
-        <label class="form-label">Contact email</label>
-        <input class="form-input" id="blogEmailInput" type="email" placeholder="you@yourblog.com" />
-      </div>
-      <div class="form-field">
-        <label class="form-label">Tell us about it</label>
-        <textarea class="form-textarea" id="blogPitchInput" maxlength="240" placeholder="What do you write about, and why should WhyBlog readers see it?" oninput="updatePitchCount()"></textarea>
-        <div class="form-char-count" id="blogPitchCount"></div>
-      </div>
-    </div>
-    <div class="form-sheet-footer">
-      <button class="form-submit-btn" id="blogSubmitBtn" onclick="submitBlogListing()">Submit for review</button>
-    </div>
-  </div>
-
   <div class="form-sheet-overlay" id="editProfileOverlay" onclick="closeEditProfile()"></div>
   <div class="form-sheet" id="editProfileSheet">
     <div class="form-sheet-header">
@@ -2453,71 +2389,11 @@
 
 <script>
 const PROFILES = {
-  cointelegraph: {
-    name: "Cointelegraph", initials: "CT", color: "#2f6f4f", verified: true,
-    bio: "Independent crypto and blockchain news, since 2013.",
-    blogUrl: "cointelegraph.com", email: "tips@cointelegraph.com", joined: "Jan 2013",
-    vibes: ["Crypto", "Business & Finance"], posts: 4210, ecoValue: "12.4K"
-  },
-  kottke: {
-    name: "kottke.org", initials: "K", color: "#4a5b8c", verified: true,
-    bio: "The blog of fine hypertext products, curated by Jason Kottke since 1998.",
-    blogUrl: "kottke.org", email: "jason@kottke.org", joined: "Mar 1998",
-    vibes: ["Culture", "Science & Technology"], posts: 6830, ecoValue: "3.1K"
-  },
-  simonw: {
-    name: "Simon Willison", initials: "SW", color: "#9c5a2e", verified: false,
-    bio: "Building small, useful software. Writing about Python, SQLite, and AI tools.",
-    blogUrl: "simonwillison.net", email: "swillison@gmail.com", joined: "Oct 2002",
-    vibes: ["Artificial Intelligence", "Science & Technology"], posts: 2940, ecoValue: "1.8K"
-  },
-  densediscovery: {
-    name: "Dense Discovery", initials: "DD", color: "#7a4a8c", verified: true,
-    bio: "A weekly newsletter on design, technology, and the slow-media movement.",
-    blogUrl: "densediscovery.com", email: "hello@densediscovery.com", joined: "Feb 2018",
-    vibes: ["Entertainment & Arts", "Science & Technology"], posts: 320, ecoValue: "6.7K"
-  },
-  "mira.reads": {
-    name: "Mira Osei", initials: "MO", color: "#2f6f4f", verified: false,
-    bio: "Fantasy and literary fiction. Currently rereading everything by Ursula K. Le Guin.",
-    blogUrl: null, email: "mira.reads@proton.me", joined: "May 2025",
-    vibes: ["Bookish"], posts: 84, ecoValue: null
-  },
-  jaydenclicks: {
-    name: "Jayden Cole", initials: "JC", color: "#4a5b8c", verified: false,
-    bio: "Street style photographer based in Lagos. Shot on film, mostly.",
-    blogUrl: "jaydencole.co", email: "hello@jaydencole.co", joined: "Nov 2024",
-    vibes: ["Streetstyle"], posts: 152, ecoValue: null
-  },
-  lenapark: {
-    name: "Lena Park", initials: "LP", color: "#9c5a2e", verified: false,
-    bio: "Home cook chasing the perfect bowl of noodles. Seoul \u2192 wherever the kitchen is.",
-    blogUrl: null, email: "lena.cooks@gmail.com", joined: "Jul 2025",
-    vibes: ["Foodie"], posts: 63, ecoValue: null
-  },
-  theovision: {
-    name: "Theo Adeyemi", initials: "TA", color: "#7a4a8c", verified: false,
-    bio: "Slow travel, one continent a year. Currently: Southeast Asia.",
-    blogUrl: "theoadeyemi.com", email: "theo@theoadeyemi.com", joined: "Feb 2025",
-    vibes: ["Travel"], posts: 41, ecoValue: null
-  },
-  noorwrites: {
-    name: "Noor Haddad", initials: "NH", color: "#1d7a6f", verified: false,
-    bio: "Illustrator and studio-diary keeper. Ink, mostly.",
-    blogUrl: "noorhaddad.art", email: "studio@noorhaddad.art", joined: "Sep 2024",
-    vibes: ["Studio"], posts: 97, ecoValue: null
-  },
-  kofisketches: {
-    name: "Kofi Mensah", initials: "KM", color: "#c9432f", verified: false,
-    bio: "Daily sketchbook. One drawing a day, no exceptions.",
-    blogUrl: null, email: "kofi.sketches@gmail.com", joined: "Jan 2026",
-    vibes: ["Sketch"], posts: 218, ecoValue: null
-  },
   you: {
     name: "You", initials: "Y", color: "#2fa393", verified: false,
     photoUrl: "", telegramId: null, username: "",
     bio: "Add a bio to tell people what you're into.",
-    blogUrl: null, email: null, joined: "Aug 2026",
+    email: null, joined: "Aug 2026",
     vibes: [], posts: 0, ecoValue: "0",
     bioUpdatedAt: null, tonWallet: ""
   }
@@ -2530,9 +2406,6 @@ function renderProfileMeta(id) {
   const p = PROFILES[id];
   if (!p) return;
   const meta = [];
-  if (p.blogUrl) {
-    meta.push(`<div class="profile-meta-item">${linkIcon()}<a href="https://${p.blogUrl}" target="_blank" rel="noreferrer">${p.blogUrl}</a></div>`);
-  }
   if (p.email) {
     meta.push(`<div class="profile-meta-item">${mailIcon()}<a href="mailto:${p.email}">${p.email}</a></div>`);
   }
@@ -2703,8 +2576,23 @@ function postDetailCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = renderCommentsList(post, s, "detail");
-  const replyTarget = s.replyingToCommentId ? commentById(s, s.replyingToCommentId) : null;
+  const commentsHtml = s.comments.length
+    ? interleaveCommentVideo(s.comments.map(c => {
+        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
+        return `
+        <div class="comment">
+          ${avatarMarkup(c, "comment-avatar")}
+          <div class="comment-bubble">
+            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
+            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
+          </div>
+          ${isOwnComment ? `
+            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
+          ` : ""}
+        </div>`;
+      })).join("")
+    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post post-detail-article">
@@ -2742,12 +2630,6 @@ function postDetailCardHTML(post) {
             <div class="comment-preview">
               <img src="${s.draftImage}" alt="" />
               <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
-            </div>
-          ` : ""}
-          ${replyTarget ? `
-            <div class="comment-replying-bar">
-              <span>Replying to <strong>${escapeHtml(replyTarget.author || "Telegram user")}</strong></span>
-              <button onclick="cancelReply('${post.id}')">Cancel</button>
             </div>
           ` : ""}
           <div class="comment-form">
@@ -2809,32 +2691,26 @@ async function submitPostDetailComment(id) {
 
   if (!text && !image) return;
 
-  const parentCommentId = s.replyingToCommentId || null;
   const localId = `local-${Date.now()}`;
   const comment = {
     id: localId,
-    parentCommentId,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
-    likeCount: 0,
-    liked: false,
     createdAtMillis: Date.now()
   };
   s.comments.push(comment);
   input.value = "";
   s.draftImage = null;
-  s.replyingToCommentId = null;
   render();
   trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
-      parent_comment_id: parentCommentId,
       telegram_id: String(telegramUser.id),
       author: telegramUser.name,
       initials: telegramUser.initials,
@@ -2842,12 +2718,7 @@ async function submitPostDetailComment(id) {
       text,
       image: image || null
     }).select().single();
-    if (!error && data) {
-      const oldId = comment.id;
-      comment.id = data.id;
-      s.comments.forEach(cc => { if (String(cc.parentCommentId) === String(oldId)) cc.parentCommentId = data.id; });
-      render();
-    }
+    if (!error && data) { comment.id = data.id; render(); }
   } catch (e) {}
 }
 
@@ -2970,7 +2841,7 @@ async function renderStarrersPage(id) {
           telegramId: row.from_telegram_id,
           username: link ? link.telegram_username : "",
           verified: false, bio: "Telegram user on WhyBlog.",
-          blogUrl: null, email: null, joined: "Recently",
+          email: null, joined: "Recently",
           vibes: [], posts: 0, ecoValue: null
         };
       }
@@ -3009,12 +2880,11 @@ function calendarIcon() {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 }
 
-
-
 let USER_POSTS = [];
 let userPostState = {};
 let activeFeedTab = "foryou";
 let myStarredIds = new Set();
+let bookmarksRenderToken = null;
 
 async function setFeedTab(tab) {
   if (activeFeedTab === tab) return;
@@ -3065,7 +2935,6 @@ function ensureTelegramPostProfile(post) {
       username: post.username || "",
       verified: false,
       bio: "Telegram user on WhyBlog.",
-      blogUrl: null,
       email: null,
       joined: "Recently",
       vibes: [],
@@ -3097,15 +2966,12 @@ function mapPostRow(row) {
 function mapCommentRow(row) {
   return {
     id: row.id,
-    parentCommentId: row.parent_comment_id || null,
     author: row.author,
     userId: row.telegram_id,
     initials: row.initials,
     photoUrl: row.photo_url,
     text: row.text,
     image: row.image || null,
-    likeCount: row.like_count || 0,
-    liked: false,
     createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
   };
 }
@@ -3148,16 +3014,6 @@ async function loadUserPosts() {
         commentsByPost[r.post_id].push(mapCommentRow(r));
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
-
-      const allCommentIds = Object.values(commentsByPost).flat().map(c => c.id);
-      if (allCommentIds.length) {
-        const { data: likedCommentRows } = await sb.from("comment_likes")
-          .select("comment_id")
-          .eq("telegram_id", String(telegramUser.id))
-          .in("comment_id", allCommentIds);
-        const likedCommentIds = new Set((likedCommentRows || []).map(r => r.comment_id));
-        Object.values(commentsByPost).flat().forEach(c => { c.liked = likedCommentIds.has(c.id); });
-      }
     }
   } catch (e) {}
 
@@ -3246,32 +3102,26 @@ async function submitUserPostComment(id) {
 
   if (!text && !image) return;
 
-  const parentCommentId = s.replyingToCommentId || null;
   const localId = `local-${Date.now()}`;
   const comment = {
     id: localId,
-    parentCommentId,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
-    likeCount: 0,
-    liked: false,
     createdAtMillis: Date.now()
   };
   s.comments.push(comment);
   input.value = "";
   s.draftImage = null;
-  s.replyingToCommentId = null;
   render();
   trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
-      parent_comment_id: parentCommentId,
       telegram_id: String(telegramUser.id),
       author: telegramUser.name,
       initials: telegramUser.initials,
@@ -3279,12 +3129,7 @@ async function submitUserPostComment(id) {
       text,
       image: image || null
     }).select().single();
-    if (!error && data) {
-      const oldId = comment.id;
-      comment.id = data.id;
-      s.comments.forEach(cc => { if (String(cc.parentCommentId) === String(oldId)) cc.parentCommentId = data.id; });
-      render();
-    }
+    if (!error && data) { comment.id = data.id; render(); }
   } catch (e) {}
 }
 
@@ -3310,156 +3155,27 @@ function removeUserPostDraftImage(id) {
   render();
 }
 
-function editUserComment(postId, commentId, prefix) {
+function editUserComment(postId, commentId) {
   const s = userPostState[postId];
   if (!s) return;
   const comment = s.comments.find(c => c.id === commentId);
   if (!comment) return;
   s.editingCommentId = commentId;
-  s.replyingToCommentId = null;
   s.showComments = true;
   render();
   setTimeout(() => {
-    const inputId = prefix === "detail" ? `detail-upinput-${postId}` : `upinput-${postId}`;
-    const input = document.getElementById(inputId);
+    const input = document.getElementById(`upinput-${postId}`);
     if (input) { input.value = comment.text; input.focus(); }
   }, 50);
-}
-
-// Collects a comment's id plus every descendant reply's id, so deleting a
-// parent comment also clears its replies out of local state. The database
-// side cascades automatically via the comments.parent_comment_id FK.
-function collectCommentAndDescendantIds(comments, rootId) {
-  const ids = new Set([rootId]);
-  let added = true;
-  while (added) {
-    added = false;
-    for (const c of comments) {
-      if (c.parentCommentId && ids.has(String(c.parentCommentId)) && !ids.has(c.id)) {
-        ids.add(c.id);
-        added = true;
-      }
-    }
-  }
-  return ids;
 }
 
 function deleteUserComment(postId, commentId) {
   const s = userPostState[postId];
   if (!s) return;
-  const idsToRemove = collectCommentAndDescendantIds(s.comments, commentId);
-  const hasReplies = idsToRemove.size > 1;
-  if (!confirm(hasReplies ? "Delete this comment and its replies? This can't be undone." : "Delete this comment? This can't be undone.")) return;
-  s.comments = s.comments.filter(c => !idsToRemove.has(c.id));
-  if (s.replyingToCommentId && idsToRemove.has(s.replyingToCommentId)) s.replyingToCommentId = null;
-  if (s.editingCommentId && idsToRemove.has(s.editingCommentId)) s.editingCommentId = null;
+  s.comments = s.comments.filter(c => c.id !== commentId);
   render();
   if (!sb) return;
   sb.from("comments").delete().eq("id", commentId).then(() => {});
-}
-
-function commentById(s, commentId) {
-  return s.comments.find(c => String(c.id) === String(commentId));
-}
-
-function startReplyToComment(postId, commentId, prefix) {
-  if (!requireTelegramSession()) return;
-  const s = userPostState[postId];
-  if (!s) return;
-  s.editingCommentId = null;
-  s.replyingToCommentId = commentId;
-  s.showComments = true;
-  render();
-  setTimeout(() => {
-    const inputId = prefix === "detail" ? `detail-upinput-${postId}` : `upinput-${postId}`;
-    const input = document.getElementById(inputId);
-    if (input) input.focus();
-  }, 50);
-}
-
-function cancelReply(postId) {
-  const s = userPostState[postId];
-  if (!s) return;
-  s.replyingToCommentId = null;
-  render();
-}
-
-function toggleCommentLike(postId, commentId) {
-  if (!requireTelegramSession()) return;
-  const s = userPostState[postId];
-  if (!s) return;
-  const c = commentById(s, commentId);
-  if (!c) return;
-  c.liked = !c.liked;
-  c.likeCount = Math.max(0, (c.likeCount || 0) + (c.liked ? 1 : -1));
-  haptic("light");
-  render();
-  if (c.liked) trackLikeAction();
-  if (!sb) return;
-  const telegramId = String(telegramUser.id);
-  sb.rpc("increment_comment_like_count", { p_comment_id: commentId, p_delta: c.liked ? 1 : -1 }).then(() => {});
-  if (c.liked) {
-    sb.from("comment_likes").insert({ comment_id: commentId, telegram_id: telegramId }).then(() => {});
-  } else {
-    sb.from("comment_likes").delete().eq("comment_id", commentId).eq("telegram_id", telegramId).then(() => {});
-  }
-}
-
-// Turns the flat s.comments array into a tree of top-level comments with
-// nested `.replies`, sorted oldest-first at every level.
-function buildCommentTree(comments) {
-  const byId = new Map();
-  comments.forEach(c => byId.set(String(c.id), Object.assign({}, c, { replies: [] })));
-  const roots = [];
-  byId.forEach(c => {
-    const parentId = c.parentCommentId ? String(c.parentCommentId) : null;
-    if (parentId && byId.has(parentId)) {
-      byId.get(parentId).replies.push(c);
-    } else {
-      roots.push(c);
-    }
-  });
-  const byTime = (a, b) => a.createdAtMillis - b.createdAtMillis;
-  const sortTree = node => { node.replies.sort(byTime); node.replies.forEach(sortTree); };
-  roots.sort(byTime);
-  roots.forEach(sortTree);
-  return roots;
-}
-
-function commentNodeHTML(post, node, depth, prefix) {
-  const isOwnComment = telegramUser && String(node.userId) === String(telegramUser.id);
-  const repliesHtml = node.replies.length
-    ? `<div class="comment-replies">${node.replies.map(r => commentNodeHTML(post, r, depth + 1, prefix)).join("")}</div>`
-    : "";
-  return `
-    <div class="comment-thread">
-      <div class="comment">
-        ${avatarMarkup(node, "comment-avatar")}
-        <div class="comment-body">
-          <div class="comment-bubble">
-            <span class="comment-author">${escapeHtml(node.author || "Telegram user")}</span>${escapeHtml(node.text)}
-            ${node.image ? `<img class="comment-img" src="${node.image}" alt="" />` : ""}
-          </div>
-          <div class="comment-actions">
-            <span class="comment-time" data-ts="${node.createdAtMillis}">${formatRelativeTime(node.createdAtMillis)}</span>
-            <button class="comment-like-btn ${node.liked ? 'active' : ''}" onclick="toggleCommentLike('${post.id}', '${node.id}')" aria-label="Like comment">
-              ${heartIcon(node.liked)}${node.likeCount ? `<span>${fmt(node.likeCount)}</span>` : ""}
-            </button>
-            <button class="comment-reply-btn" onclick="startReplyToComment('${post.id}', '${node.id}', '${prefix}')">Reply</button>
-          </div>
-        </div>
-        ${isOwnComment ? `
-          <button class="comment-more" onclick="openCommentOptions('${post.id}', '${node.id}', '${prefix}')" aria-label="Comment options">${moreIcon()}</button>
-        ` : ""}
-      </div>
-      ${repliesHtml}
-    </div>`;
-}
-
-function renderCommentsList(post, s, prefix) {
-  if (!s.comments.length) return `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
-  const tree = buildCommentTree(s.comments);
-  return interleaveCommentVideo(tree.map(node => commentNodeHTML(post, node, 0, prefix))).join("");
 }
 
 function updateUserPostCommentCount(id) {
@@ -3549,8 +3265,23 @@ function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = renderCommentsList(post, s, "feed");
-  const replyTarget = s.replyingToCommentId ? commentById(s, s.replyingToCommentId) : null;
+  const commentsHtml = s.comments.length
+    ? interleaveCommentVideo(s.comments.map(c => {
+        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
+        return `
+        <div class="comment">
+          ${avatarMarkup(c, "comment-avatar")}
+          <div class="comment-bubble">
+            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
+            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
+          </div>
+          ${isOwnComment ? `
+            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
+          ` : ""}
+        </div>`;
+      })).join("")
+    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post">
@@ -3589,12 +3320,6 @@ function userPostCardHTML(post) {
               <div class="comment-preview">
                 <img src="${s.draftImage}" alt="" />
                 <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
-              </div>
-            ` : ""}
-            ${replyTarget ? `
-              <div class="comment-replying-bar">
-                <span>Replying to <strong>${escapeHtml(replyTarget.author || "Telegram user")}</strong></span>
-                <button onclick="cancelReply('${post.id}')">Cancel</button>
               </div>
             ` : ""}
             <div class="comment-form">
@@ -3992,8 +3717,8 @@ function openPostOptions(postId) {
   document.getElementById("postOptionsSheet").classList.add("open");
 }
 
-function openCommentOptions(postId, commentId, prefix) {
-  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId, prefix); };
+function openCommentOptions(postId, commentId) {
+  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId); };
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
@@ -4661,7 +4386,6 @@ function anyOverlayOpen() {
     || document.getElementById("postDetailPage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
     || document.getElementById("starrersPage").classList.contains("open")
-    || document.getElementById("blogSubmitSheet").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
@@ -4689,8 +4413,6 @@ function closeTopOverlay() {
     closeDraftsSheet();
   } else if (document.getElementById("composePage").classList.contains("open")) {
     closeCompose();
-  } else if (document.getElementById("blogSubmitSheet").classList.contains("open")) {
-    closeBlogSubmit();
   } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
     closeEditProfile();
   } else if (document.getElementById("starrersPage").classList.contains("open")) {
@@ -4853,7 +4575,7 @@ function toggleMenu(open) {
   syncBackButton();
 }
 
-const TRENDING_TOPICS = ["RSS", "Independent blogs", "Creator economy", "AI", "Crypto adoption", "Slow media"];
+const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"];
 
 async function loadMyProfile() {
   if (!sb) return;
@@ -4973,54 +4695,6 @@ async function saveEditProfile() {
   btn.style.opacity = "0.7";
   showInterstitialAd();
   setTimeout(() => closeEditProfile(), 1000);
-}
-
-function updatePitchCount() {
-  const input = document.getElementById("blogPitchInput");
-  const counter = document.getElementById("blogPitchCount");
-  counter.textContent = `${input.value.length}/240`;
-}
-
-function openBlogSubmit() {
-  document.getElementById("blogUrlInput").value = "";
-  document.getElementById("blogEmailInput").value = "";
-  document.getElementById("blogPitchInput").value = "";
-  updatePitchCount();
-  const btn = document.getElementById("blogSubmitBtn");
-  btn.textContent = "Submit for review";
-  btn.style.pointerEvents = "auto";
-  btn.style.opacity = "1";
-  document.getElementById("blogSubmitOverlay").classList.add("open");
-  document.getElementById("blogSubmitSheet").classList.add("open");
-  syncBackButton();
-}
-
-function closeBlogSubmit() {
-  document.getElementById("blogSubmitOverlay").classList.remove("open");
-  document.getElementById("blogSubmitSheet").classList.remove("open");
-  syncBackButton();
-}
-
-async function submitBlogListing() {
-  const url = document.getElementById("blogUrlInput").value.trim();
-  const email = document.getElementById("blogEmailInput").value.trim();
-  const pitch = document.getElementById("blogPitchInput").value.trim();
-
-  if (!url || !email) {
-    alert("Please add both a blog URL and a contact email.");
-    return;
-  }
-
-  try {
-    if (sb) await sb.from("blog_submissions").insert({ url, email, pitch });
-  } catch (e) {}
-
-  haptic("medium");
-  const btn = document.getElementById("blogSubmitBtn");
-  btn.textContent = "Submitted \u2014 we'll be in touch";
-  btn.style.pointerEvents = "none";
-  btn.style.opacity = "0.7";
-  setTimeout(() => closeBlogSubmit(), 1400);
 }
 
 /* =========================================================================
@@ -5230,31 +4904,111 @@ function closeBookmarksPage() {
   syncBackButton();
 }
 
-function renderBookmarksPage() {
+async function renderBookmarksPage() {
   const body = document.getElementById("bookmarksBody");
-  const saved = USER_POSTS.filter(p => userPostState[p.id] && userPostState[p.id].bookmarked);
+  if (!body) return;
 
-  if (saved.length === 0) {
+  if (!sb || !currentSupabaseUser) {
     body.innerHTML = `<div class="search-empty">No bookmarks yet.<br />Tap the bookmark icon on any post to save it here.</div>`;
     return;
   }
 
-  body.innerHTML = saved.map(post => `
-    <div class="bookmark-item">
-      <div class="avatar" style="background:${post.color};cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.initials || "T")}</div>
-      <div class="bookmark-item-body">
-        <div class="bookmark-item-meta">
-          <span class="bookmark-item-source">${escapeHtml(post.name || "")}</span>
-          <span>· ${formatRelativeTime(post.createdAtMillis)}</span>
+  const requestToken = Symbol();
+  bookmarksRenderToken = requestToken;
+  body.innerHTML = `<div class="search-empty">Loading bookmarks…</div>`;
+
+  let bookmarkRows = [];
+  try {
+    const { data, error } = await sb.from("bookmarks")
+      .select("post_id, created_at")
+      .eq("user_id", currentSupabaseUser.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    bookmarkRows = data || [];
+  } catch (e) {
+    if (bookmarksRenderToken !== requestToken) return;
+    body.innerHTML = `<div class="search-empty">Couldn't load bookmarks. Please try again.</div>`;
+    return;
+  }
+
+  if (bookmarksRenderToken !== requestToken) return;
+
+  if (bookmarkRows.length === 0) {
+    body.innerHTML = `<div class="search-empty">No bookmarks yet.<br />Tap the bookmark icon on any post to save it here.</div>`;
+    return;
+  }
+
+  // Prefer posts already loaded in memory; fetch any that aren't (e.g. a
+  // bookmarked post from a profile outside the current feed) directly so
+  // the full post can still be shown here.
+  const postsById = {};
+  USER_POSTS.forEach(p => { postsById[p.id] = p; });
+  const missingIds = bookmarkRows.map(r => r.post_id).filter(id => !postsById[id]);
+
+  if (missingIds.length) {
+    try {
+      const { data } = await sb.from("posts").select("*").in("id", missingIds);
+      (data || []).forEach(row => {
+        const post = mapPostRow(row);
+        ensureTelegramPostProfile(post);
+        postsById[post.id] = post;
+        if (!userPostState[post.id]) {
+          userPostState[post.id] = {
+            liked: false, likeCount: post.likeCount || 0, bookmarked: true, gifted: false,
+            comments: [], showComments: false, textExpanded: false, draftImage: null,
+            pollVoted: post.type === "poll" ? null : null
+          };
+        }
+      });
+    } catch (e) {}
+  }
+
+  if (bookmarksRenderToken !== requestToken) return;
+
+  body.innerHTML = bookmarkRows.map(row => {
+    const post = postsById[row.post_id];
+
+    // The author already deleted this post \u2014 nothing left to show.
+    if (!post) {
+      return `
+        <div class="bookmark-item bookmark-item-deleted">
+          <div class="bookmark-item-body">
+            <div class="bookmark-item-excerpt">This post was deleted by its author.</div>
+          </div>
+          <button class="bookmark-remove" onclick="removeDeletedBookmark('${row.post_id}')" aria-label="Remove bookmark">
+            ${bookmarkIcon(true)}
+          </button>
         </div>
-        ${post.question ? `<div class="bookmark-item-title">${escapeHtml(post.question)}</div>` : ""}
-        <div class="bookmark-item-excerpt">${escapeHtml(post.text || "")}</div>
+      `;
+    }
+
+    return `
+      <div class="bookmark-item" style="cursor:pointer" onclick="openPostDetail('${post.id}')">
+        <div class="avatar" style="background:${post.color};cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.initials || "T")}</div>
+        <div class="bookmark-item-body">
+          <div class="bookmark-item-meta">
+            <span class="bookmark-item-source">${escapeHtml(post.name || "Telegram user")}</span>
+            <span>· ${formatRelativeTime(post.createdAtMillis)}</span>
+          </div>
+          ${post.question ? `<div class="bookmark-item-title">${escapeHtml(post.question)}</div>` : ""}
+          <div class="bookmark-item-excerpt">${escapeHtml(post.text || "")}</div>
+        </div>
+        <button class="bookmark-remove" onclick="event.stopPropagation(); toggleUserPostBookmark('${post.id}')" aria-label="Remove bookmark">
+          ${bookmarkIcon(true)}
+        </button>
       </div>
-      <button class="bookmark-remove" onclick="toggleUserPostBookmark('${post.id}')" aria-label="Remove bookmark">
-        ${bookmarkIcon(true)}
-      </button>
-    </div>
-  `).join("");
+    `;
+  }).join("");
+}
+
+async function removeDeletedBookmark(postId) {
+  if (userPostState[postId]) userPostState[postId].bookmarked = false;
+  if (sb && currentSupabaseUser) {
+    try {
+      await sb.from("bookmarks").delete().eq("user_id", currentSupabaseUser.id).eq("post_id", postId);
+    } catch (e) {}
+  }
+  renderBookmarksPage();
 }
 
 function openSearch() {
@@ -5303,11 +5057,12 @@ function runSearch(query) {
     return;
   }
 
-  const matches = USER_POSTS.filter(p =>
+  const matches = USER_POSTS.filter(p => userPostState[p.id] && (
     (p.name && p.name.toLowerCase().includes(q)) ||
     (p.username && p.username.toLowerCase().includes(q)) ||
-    (p.text && p.text.toLowerCase().includes(q))
-  );
+    (p.text && p.text.toLowerCase().includes(q)) ||
+    (p.question && p.question.toLowerCase().includes(q))
+  ));
 
   const body = document.getElementById("searchBody");
   if (matches.length === 0) {
@@ -5316,13 +5071,14 @@ function runSearch(query) {
   }
 
   body.innerHTML = matches.map(post => `
-    <a class="search-result" href="javascript:void(0)" onclick="closeSearch(); openPostDetail('${post.id}')">
+    <a class="search-result" href="#" onclick="event.preventDefault(); closeSearch(); openPostDetail('${post.id}');">
       <div class="avatar" style="background:${post.color}">${escapeHtml(post.initials || "T")}</div>
       <div class="search-result-body">
         <div class="search-result-meta">
           <span class="search-result-source">${escapeHtml(post.name || "Telegram user")}</span>
           <span class="search-result-time">· ${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
+        ${post.question ? `<div class="search-result-title">${escapeHtml(post.question)}</div>` : ""}
         <div class="search-result-excerpt">${escapeHtml(post.text || "")}</div>
       </div>
     </a>
