@@ -2692,7 +2692,6 @@ async function setFeedTab(tab) {
   document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
   document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
   haptic("light");
-  maybeShowRewardedAd();
   render();
   if (tab === "stars") {
     await loadMyStarredIds();
@@ -2839,6 +2838,7 @@ function toggleUserPostLike(id) {
   s.likeCount += s.liked ? 1 : -1;
   haptic("light");
   render();
+  if (s.liked) trackLikeAction();
   if (!sb) return;
   const delta = s.liked ? 1 : -1;
   const telegramId = String(telegramUser.id);
@@ -2911,6 +2911,7 @@ async function submitUserPostComment(id) {
   s.comments.push(comment);
   input.value = "";
   render();
+  trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
@@ -3553,7 +3554,7 @@ async function submitPostEdit() {
   showPostingProgressToast();
   render();
 
-  if (!sb) { showPostedSuccessToast(); return; }
+  if (!sb) { showPostedSuccessToast(); showInterstitialAd(); return; }
   try {
     const dbUpdate = {};
     if ("question" in updateData) dbUpdate.question = updateData.question;
@@ -3564,6 +3565,7 @@ async function submitPostEdit() {
     const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
     if (error) throw error;
     showPostedSuccessToast();
+    showInterstitialAd();
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
   }
@@ -3575,6 +3577,7 @@ async function deleteUserPost(postId) {
   delete userPostState[postId];
   render();
   haptic("medium");
+  trackDeletePostAction();
   if (!sb) return;
   try {
     const { error } = await sb.from("posts").delete().eq("id", postId);
@@ -3692,6 +3695,7 @@ async function submitCompose() {
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
       showPostedSuccessToast();
+      trackPostAction();
     } catch (e) {
       haptic("medium");
       showToast("Couldn't save your post. Please try again.");
@@ -3733,6 +3737,7 @@ async function submitCompose() {
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
     showPostedSuccessToast();
+    trackPostAction();
   } catch (e) {
     haptic("medium");
     showToast("Couldn't save your post. Please try again.");
@@ -4449,6 +4454,7 @@ async function saveEditProfile() {
   btn.textContent = "Saved";
   btn.style.pointerEvents = "none";
   btn.style.opacity = "0.7";
+  showInterstitialAd();
   setTimeout(() => closeEditProfile(), 1000);
 }
 
@@ -4840,6 +4846,7 @@ async function toggleLike(id) {
   s.likeCount += s.liked ? 1 : -1;
   haptic("light");
   render();
+  if (s.liked) trackLikeAction();
   try { await window.storage.set(`likes:${id}`, JSON.stringify({ count: s.likeCount }), true); } catch (e) {}
 }
 
@@ -4951,6 +4958,7 @@ async function submitComment(id) {
   input.value = "";
   state[id].draftImage = null;
   render();
+  trackCommentAction();
   try { await window.storage.set(`comments:${id}`, JSON.stringify(state[id].comments), true); } catch (e) {}
 }
 
@@ -5088,19 +5096,56 @@ function render() {
   feed.innerHTML = feedPosts.map(userPostCardHTML).concat(blogPostParts).join("");
 }
 
-// Monetag rewarded popup: shown every 5th time the user switches between
-// the "For You" and "Stars" feed tabs.
-let feedTabSwitchCount = 0;
-
-function maybeShowRewardedAd() {
-  feedTabSwitchCount++;
-  if (feedTabSwitchCount % 5 !== 0) return;
-  if (typeof window.show_11716919 !== "function") return;
-  window.show_11716919("pop").then(() => {
-    // user watched the ad to the end or closed it
-  }).catch(() => {
-    // user got an error during playback — do nothing
+// Monetag in-app interstitial: shows automatically in the background based
+// on the settings below (no manual show_11716919() call needed for this part).
+// 2 ads within 0.1 hours (6 min), 30s apart, first one after a 5s delay.
+// Trailing 0 = session persists across page navigation (1 would reset it).
+if (typeof window.show_11716919 === "function") {
+  window.show_11716919({
+    type: "inApp",
+    inAppSettings: {
+      frequency: 2,
+      capping: 0.1,
+      interval: 30,
+      timeout: 5,
+      everyPage: false
+    }
   });
+}
+
+// Manual interstitial ad, triggered from specific user actions below.
+function showInterstitialAd() {
+  if (typeof window.show_11716919 !== "function") return;
+  window.show_11716919().catch(() => {
+    // user got an error during playback, or no fill — do nothing
+  });
+}
+
+// Per-action counters that decide when an action-triggered ad should show.
+const adActionCounts = { like: 0, comment: 0, post: 0, deletePost: 0 };
+
+// Every 10th like (i.e. the 9 in between show nothing, the 10th shows an ad).
+function trackLikeAction() {
+  adActionCounts.like++;
+  if (adActionCounts.like % 10 === 0) showInterstitialAd();
+}
+
+// Every 5th comment.
+function trackCommentAction() {
+  adActionCounts.comment++;
+  if (adActionCounts.comment % 5 === 0) showInterstitialAd();
+}
+
+// Every 3rd new post.
+function trackPostAction() {
+  adActionCounts.post++;
+  if (adActionCounts.post % 3 === 0) showInterstitialAd();
+}
+
+// Every 3rd deleted post.
+function trackDeletePostAction() {
+  adActionCounts.deletePost++;
+  if (adActionCounts.deletePost % 3 === 0) showInterstitialAd();
 }
 
 startSupabaseAuth();
