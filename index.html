@@ -1082,6 +1082,10 @@
   }
   .profile-page.open { transform: translateX(0); }
 
+  .feed {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
   .feed-empty {
     padding: 60px 24px;
     text-align: center;
@@ -1709,7 +1713,7 @@
     display: flex;
     justify-content: space-around;
     align-items: center;
-    padding: 10px 0 12px;
+    padding: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
     z-index: 10;
   }
   .nav-btn { position: relative; display: flex; color: var(--ink); }
