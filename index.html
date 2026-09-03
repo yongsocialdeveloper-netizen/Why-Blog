@@ -59,6 +59,33 @@
     padding: 10px 14px 6px;
   }
 
+  .feed-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+  }
+  .feed-tab {
+    flex: 1;
+    padding: 12px 0 10px;
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-weight: 700;
+    font-size: 14.5px;
+    position: relative;
+  }
+  .feed-tab.active { color: var(--ink); }
+  .feed-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--accent);
+  }
+
   .avatar-sm {
     width: 30px;
     height: 30px;
@@ -1913,6 +1940,12 @@
     </div>
   </div>
 
+  <div class="feed-tabs" id="feedTabs">
+    <button class="feed-tab active" id="feedTabForYou" onclick="setFeedTab('foryou')">For You</button>
+    <button class="feed-tab" id="feedTabStars" onclick="setFeedTab('stars')">Stars ✨</button>
+  </div>
+  </div>
+
   <div class="feed" id="feed"></div>
 
   <button class="post-fab" id="postFab" onclick="openCompose()" aria-label="Create a post">
@@ -2491,9 +2524,12 @@ function toggleStar(id) {
   haptic("light");
   renderStarButton(id);
 
+  const toId = String(p.telegramId);
+  if (s.starred) myStarredIds.add(toId); else myStarredIds.delete(toId);
+  if (activeFeedTab === "stars") render();
+
   if (!sb) return;
   const fromId = String(telegramUser.id);
-  const toId = String(p.telegramId);
   if (s.starred) {
     sb.from("stars").insert({ from_telegram_id: fromId, to_telegram_id: toId }).then(() => {});
   } else {
@@ -2600,6 +2636,17 @@ let state = {};
 
 let USER_POSTS = [];
 let userPostState = {};
+let activeFeedTab = "foryou";
+let myStarredIds = new Set();
+
+function setFeedTab(tab) {
+  if (activeFeedTab === tab) return;
+  activeFeedTab = tab;
+  document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
+  document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
+  haptic("light");
+  render();
+}
 
 function ensureTelegramPostProfile(post) {
   if (!post || post.userId === undefined || post.userId === null) return;
@@ -2682,13 +2729,14 @@ async function loadUserPosts() {
 
   try {
     if (sb) {
-      const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
+      const [likesRes, bookmarksRes, commentsRes, votesRes, starsRes] = await Promise.all([
         sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
         currentSupabaseUser
           ? sb.from("bookmarks").select("post_id").eq("user_id", currentSupabaseUser.id).in("post_id", ids)
           : Promise.resolve({ data: [] }),
         sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
-        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
+        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+        sb.from("stars").select("to_telegram_id").eq("from_telegram_id", String(telegramUser.id))
       ]);
       (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
       (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
@@ -2697,6 +2745,7 @@ async function loadUserPosts() {
         commentsByPost[r.post_id].push(mapCommentRow(r));
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
+      myStarredIds = new Set((starsRes.data || []).map(r => String(r.to_telegram_id)));
     }
   } catch (e) {}
 
@@ -4742,10 +4791,11 @@ function escapeHtml(str) {
 function render() {
   const feed = document.getElementById("feed");
 
-  const userPostsHtml = USER_POSTS
-    .filter(p => userPostState[p.id])
-    .map(userPostCardHTML)
-    .join("");
+  let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
+  if (activeFeedTab === "stars") {
+    feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)) || String(p.userId) === String(telegramUser.id));
+  }
+  const userPostsHtml = feedPosts.map(userPostCardHTML).join("");
 
   const blogPostsHtml = POSTS.map(post => {
     const s = state[post.id];
@@ -4826,8 +4876,13 @@ function render() {
     `;
   }).join("");
 
-  if (!USER_POSTS.length && !POSTS.length) {
-    feed.innerHTML = `
+  if (!feedPosts.length && !POSTS.length) {
+    feed.innerHTML = activeFeedTab === "stars" ? `
+      <div class="feed-empty">
+        <div class="feed-empty-title">No starred posts yet</div>
+        <div class="feed-empty-sub">Star a profile to see their posts here.</div>
+      </div>
+    ` : `
       <div class="feed-empty">
         <div class="feed-empty-title">No posts yet</div>
         <div class="feed-empty-sub">Be the first to share something.</div>
