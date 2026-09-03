@@ -1674,10 +1674,42 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 10px; font-weight: 700; flex-shrink: 0;
   }
+  .comment-body { flex: 1; min-width: 0; }
   .comment-bubble { background: var(--paper); border-radius: 13px; padding: 6px 11px; font-size: 13px; line-height: 1.4; }
   .comment-author { font-weight: 700; margin-right: 5px; }
-  .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
+  .comment-time { font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
+
+  .comment-actions { display: flex; align-items: center; gap: 12px; margin: 4px 2px 0; }
+  .comment-like-btn { display: flex; align-items: center; gap: 4px; color: var(--ink-faint); font-size: 11.5px; font-weight: 700; }
+  .comment-like-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .comment-like-btn:hover, .comment-like-btn.active { color: var(--heart); }
+  .comment-like-btn.active svg { fill: var(--heart); }
+  .comment-reply-btn { color: var(--ink-faint); font-size: 11.5px; font-weight: 700; }
+  .comment-reply-btn:hover { color: var(--accent); }
+
+  .comment-thread + .comment-thread { margin-top: 2px; }
+  .comment-replies {
+    margin-left: 14px;
+    padding-left: 12px;
+    margin-top: 2px;
+    border-left: 1px solid var(--line);
+  }
+
+  .comment-replying-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 6px 10px;
+    margin-top: 8px;
+  }
+  .comment-replying-bar strong { color: var(--ink); font-weight: 700; }
+  .comment-replying-bar button { color: var(--accent); font-weight: 700; flex-shrink: 0; }
 
   .comment-video {
     padding: 8px 0;
@@ -2671,23 +2703,8 @@ function postDetailCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => {
-        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
-        return `
-        <div class="comment">
-          ${avatarMarkup(c, "comment-avatar")}
-          <div class="comment-bubble">
-            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
-            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
-          </div>
-          ${isOwnComment ? `
-            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
-          ` : ""}
-        </div>`;
-      })).join("")
-    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+  const commentsHtml = renderCommentsList(post, s, "detail");
+  const replyTarget = s.replyingToCommentId ? commentById(s, s.replyingToCommentId) : null;
 
   return `
     <article class="post post-detail-article">
@@ -2725,6 +2742,12 @@ function postDetailCardHTML(post) {
             <div class="comment-preview">
               <img src="${s.draftImage}" alt="" />
               <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
+            </div>
+          ` : ""}
+          ${replyTarget ? `
+            <div class="comment-replying-bar">
+              <span>Replying to <strong>${escapeHtml(replyTarget.author || "Telegram user")}</strong></span>
+              <button onclick="cancelReply('${post.id}')">Cancel</button>
             </div>
           ` : ""}
           <div class="comment-form">
@@ -2786,26 +2809,32 @@ async function submitPostDetailComment(id) {
 
   if (!text && !image) return;
 
+  const parentCommentId = s.replyingToCommentId || null;
   const localId = `local-${Date.now()}`;
   const comment = {
     id: localId,
+    parentCommentId,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
+    likeCount: 0,
+    liked: false,
     createdAtMillis: Date.now()
   };
   s.comments.push(comment);
   input.value = "";
   s.draftImage = null;
+  s.replyingToCommentId = null;
   render();
   trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
+      parent_comment_id: parentCommentId,
       telegram_id: String(telegramUser.id),
       author: telegramUser.name,
       initials: telegramUser.initials,
@@ -2813,7 +2842,12 @@ async function submitPostDetailComment(id) {
       text,
       image: image || null
     }).select().single();
-    if (!error && data) { comment.id = data.id; render(); }
+    if (!error && data) {
+      const oldId = comment.id;
+      comment.id = data.id;
+      s.comments.forEach(cc => { if (String(cc.parentCommentId) === String(oldId)) cc.parentCommentId = data.id; });
+      render();
+    }
   } catch (e) {}
 }
 
@@ -2975,9 +3009,7 @@ function calendarIcon() {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 }
 
-const POSTS = [];
 
-let state = {};
 
 let USER_POSTS = [];
 let userPostState = {};
@@ -3065,12 +3097,15 @@ function mapPostRow(row) {
 function mapCommentRow(row) {
   return {
     id: row.id,
+    parentCommentId: row.parent_comment_id || null,
     author: row.author,
     userId: row.telegram_id,
     initials: row.initials,
     photoUrl: row.photo_url,
     text: row.text,
     image: row.image || null,
+    likeCount: row.like_count || 0,
+    liked: false,
     createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
   };
 }
@@ -3113,6 +3148,16 @@ async function loadUserPosts() {
         commentsByPost[r.post_id].push(mapCommentRow(r));
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
+
+      const allCommentIds = Object.values(commentsByPost).flat().map(c => c.id);
+      if (allCommentIds.length) {
+        const { data: likedCommentRows } = await sb.from("comment_likes")
+          .select("comment_id")
+          .eq("telegram_id", String(telegramUser.id))
+          .in("comment_id", allCommentIds);
+        const likedCommentIds = new Set((likedCommentRows || []).map(r => r.comment_id));
+        Object.values(commentsByPost).flat().forEach(c => { c.liked = likedCommentIds.has(c.id); });
+      }
     }
   } catch (e) {}
 
@@ -3201,26 +3246,32 @@ async function submitUserPostComment(id) {
 
   if (!text && !image) return;
 
+  const parentCommentId = s.replyingToCommentId || null;
   const localId = `local-${Date.now()}`;
   const comment = {
     id: localId,
+    parentCommentId,
     author: telegramUser.name,
     userId: telegramUser.id,
     initials: telegramUser.initials,
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
+    likeCount: 0,
+    liked: false,
     createdAtMillis: Date.now()
   };
   s.comments.push(comment);
   input.value = "";
   s.draftImage = null;
+  s.replyingToCommentId = null;
   render();
   trackCommentAction();
   if (!sb) return;
   try {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
+      parent_comment_id: parentCommentId,
       telegram_id: String(telegramUser.id),
       author: telegramUser.name,
       initials: telegramUser.initials,
@@ -3228,7 +3279,12 @@ async function submitUserPostComment(id) {
       text,
       image: image || null
     }).select().single();
-    if (!error && data) { comment.id = data.id; render(); }
+    if (!error && data) {
+      const oldId = comment.id;
+      comment.id = data.id;
+      s.comments.forEach(cc => { if (String(cc.parentCommentId) === String(oldId)) cc.parentCommentId = data.id; });
+      render();
+    }
   } catch (e) {}
 }
 
@@ -3254,27 +3310,156 @@ function removeUserPostDraftImage(id) {
   render();
 }
 
-function editUserComment(postId, commentId) {
+function editUserComment(postId, commentId, prefix) {
   const s = userPostState[postId];
   if (!s) return;
   const comment = s.comments.find(c => c.id === commentId);
   if (!comment) return;
   s.editingCommentId = commentId;
+  s.replyingToCommentId = null;
   s.showComments = true;
   render();
   setTimeout(() => {
-    const input = document.getElementById(`upinput-${postId}`);
+    const inputId = prefix === "detail" ? `detail-upinput-${postId}` : `upinput-${postId}`;
+    const input = document.getElementById(inputId);
     if (input) { input.value = comment.text; input.focus(); }
   }, 50);
+}
+
+// Collects a comment's id plus every descendant reply's id, so deleting a
+// parent comment also clears its replies out of local state. The database
+// side cascades automatically via the comments.parent_comment_id FK.
+function collectCommentAndDescendantIds(comments, rootId) {
+  const ids = new Set([rootId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const c of comments) {
+      if (c.parentCommentId && ids.has(String(c.parentCommentId)) && !ids.has(c.id)) {
+        ids.add(c.id);
+        added = true;
+      }
+    }
+  }
+  return ids;
 }
 
 function deleteUserComment(postId, commentId) {
   const s = userPostState[postId];
   if (!s) return;
-  s.comments = s.comments.filter(c => c.id !== commentId);
+  const idsToRemove = collectCommentAndDescendantIds(s.comments, commentId);
+  const hasReplies = idsToRemove.size > 1;
+  if (!confirm(hasReplies ? "Delete this comment and its replies? This can't be undone." : "Delete this comment? This can't be undone.")) return;
+  s.comments = s.comments.filter(c => !idsToRemove.has(c.id));
+  if (s.replyingToCommentId && idsToRemove.has(s.replyingToCommentId)) s.replyingToCommentId = null;
+  if (s.editingCommentId && idsToRemove.has(s.editingCommentId)) s.editingCommentId = null;
   render();
   if (!sb) return;
   sb.from("comments").delete().eq("id", commentId).then(() => {});
+}
+
+function commentById(s, commentId) {
+  return s.comments.find(c => String(c.id) === String(commentId));
+}
+
+function startReplyToComment(postId, commentId, prefix) {
+  if (!requireTelegramSession()) return;
+  const s = userPostState[postId];
+  if (!s) return;
+  s.editingCommentId = null;
+  s.replyingToCommentId = commentId;
+  s.showComments = true;
+  render();
+  setTimeout(() => {
+    const inputId = prefix === "detail" ? `detail-upinput-${postId}` : `upinput-${postId}`;
+    const input = document.getElementById(inputId);
+    if (input) input.focus();
+  }, 50);
+}
+
+function cancelReply(postId) {
+  const s = userPostState[postId];
+  if (!s) return;
+  s.replyingToCommentId = null;
+  render();
+}
+
+function toggleCommentLike(postId, commentId) {
+  if (!requireTelegramSession()) return;
+  const s = userPostState[postId];
+  if (!s) return;
+  const c = commentById(s, commentId);
+  if (!c) return;
+  c.liked = !c.liked;
+  c.likeCount = Math.max(0, (c.likeCount || 0) + (c.liked ? 1 : -1));
+  haptic("light");
+  render();
+  if (c.liked) trackLikeAction();
+  if (!sb) return;
+  const telegramId = String(telegramUser.id);
+  sb.rpc("increment_comment_like_count", { p_comment_id: commentId, p_delta: c.liked ? 1 : -1 }).then(() => {});
+  if (c.liked) {
+    sb.from("comment_likes").insert({ comment_id: commentId, telegram_id: telegramId }).then(() => {});
+  } else {
+    sb.from("comment_likes").delete().eq("comment_id", commentId).eq("telegram_id", telegramId).then(() => {});
+  }
+}
+
+// Turns the flat s.comments array into a tree of top-level comments with
+// nested `.replies`, sorted oldest-first at every level.
+function buildCommentTree(comments) {
+  const byId = new Map();
+  comments.forEach(c => byId.set(String(c.id), Object.assign({}, c, { replies: [] })));
+  const roots = [];
+  byId.forEach(c => {
+    const parentId = c.parentCommentId ? String(c.parentCommentId) : null;
+    if (parentId && byId.has(parentId)) {
+      byId.get(parentId).replies.push(c);
+    } else {
+      roots.push(c);
+    }
+  });
+  const byTime = (a, b) => a.createdAtMillis - b.createdAtMillis;
+  const sortTree = node => { node.replies.sort(byTime); node.replies.forEach(sortTree); };
+  roots.sort(byTime);
+  roots.forEach(sortTree);
+  return roots;
+}
+
+function commentNodeHTML(post, node, depth, prefix) {
+  const isOwnComment = telegramUser && String(node.userId) === String(telegramUser.id);
+  const repliesHtml = node.replies.length
+    ? `<div class="comment-replies">${node.replies.map(r => commentNodeHTML(post, r, depth + 1, prefix)).join("")}</div>`
+    : "";
+  return `
+    <div class="comment-thread">
+      <div class="comment">
+        ${avatarMarkup(node, "comment-avatar")}
+        <div class="comment-body">
+          <div class="comment-bubble">
+            <span class="comment-author">${escapeHtml(node.author || "Telegram user")}</span>${escapeHtml(node.text)}
+            ${node.image ? `<img class="comment-img" src="${node.image}" alt="" />` : ""}
+          </div>
+          <div class="comment-actions">
+            <span class="comment-time" data-ts="${node.createdAtMillis}">${formatRelativeTime(node.createdAtMillis)}</span>
+            <button class="comment-like-btn ${node.liked ? 'active' : ''}" onclick="toggleCommentLike('${post.id}', '${node.id}')" aria-label="Like comment">
+              ${heartIcon(node.liked)}${node.likeCount ? `<span>${fmt(node.likeCount)}</span>` : ""}
+            </button>
+            <button class="comment-reply-btn" onclick="startReplyToComment('${post.id}', '${node.id}', '${prefix}')">Reply</button>
+          </div>
+        </div>
+        ${isOwnComment ? `
+          <button class="comment-more" onclick="openCommentOptions('${post.id}', '${node.id}', '${prefix}')" aria-label="Comment options">${moreIcon()}</button>
+        ` : ""}
+      </div>
+      ${repliesHtml}
+    </div>`;
+}
+
+function renderCommentsList(post, s, prefix) {
+  if (!s.comments.length) return `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+  const tree = buildCommentTree(s.comments);
+  return interleaveCommentVideo(tree.map(node => commentNodeHTML(post, node, 0, prefix))).join("");
 }
 
 function updateUserPostCommentCount(id) {
@@ -3364,23 +3549,8 @@ function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => {
-        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
-        return `
-        <div class="comment">
-          ${avatarMarkup(c, "comment-avatar")}
-          <div class="comment-bubble">
-            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
-            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
-          </div>
-          ${isOwnComment ? `
-            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
-          ` : ""}
-        </div>`;
-      })).join("")
-    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+  const commentsHtml = renderCommentsList(post, s, "feed");
+  const replyTarget = s.replyingToCommentId ? commentById(s, s.replyingToCommentId) : null;
 
   return `
     <article class="post">
@@ -3419,6 +3589,12 @@ function userPostCardHTML(post) {
               <div class="comment-preview">
                 <img src="${s.draftImage}" alt="" />
                 <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
+              </div>
+            ` : ""}
+            ${replyTarget ? `
+              <div class="comment-replying-bar">
+                <span>Replying to <strong>${escapeHtml(replyTarget.author || "Telegram user")}</strong></span>
+                <button onclick="cancelReply('${post.id}')">Cancel</button>
               </div>
             ` : ""}
             <div class="comment-form">
@@ -3816,8 +3992,8 @@ function openPostOptions(postId) {
   document.getElementById("postOptionsSheet").classList.add("open");
 }
 
-function openCommentOptions(postId, commentId) {
-  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId); };
+function openCommentOptions(postId, commentId, prefix) {
+  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId, prefix); };
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
@@ -4306,7 +4482,6 @@ function showAuthenticatedApp(user) {
   appBooted = true;
   initTelegramIdentity();
   loadMyProfile();
-  loadState();
   loadUserPosts();
 }
 
@@ -5128,180 +5303,30 @@ function runSearch(query) {
     return;
   }
 
-  const matches = POSTS.filter(p =>
-    p.source.toLowerCase().includes(q) ||
-    p.handle.toLowerCase().includes(q) ||
-    (p.title && p.title.toLowerCase().includes(q)) ||
-    p.excerpt.toLowerCase().includes(q)
+  const matches = USER_POSTS.filter(p =>
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    (p.username && p.username.toLowerCase().includes(q)) ||
+    (p.text && p.text.toLowerCase().includes(q))
   );
 
   const body = document.getElementById("searchBody");
   if (matches.length === 0) {
-    body.innerHTML = `<div class="search-empty">No results for &ldquo;${escapeHtml(query)}&rdquo;<br />Try a different source or keyword.</div>`;
+    body.innerHTML = `<div class="search-empty">No results for &ldquo;${escapeHtml(query)}&rdquo;<br />Try a different name or keyword.</div>`;
     return;
   }
 
   body.innerHTML = matches.map(post => `
-    <a class="search-result" href="${post.url}" target="_blank" rel="noreferrer">
-      <div class="avatar" style="background:${post.color}">${post.initials}</div>
+    <a class="search-result" href="javascript:void(0)" onclick="closeSearch(); openPostDetail('${post.id}')">
+      <div class="avatar" style="background:${post.color}">${escapeHtml(post.initials || "T")}</div>
       <div class="search-result-body">
         <div class="search-result-meta">
-          <span class="search-result-source">${post.source}</span>
-          <span class="search-result-time">· ${post.time}</span>
+          <span class="search-result-source">${escapeHtml(post.name || "Telegram user")}</span>
+          <span class="search-result-time">· ${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
-        ${post.title ? `<div class="search-result-title">${post.title}</div>` : ""}
-        <div class="search-result-excerpt">${post.excerpt}</div>
+        <div class="search-result-excerpt">${escapeHtml(post.text || "")}</div>
       </div>
     </a>
   `).join("");
-}
-
-async function loadState() {
-  for (const post of POSTS) {
-    let likeData = { count: Math.floor(Math.random() * 250) + 20 };
-    let commentData = [];
-    let bookmarked = false;
-    try {
-      const res = await window.storage.get(`likes:${post.id}`, true);
-      if (res) likeData = JSON.parse(res.value);
-    } catch (e) {}
-    try {
-      const res = await window.storage.get(`comments:${post.id}`, true);
-      if (res) commentData = JSON.parse(res.value);
-    } catch (e) {}
-    try {
-      const res = await window.storage.get(`bookmark:${post.id}`, false);
-      if (res) bookmarked = JSON.parse(res.value);
-    } catch (e) {}
-    state[post.id] = {
-      liked: false, likeCount: likeData.count,
-      bookmarked, gifted: false, expanded: false,
-      comments: commentData, showComments: false, draftImage: null
-    };
-  }
-  render();
-}
-
-async function toggleLike(id) {
-  const s = state[id];
-  s.liked = !s.liked;
-  s.likeCount += s.liked ? 1 : -1;
-  haptic("light");
-  render();
-  if (s.liked) trackLikeAction();
-  try { await window.storage.set(`likes:${id}`, JSON.stringify({ count: s.likeCount }), true); } catch (e) {}
-}
-
-function truncatedExcerpt(post, s) {
-  if (post.excerpt.length <= 200 || s.expanded) return escapeHtml(post.excerpt);
-  return escapeHtml(post.excerpt.slice(0, 200).trimEnd()) + "\u2026";
-}
-
-function toggleExpand(id) {
-  state[id].expanded = !state[id].expanded;
-  render();
-}
-
-function toggleBookmark(id) {
-  state[id].bookmarked = !state[id].bookmarked;
-  haptic("light");
-  render();
-  window.storage.set(`bookmark:${id}`, JSON.stringify(state[id].bookmarked), false).catch(() => {});
-  if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
-}
-
-function sendGift(id) {
-  if (state[id].gifted) return;
-  state[id].gifted = true;
-  haptic("medium");
-  render();
-
-  const finishGiftFlow = () => {
-    // Placeholder: wire this to real payments before launch.
-    setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
-  };
-
-  // Show a Rewarded/Interstitial ad right after the gift action, as a
-  // small monetization moment. If AdsGram isn't loaded, has no fill, or
-  // errors, we don't block the gift \u2014 it still completes normally.
-  if (giftAdController) {
-    giftAdController.show()
-      .then(() => finishGiftFlow())
-      .catch((result) => {
-        console.warn("[AdsGram] interstitial not shown after gift", result);
-        finishGiftFlow();
-      });
-  } else {
-    finishGiftFlow();
-  }
-}
-
-function toggleComments(id) {
-  state[id].showComments = !state[id].showComments;
-  render();
-}
-
-function handleImageSelect(id, input) {
-  const file = input.files && input.files[0];
-  if (!file) return;
-  if (file.size > 3 * 1024 * 1024) {
-    alert("Please choose an image under 3MB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    state[id].draftImage = reader.result;
-    render();
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
-}
-
-function removeDraftImage(id) {
-  state[id].draftImage = null;
-  render();
-}
-
-const COMMENT_MAX = 280;
-
-function updateCommentCount(id) {
-  const input = document.getElementById(`input-${id}`);
-  const counter = document.getElementById(`count-${id}`);
-  if (!input || !counter) return;
-  const remaining = COMMENT_MAX - input.value.length;
-  counter.className = "comment-count";
-  if (remaining <= 0) {
-    counter.textContent = "0 characters left";
-    counter.classList.add("limit");
-  } else if (remaining <= 30) {
-    counter.textContent = `${remaining} characters left`;
-    counter.classList.add("warn");
-  } else {
-    counter.textContent = "";
-  }
-}
-
-async function submitComment(id) {
-  if (!requireTelegramSession()) return;
-  const input = document.getElementById(`input-${id}`);
-  const text = input.value.trim();
-  const image = state[id].draftImage;
-  if (!text && !image) return;
-  const entry = {
-    author: telegramUser.name,
-    userId: telegramUser.id,
-    initials: telegramUser.initials,
-    photoUrl: telegramUser.photoUrl,
-    text,
-    image: image || null
-  };
-  state[id].comments.push(entry);
-  input.value = "";
-  state[id].draftImage = null;
-  render();
-  trackCommentAction();
-  try { await window.storage.set(`comments:${id}`, JSON.stringify(state[id].comments), true); } catch (e) {}
 }
 
 function fmt(n) {
@@ -5404,91 +5429,11 @@ function render() {
   if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
   }
-  // Stars is exclusively the posts from profiles the current user starred.
-  // Do not append the general blog feed here, or this tab becomes identical to For You.
-  const blogPostParts = isStarsFeed ? [] : POSTS.map(post => {
-    const s = state[post.id];
-    const commentsHtml = s.comments.length
-      ? interleaveCommentVideo(s.comments.map(c => `
-          <div class="comment">
-            ${avatarMarkup(c, "comment-avatar")}
-            <div class="comment-bubble">
-              <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-              ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
-            </div>
-          </div>`)).join("")
-      : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
-    return `
-      <article class="post">
-        <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
-        <div class="post-body">
-          <div class="post-meta">
-            <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${post.source}</span>
-            ${post.verified ? `<span class="post-verified">${verifiedBadge()}</span>` : ""}
-            <span class="post-dot">·</span>
-            <span class="post-time">${post.time}</span>
-            ${post.economicValue ? `<span class="eco-value">$${post.economicValue}<button class="eco-info" onclick="event.stopPropagation(); toggleEcoTooltip(true)" aria-label="What is this?">${infoIcon()}</button></span>` : ""}
-            <span class="post-more">${moreIcon()}</span>
-          </div>
-
-          <div class="post-text">
-            ${post.title ? `<span class="title">${post.title}</span>` : ""}
-            <span class="excerpt">${truncatedExcerpt(post, s)}</span>
-            ${post.excerpt.length > 200 ? `
-              <button class="read-more-toggle" onclick="toggleExpand('${post.id}')">${s.expanded ? "Show less" : "Read more"}</button>
-            ` : ""}
-          </div>
-
-          <div class="stat-row">
-            <button class="stat reply" onclick="toggleComments('${post.id}')">
-              ${replyIcon()}<span>${s.comments.length || ""}</span>
-            </button>
-            <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleLike('${post.id}')">
-              ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
-            </button>
-            <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleBookmark('${post.id}')">
-              ${bookmarkIcon(s.bookmarked)}
-            </button>
-            <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="sendGift('${post.id}')" aria-label="Support creator">
-              ${giftIcon(s.gifted)}
-            </button>
-            <button class="stat share" onclick="navigator.share ? navigator.share({url:'${post.url}'}) : window.open('${post.url}','_blank')">
-              ${shareIcon()}
-            </button>
-          </div>
-
-          ${s.showComments ? `
-            <div class="comments">
-              ${commentsHtml}
-              ${s.draftImage ? `
-                <div class="comment-preview">
-                  <img src="${s.draftImage}" alt="" />
-                  <button class="comment-preview-remove" onclick="removeDraftImage('${post.id}')">Remove</button>
-                </div>
-              ` : ""}
-              <div class="comment-form">
-                <button class="comment-image-btn" onclick="document.getElementById('file-${post.id}').click()">
-                  ${imageIcon()}
-                </button>
-                <input type="file" id="file-${post.id}" accept="image/*" style="display:none" onchange="handleImageSelect('${post.id}', this)" />
-                <input id="input-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updateCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitComment('${post.id}')" />
-                <button class="comment-send" onclick="submitComment('${post.id}')">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                </button>
-              </div>
-              <div class="comment-count" id="count-${post.id}"></div>
-            </div>
-          ` : ""}
-        </div>
-      </article>
-    `;
-  });
-
-  const allPostParts = feedPosts.map(userPostCardHTML).concat(blogPostParts);
+  const allPostParts = feedPosts.map(userPostCardHTML);
   const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
 
-  if (!feedPosts.length && (isStarsFeed || !POSTS.length)) {
+  if (!feedPosts.length) {
     feed.innerHTML = isStarsFeed ? `
       <div class="feed-empty">
         <div class="feed-empty-title">No starred posts yet</div>
