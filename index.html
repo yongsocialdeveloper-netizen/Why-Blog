@@ -2650,13 +2650,34 @@ let userPostState = {};
 let activeFeedTab = "foryou";
 let myStarredIds = new Set();
 
-function setFeedTab(tab) {
+async function setFeedTab(tab) {
   if (activeFeedTab === tab) return;
   activeFeedTab = tab;
   document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
   document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
   haptic("light");
   render();
+  if (tab === "stars") {
+    await loadMyStarredIds();
+    if (activeFeedTab === "stars") render();
+  }
+}
+
+async function loadMyStarredIds() {
+  if (!sb || !telegramUser || telegramUser.id === null || telegramUser.id === undefined) {
+    myStarredIds = new Set();
+    return;
+  }
+  try {
+    const { data, error } = await sb.from("stars")
+      .select("to_telegram_id")
+      .eq("from_telegram_id", String(telegramUser.id));
+    if (error) throw error;
+    myStarredIds = new Set((data || []).map(row => String(row.to_telegram_id)));
+  } catch (e) {
+    console.error("Could not load starred profiles", e);
+    myStarredIds = new Set();
+  }
 }
 
 function ensureTelegramPostProfile(post) {
@@ -2720,6 +2741,8 @@ function mapCommentRow(row) {
 }
 
 async function loadUserPosts() {
+  await loadMyStarredIds();
+
   try {
     if (sb) {
       const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
@@ -2740,14 +2763,13 @@ async function loadUserPosts() {
 
   try {
     if (sb) {
-      const [likesRes, bookmarksRes, commentsRes, votesRes, starsRes] = await Promise.all([
+      const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
         sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
         currentSupabaseUser
           ? sb.from("bookmarks").select("post_id").eq("user_id", currentSupabaseUser.id).in("post_id", ids)
           : Promise.resolve({ data: [] }),
         sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
-        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
-        sb.from("stars").select("to_telegram_id").eq("from_telegram_id", String(telegramUser.id))
+        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
       ]);
       (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
       (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
@@ -2756,7 +2778,6 @@ async function loadUserPosts() {
         commentsByPost[r.post_id].push(mapCommentRow(r));
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
-      myStarredIds = new Set((starsRes.data || []).map(r => String(r.to_telegram_id)));
     }
   } catch (e) {}
 
@@ -4805,7 +4826,7 @@ function render() {
 
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
   if (isStarsFeed) {
-    feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)) || String(p.userId) === String(telegramUser.id));
+    feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
   }
   const userPostsHtml = feedPosts.map(userPostCardHTML).join("");
 
