@@ -2476,7 +2476,7 @@ const PROFILES = {
     name: "You", initials: "Y", color: "#2fa393", verified: false,
     photoUrl: "", telegramId: null, username: "",
     bio: "Add a bio to tell people what you're into.",
-    email: null, joined: "Aug 2026",
+    email: null, joined: "Recently",
     vibes: [],
     bioUpdatedAt: null, tonWallet: "", editLog: []
   }
@@ -2502,6 +2502,14 @@ function renderProfileMeta(id) {
   document.getElementById("profileMeta").innerHTML = meta.join("");
 }
 
+// Formats a Postgres timestamp into "June 2026" for the "Joined ..." line.
+function formatJoinedDate(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
 async function fetchProfileSignupEmail(id) {
   const p = PROFILES[id];
   if (!p || p.email || !sb || p.telegramId === null || p.telegramId === undefined) return;
@@ -2512,6 +2520,29 @@ async function fetchProfileSignupEmail(id) {
       .maybeSingle();
     if (data && data.email) {
       p.email = data.email;
+      renderProfileMeta(id);
+    }
+  } catch (e) {}
+}
+
+// Pulls the real bio and join date for someone else's profile the first
+// time it's opened, replacing the generic "No bio yet." / "Recently"
+// placeholders that ensureTelegramPostProfile() seeds a stub with.
+async function fetchOtherProfileDetails(id) {
+  const p = PROFILES[id];
+  if (!p || id === "you" || !sb || p.telegramId === null || p.telegramId === undefined) return;
+  try {
+    const { data } = await sb.from("profiles")
+      .select("bio, created_at")
+      .eq("telegram_id", String(p.telegramId))
+      .maybeSingle();
+    if (!data) return;
+    let changed = false;
+    if (data.bio) { p.bio = data.bio; changed = true; }
+    const joined = formatJoinedDate(data.created_at);
+    if (joined) { p.joined = joined; changed = true; }
+    if (changed && currentProfileId === id) {
+      document.getElementById("profileBio").textContent = p.bio;
       renderProfileMeta(id);
     }
   } catch (e) {}
@@ -2579,6 +2610,7 @@ function openProfile(id) {
 
   renderProfileMeta(id);
   fetchProfileSignupEmail(id);
+  fetchOtherProfileDetails(id);
   renderStarButton(id);
   loadStarState(id);
 
@@ -2969,7 +3001,7 @@ async function renderStarrersPage(id) {
           name, initials, color: "#2fa393", photoUrl,
           telegramId: row.from_telegram_id,
           username: link ? link.telegram_username : "",
-          verified: false, bio: "Telegram user on WhyBlog.",
+          verified: false, bio: "No bio yet.",
           email: null, joined: "Recently",
           vibes: []
         };
@@ -3063,7 +3095,7 @@ function ensureTelegramPostProfile(post) {
       telegramId: post.userId,
       username: post.username || "",
       verified: false,
-      bio: "Telegram user on WhyBlog.",
+      bio: "No bio yet.",
       email: null,
       joined: "Recently",
       vibes: []
@@ -4780,7 +4812,7 @@ async function loadMyProfile() {
   let hasUsername = false;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -4789,6 +4821,8 @@ async function loadMyProfile() {
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
+      const joined = formatJoinedDate(data.created_at);
+      if (joined) PROFILES.you.joined = joined;
 
       // Custom identity, saved once by the user, takes over from here --
       // it does not get overwritten by Telegram on future opens.
