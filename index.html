@@ -2468,11 +2468,7 @@ function openProfile(id) {
   document.getElementById("profileVibes").innerHTML = (p.vibes || [])
     .map(v => `<span class="profile-vibe-chip" style="background:${p.color}">${v}</span>`).join("");
 
-  const postCount = USER_POSTS.filter(post => post.profileId === id).length;
-  const stats = [`<div class="profile-stat" style="cursor:pointer" id="profilePostStat" onclick="scrollToProfilePosts()"><b>${postCount}</b><span>Posts</span></div>`];
-  const starCount = (starState[id] && starState[id].count) || 0;
-  stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
-  document.getElementById("profileStats").innerHTML = stats.join("");
+  renderProfileStats(id);
 
   renderProfilePosts();
 
@@ -2480,25 +2476,35 @@ function openProfile(id) {
   syncBackButton();
 }
 
-function closeProfile() {
-  document.getElementById("profilePage").classList.remove("open");
-  syncBackButton();
+function renderProfileStats(id) {
+  if (currentProfileId !== id) return;
+  const statsEl = document.getElementById("profileStats");
+  if (!statsEl) return;
+  const postCount = USER_POSTS.filter(p => p.profileId === id && userPostState[p.id]).length;
+  const stats = [`
+    <div class="profile-stat profile-stat-active" style="cursor:pointer" onclick="scrollToProfilePosts()">
+      <b>${postCount}</b><span>Posts</span>
+    </div>
+  `];
+  const starCount = (starState[id] && starState[id].count) || 0;
+  stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
+  statsEl.innerHTML = stats.join("");
 }
 
 function scrollToProfilePosts() {
-  const target = document.getElementById("profilePosts");
-  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  const el = document.getElementById("profilePosts");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeProfile() {
+  document.getElementById("profilePage").classList.remove("open");
+  syncBackButton();
 }
 
 function renderProfilePosts() {
   const container = document.getElementById("profilePosts");
   if (!container || !currentProfileId) return;
   const posts = USER_POSTS.filter(p => p.profileId === currentProfileId && userPostState[p.id]);
-  const postStat = document.getElementById("profilePostStat");
-  if (postStat) {
-    const count = postStat.querySelector("b");
-    if (count) count.textContent = posts.length;
-  }
   if (!posts.length) {
     container.innerHTML = `
       <div class="feed-empty">
@@ -4063,13 +4069,10 @@ function safeTelegramPhotoUrl(url) {
 function setAvatarElement(element, user, fallbackColor) {
   if (!element || !user) return;
   const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
-  const initials = escapeHtml(user.initials || "T");
   element.classList.toggle("has-photo", Boolean(photoUrl));
   element.style.background = fallbackColor || user.color || "#2fa393";
   if (photoUrl) {
-    // If the photo URL fails to load (expired/blocked), fall back to initials
-    // instead of leaving a broken image icon in place.
-    element.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.classList.remove('has-photo'); this.parentElement.textContent='${initials}';" />`;
+    element.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" />`;
   } else {
     element.textContent = user.initials || "T";
   }
@@ -4078,13 +4081,10 @@ function setAvatarElement(element, user, fallbackColor) {
 function avatarMarkup(user, className, fallbackColor) {
   const photoUrl = safeTelegramPhotoUrl(user.photoUrl || user.photo_url);
   const color = fallbackColor || user.color || "#2fa393";
-  const initials = escapeHtml(user.initials || "T");
   if (photoUrl) {
-    // If the photo URL fails to load (expired/blocked), fall back to initials
-    // instead of leaving a broken image icon in place.
-    return `<div class="${className} has-photo" style="background:${color}"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.classList.remove('has-photo'); this.parentElement.textContent='${initials}';" /></div>`;
+    return `<div class="${className} has-photo" style="background:${color}"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" /></div>`;
   }
-  return `<div class="${className}" style="background:${color}">${initials}</div>`;
+  return `<div class="${className}" style="background:${color}">${escapeHtml(user.initials || "T")}</div>`;
 }
 
 function initTelegramIdentity() {
@@ -4155,11 +4155,10 @@ function updateAuthTelegramCard() {
   const avatar = document.getElementById("authTelegramAvatar");
   const name = document.getElementById("authTelegramName");
   const photoUrl = telegramUser.photoUrl;
-  const initials = escapeHtml(telegramUser.initials);
   avatar.style.background = telegramUser.color;
   avatar.innerHTML = photoUrl
-    ? `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentElement.textContent='${initials}';" />`
-    : initials;
+    ? `<img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer" />`
+    : escapeHtml(telegramUser.initials);
   name.textContent = isTelegramSession
     ? `${telegramUser.name}${telegramUser.username ? ` · @${telegramUser.username}` : ""}`
     : "Open this app from Telegram to continue";
@@ -4597,6 +4596,27 @@ async function loadMyProfile() {
       renderProfileMeta("you");
     }
   } catch (e) {}
+
+  // Telegram's WebApp initData doesn't always include a fresh photo_url.
+  // Fall back to whatever photo was last saved for this Telegram account
+  // (captured previously via linkTelegramIdentity) so the avatar still shows.
+  if (!PROFILES.you.photoUrl) {
+    try {
+      const { data: link } = await sb.from("telegram_links")
+        .select("telegram_photo_url")
+        .eq("telegram_id", String(telegramUser.id))
+        .maybeSingle();
+      const savedPhoto = link && safeTelegramPhotoUrl(link.telegram_photo_url);
+      if (savedPhoto) {
+        PROFILES.you.photoUrl = savedPhoto;
+        setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
+        setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
+        if (currentProfileId === "you" && document.getElementById("profilePage").classList.contains("open")) {
+          setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
+        }
+      }
+    } catch (e) {}
+  }
 }
 
 const BIO_EDIT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -5212,6 +5232,7 @@ function render() {
 
   if (document.getElementById("profilePage").classList.contains("open")) {
     renderProfilePosts();
+    if (currentProfileId) renderProfileStats(currentProfileId);
   }
   if (document.getElementById("postDetailPage").classList.contains("open")) {
     renderPostDetail();
