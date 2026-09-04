@@ -764,6 +764,7 @@
     outline: none;
   }
   .form-input:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-input:disabled, .form-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
   .form-input::placeholder, .form-textarea::placeholder { color: var(--ink-faint); }
   .form-textarea { resize: none; min-height: 76px; line-height: 1.4; }
   .form-char-count { text-align: right; font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
@@ -2310,11 +2311,11 @@
       </button>
     </div>
     <div class="form-sheet-body">
+      <div class="form-note" id="editProfileCooldownNote" style="display:none;margin:0 0 14px;"></div>
       <div class="form-field">
         <label class="form-label">Bio</label>
         <textarea class="form-textarea" id="editBioInput" maxlength="200" placeholder="Tell people what you're into" oninput="updateEditBioCount()"></textarea>
         <div class="form-char-count" id="editBioCount"></div>
-        <div class="form-note" id="editBioCooldownNote" style="display:none"></div>
       </div>
       <div class="form-field">
         <label class="form-label">TON wallet address</label>
@@ -2451,7 +2452,7 @@ const PROFILES = {
     bio: "Add a bio to tell people what you're into.",
     email: null, joined: "Aug 2026",
     vibes: [],
-    bioUpdatedAt: null, tonWallet: ""
+    bioUpdatedAt: null, tonWallet: "", editLog: []
   }
 };
 
@@ -4639,7 +4640,7 @@ async function loadMyProfile() {
   let customAvatar = null;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -4647,6 +4648,7 @@ async function loadMyProfile() {
       if (data.vibes) PROFILES.you.vibes = data.vibes;
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
+      if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
       if (data.avatar_url) customAvatar = data.avatar_url;
       renderProfileMeta("you");
     }
@@ -4685,13 +4687,20 @@ async function loadMyProfile() {
   }
 }
 
-const BIO_EDIT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const PROFILE_EDIT_LIMIT = 2;
+const PROFILE_EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-function bioEditCooldownRemainingMs() {
-  const last = PROFILES.you.bioUpdatedAt;
-  if (!last) return 0;
-  const elapsed = Date.now() - new Date(last).getTime();
-  const remaining = BIO_EDIT_COOLDOWN_MS - elapsed;
+function recentProfileEdits() {
+  const log = Array.isArray(PROFILES.you.editLog) ? PROFILES.you.editLog : [];
+  const cutoff = Date.now() - PROFILE_EDIT_WINDOW_MS;
+  return log.filter(ts => new Date(ts).getTime() > cutoff);
+}
+
+function profileEditCooldownRemainingMs() {
+  const recent = recentProfileEdits();
+  if (recent.length < PROFILE_EDIT_LIMIT) return 0;
+  const oldest = Math.min(...recent.map(ts => new Date(ts).getTime()));
+  const remaining = (oldest + PROFILE_EDIT_WINDOW_MS) - Date.now();
   return remaining > 0 ? remaining : 0;
 }
 
@@ -4713,20 +4722,29 @@ function updateEditBioCount() {
 function openEditProfile() {
   const p = PROFILES.you;
   const bioInput = document.getElementById("editBioInput");
-  const note = document.getElementById("editBioCooldownNote");
+  const walletInput = document.getElementById("editWalletInput");
+  const note = document.getElementById("editProfileCooldownNote");
   const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
   bioInput.value = isPlaceholder ? "" : (p.bio || "");
-  document.getElementById("editWalletInput").value = p.tonWallet || "";
+  walletInput.value = p.tonWallet || "";
   updateEditBioCount();
 
-  const remaining = bioEditCooldownRemainingMs();
-  if (remaining > 0) {
+  const recent = recentProfileEdits();
+  const editsLeft = PROFILE_EDIT_LIMIT - recent.length;
+  if (editsLeft <= 0) {
     bioInput.disabled = true;
+    walletInput.disabled = true;
     note.style.display = "";
-    note.textContent = `You can change your bio again in ${formatCooldownRemaining(remaining)}.`;
+    note.textContent = `You've used both profile edits for this week. You can edit again in ${formatCooldownRemaining(profileEditCooldownRemainingMs())}.`;
   } else {
     bioInput.disabled = false;
-    note.style.display = "none";
+    walletInput.disabled = false;
+    if (editsLeft < PROFILE_EDIT_LIMIT) {
+      note.style.display = "";
+      note.textContent = `You have ${editsLeft} profile edit${editsLeft === 1 ? "" : "s"} left this week.`;
+    } else {
+      note.style.display = "none";
+    }
   }
 
   const btn = document.getElementById("editProfileSaveBtn");
@@ -4748,42 +4766,68 @@ function closeEditProfile() {
 async function saveEditProfile() {
   const p = PROFILES.you;
   const bioInput = document.getElementById("editBioInput");
+  const walletInput = document.getElementById("editWalletInput");
   const newBio = bioInput.value.trim();
-  const newWallet = document.getElementById("editWalletInput").value.trim();
+  const newWallet = walletInput.value.trim();
 
   const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
   const currentBio = isPlaceholder ? "" : (p.bio || "");
   const bioChanged = !bioInput.disabled && newBio !== currentBio;
+  const walletChanged = !walletInput.disabled && newWallet !== (p.tonWallet || "");
 
-  if (bioChanged && bioEditCooldownRemainingMs() > 0) {
-    alert("You can only change your bio once every 7 days.");
+  if (!bioChanged && !walletChanged) {
+    closeEditProfile();
     return;
   }
 
-  const update = { telegram_id: String(telegramUser.id), ton_wallet: newWallet };
+  if (profileEditCooldownRemainingMs() > 0) {
+    alert(`You can only change your bio or TON wallet ${PROFILE_EDIT_LIMIT} times a week. Try again in ${formatCooldownRemaining(profileEditCooldownRemainingMs())}.`);
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const newEditLog = [...recentProfileEdits(), nowIso];
+
+  const update = { telegram_id: String(telegramUser.id), edit_log: newEditLog };
   if (bioChanged) {
     update.bio = newBio || null;
-    update.bio_updated_at = new Date().toISOString();
+    update.bio_updated_at = nowIso;
   }
+  if (walletChanged) {
+    update.ton_wallet = newWallet;
+  }
+
+  const btn = document.getElementById("editProfileSaveBtn");
+  btn.textContent = "Saving...";
+  btn.style.pointerEvents = "none";
+  btn.style.opacity = "0.7";
 
   try {
-    if (sb) await sb.from("profiles").upsert(update, { onConflict: "telegram_id" });
-  } catch (e) {}
+    if (!sb) throw new Error("Not connected");
+    const { error } = await sb.from("profiles").upsert(update, { onConflict: "telegram_id" });
+    if (error) throw error;
+  } catch (e) {
+    btn.textContent = "Save";
+    btn.style.pointerEvents = "auto";
+    btn.style.opacity = "1";
+    alert("Couldn't save your changes. Please check your connection and try again.");
+    return;
+  }
 
-  p.tonWallet = newWallet;
   if (bioChanged) {
     p.bio = newBio || "Add a bio to tell people what you're into.";
-    p.bioUpdatedAt = update.bio_updated_at;
+    p.bioUpdatedAt = nowIso;
   }
+  if (walletChanged) {
+    p.tonWallet = newWallet;
+  }
+  p.editLog = newEditLog;
   if (currentProfileId === "you") {
     document.getElementById("profileBio").textContent = p.bio;
   }
 
   haptic("medium");
-  const btn = document.getElementById("editProfileSaveBtn");
   btn.textContent = "Saved";
-  btn.style.pointerEvents = "none";
-  btn.style.opacity = "0.7";
   setTimeout(() => closeEditProfile(), 1000);
 }
 
@@ -4812,11 +4856,12 @@ function handleAvatarFileSelect(input) {
     haptic("light");
     if (sb && telegramUser && telegramUser.id !== undefined) {
       try {
-        await sb.from("profiles").upsert(
+        const { error } = await sb.from("profiles").upsert(
           { telegram_id: String(telegramUser.id), avatar_url: dataUrl },
           { onConflict: "telegram_id" }
         );
-      } catch (e) {}
+        if (error) console.warn("Avatar save failed:", error);
+      } catch (e) { console.warn("Avatar save failed:", e); }
     }
   };
   reader.readAsDataURL(file);
