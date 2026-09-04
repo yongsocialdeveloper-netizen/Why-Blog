@@ -4804,13 +4804,30 @@ async function saveEditProfile() {
 
   try {
     if (!sb) throw new Error("Not connected");
-    const { error } = await sb.from("profiles").upsert(update, { onConflict: "telegram_id" });
+    const telegramId = String(telegramUser.id);
+
+    // Don't rely on ON CONFLICT / a unique constraint existing on
+    // telegram_id -- check for an existing row ourselves and do a
+    // plain update or insert. This works regardless of whether the
+    // DB-side unique constraint has been added yet.
+    const { data: existingRow, error: lookupError } = await sb
+      .from("profiles")
+      .select("telegram_id")
+      .eq("telegram_id", telegramId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+
+    const { error } = existingRow
+      ? await sb.from("profiles").update(update).eq("telegram_id", telegramId)
+      : await sb.from("profiles").insert(update);
     if (error) throw error;
   } catch (e) {
+    console.error("Profile save failed:", e);
     btn.textContent = "Save";
     btn.style.pointerEvents = "auto";
     btn.style.opacity = "1";
-    alert("Couldn't save your changes. Please check your connection and try again.");
+    const detail = e && (e.message || e.hint || e.code) ? ` (${e.message || e.hint || e.code})` : "";
+    alert(`Couldn't save your changes${detail}. Please try again.`);
     return;
   }
 
@@ -4856,12 +4873,22 @@ function handleAvatarFileSelect(input) {
     haptic("light");
     if (sb && telegramUser && telegramUser.id !== undefined) {
       try {
-        const { error } = await sb.from("profiles").upsert(
-          { telegram_id: String(telegramUser.id), avatar_url: dataUrl },
-          { onConflict: "telegram_id" }
-        );
-        if (error) console.warn("Avatar save failed:", error);
-      } catch (e) { console.warn("Avatar save failed:", e); }
+        const telegramId = String(telegramUser.id);
+        const { data: existingRow, error: lookupError } = await sb
+          .from("profiles")
+          .select("telegram_id")
+          .eq("telegram_id", telegramId)
+          .maybeSingle();
+        if (lookupError) throw lookupError;
+
+        const { error } = existingRow
+          ? await sb.from("profiles").update({ avatar_url: dataUrl }).eq("telegram_id", telegramId)
+          : await sb.from("profiles").insert({ telegram_id: telegramId, avatar_url: dataUrl });
+        if (error) throw error;
+      } catch (e) {
+        console.error("Avatar save failed:", e);
+        alert(`Your new photo shows locally but couldn't be saved${e && e.message ? ` (${e.message})` : ""}. It won't persist after you close the app.`);
+      }
     }
   };
   reader.readAsDataURL(file);
