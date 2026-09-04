@@ -4241,8 +4241,110 @@ function showAuthenticatedApp(user) {
   if (appBooted) return;
   appBooted = true;
   initTelegramIdentity();
+  refreshTelegramLinkSnapshot();
   loadMyProfile();
   loadUserPosts();
+}
+
+// Keep the saved Telegram snapshot (telegram_links) from going permanently
+// stale after the initial account link. Telegram doesn't always hand the
+// Mini App a fresh username/photo_url on every open, so this only overwrites
+// fields we actually got a non-empty value for this session — it never
+// blanks out a previously-saved value just because this session's data was
+// missing it.
+async function refreshTelegramLinkSnapshot() {
+  if (!sb || !currentSupabaseUser || !isTelegramSession) return;
+  const updates = {};
+  if (telegramUser.name) updates.telegram_name = telegramUser.name;
+  if (telegramUser.username) updates.telegram_username = telegramUser.username;
+  if (telegramUser.photoUrl) updates.telegram_photo_url = telegramUser.photoUrl;
+  if (Object.keys(updates).length === 0) return;
+
+  let previous = null;
+  try {
+    const { data } = await sb.from("telegram_links")
+      .select("telegram_name, telegram_username, telegram_photo_url")
+      .eq("telegram_id", String(telegramUser.id))
+      .eq("user_id", currentSupabaseUser.id)
+      .maybeSingle();
+    previous = data || null;
+  } catch (e) {
+    console.error("Telegram link lookup failed:", e);
+  }
+
+  updates.updated_at = new Date().toISOString();
+  try {
+    const { error } = await sb.from("telegram_links")
+      .update(updates)
+      .eq("telegram_id", String(telegramUser.id))
+      .eq("user_id", currentSupabaseUser.id);
+    if (error) throw error;
+  } catch (e) {
+    console.error("Telegram link refresh failed:", e);
+    return;
+  }
+
+  const identityChanged = previous && (
+    (updates.telegram_name && updates.telegram_name !== previous.telegram_name) ||
+    (updates.telegram_username && updates.telegram_username !== previous.telegram_username) ||
+    (updates.telegram_photo_url && updates.telegram_photo_url !== previous.telegram_photo_url)
+  );
+  if (identityChanged) {
+    await backfillIdentityAcrossContent();
+  }
+}
+
+// Posts and comments store a denormalized copy of the author's name/username/
+// photo/initials at the time they were created, so a Telegram profile change
+// doesn't retroactively show up on old content unless we push it through here.
+// We re-sync it whenever refreshTelegramLinkSnapshot() detects a real change,
+// so old posts always reflect the poster's current identity rather than a
+// stale snapshot (avoids the "who is this?" confusion of mismatched names/photos).
+async function backfillIdentityAcrossContent() {
+  if (!sb) return;
+  const telegramId = String(telegramUser.id);
+  const postFields = {
+    name: telegramUser.name,
+    username: telegramUser.username,
+    photo_url: telegramUser.photoUrl,
+    initials: telegramUser.initials
+  };
+  const commentFields = {
+    author: telegramUser.name,
+    photo_url: telegramUser.photoUrl,
+    initials: telegramUser.initials
+  };
+
+  try {
+    await Promise.all([
+      sb.from("posts").update(postFields).eq("telegram_id", telegramId),
+      sb.from("comments").update(commentFields).eq("telegram_id", telegramId)
+    ]);
+  } catch (e) {
+    console.error("Identity backfill failed:", e);
+    return;
+  }
+
+  // Patch whatever's already loaded in this session so the UI updates
+  // immediately, without waiting for the next fetch from the DB.
+  USER_POSTS.forEach(p => {
+    if (String(p.userId) === telegramId) {
+      p.name = telegramUser.name;
+      p.username = telegramUser.username;
+      p.photoUrl = telegramUser.photoUrl;
+      p.initials = telegramUser.initials;
+    }
+  });
+  Object.values(userPostState).forEach(s => {
+    (s.comments || []).forEach(c => {
+      if (String(c.userId) === telegramId) {
+        c.author = telegramUser.name;
+        c.photoUrl = telegramUser.photoUrl;
+        c.initials = telegramUser.initials;
+      }
+    });
+  });
+  render();
 }
 
 async function linkTelegramIdentity(user) {
