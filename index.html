@@ -2495,7 +2495,7 @@ function openProfile(id) {
   if (!p) return;
   currentProfileId = id;
   document.getElementById("profileTopbarName").textContent = p.name;
-  document.getElementById("profileBanner").style.background = `linear-gradient(135deg, ${p.color}, #16202b)`;
+  document.getElementById("profileBanner").style.background = `center / cover no-repeat url('https://iili.io/nJNsNOx.png'), linear-gradient(135deg, ${p.color}, #16202b)`;
   const avatar = document.getElementById("profileAvatar");
   setAvatarElement(avatar, p, p.color);
   document.getElementById("profileName").textContent = p.name;
