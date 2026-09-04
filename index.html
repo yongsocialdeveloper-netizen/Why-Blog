@@ -374,6 +374,10 @@
   }
   .bookmarks-page.open { transform: translateX(0); }
 
+  /* Opened from inside the profile page (z-index 45), so it needs to sit
+     above it or it renders invisibly underneath until the profile closes. */
+  #starrersPage { z-index: 46; }
+
   .bookmarks-header {
     display: flex;
     align-items: center;
@@ -3009,6 +3013,7 @@ async function renderStarrersPage() {
       const profileId = isYou ? "you" : `telegram-${String(otherId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
       const otherProfile = profileById[otherId];
       const name = isYou ? PROFILES.you.name : ((otherProfile && otherProfile.display_name) || "Telegram user");
+      const username = isYou ? PROFILES.you.username : ((otherProfile && otherProfile.username) || "");
       const initials = initialsFromName(name);
       const photoUrl = otherProfile ? safeTelegramPhotoUrl(otherProfile.avatar_url) : "";
 
@@ -3031,7 +3036,7 @@ async function renderStarrersPage() {
         <div class="bookmark-item" style="cursor:pointer" onclick="openStarrerProfile('${profileId}')">
           <div class="avatar" style="background:#2fa393">${avatarInner}</div>
           <div class="bookmark-item-body">
-            <div class="bookmark-item-source">${escapeHtml(name)}</div>
+            <div class="bookmark-item-source">${escapeHtml(name)}${username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(username)}</span>` : ""}</div>
             <div class="bookmark-item-excerpt">Starred ${formatRelativeTime(new Date(row.created_at).getTime())}</div>
           </div>
         </div>
