@@ -1140,6 +1140,24 @@
     flex-shrink: 0;
   }
 
+  .profile-avatar-wrap { position: relative; flex-shrink: 0; }
+  .profile-avatar-edit-btn {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1116;
+    border: 3px solid var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+  .profile-avatar-edit-btn:hover { filter: brightness(1.08); }
+
   .profile-action-btn {
     padding: 8px 18px;
     border-radius: 999px;
@@ -2162,7 +2180,13 @@
     <div class="profile-banner" id="profileBanner"></div>
     <div class="profile-header">
       <div class="profile-avatar-row">
-        <div class="profile-avatar-lg" id="profileAvatar"></div>
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar-lg" id="profileAvatar"></div>
+          <button class="profile-avatar-edit-btn" id="profileAvatarEditBtn" onclick="event.stopPropagation(); document.getElementById('avatarFileInput').click();" style="display:none" aria-label="Change profile photo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+        </div>
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarFileSelect(this)" />
         <div class="profile-action-row">
           <button class="profile-action-btn profile-star-btn" id="profileStarBtn" onclick="toggleStar(currentProfileId)" style="display:none">
             <span id="profileStarBtnIcon"></span><span id="profileStarBtnLabel">Star</span>
@@ -2448,16 +2472,19 @@ function openProfile(id) {
   const actionBtn = document.getElementById("profileActionBtn");
   const starBtn = document.getElementById("profileStarBtn");
   const editBtn = document.getElementById("profileEditBtn");
+  const avatarEditBtn = document.getElementById("profileAvatarEditBtn");
   if (id === "you") {
     actionBtn.style.display = "none";
     starBtn.style.display = "none";
-    editBtn.style.display = "";
+    editBtn.style.display = "inline-flex";
+    avatarEditBtn.style.display = "flex";
   } else {
-    actionBtn.style.display = "";
+    actionBtn.style.display = "inline-flex";
     actionBtn.textContent = "Message";
     actionBtn.onclick = messageProfile;
-    starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "" : "none";
+    starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "inline-flex" : "none";
     editBtn.style.display = "none";
+    avatarEditBtn.style.display = "none";
   }
 
   renderProfileMeta(id);
@@ -4583,9 +4610,10 @@ const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"
 
 async function loadMyProfile() {
   if (!sb) return;
+  let customAvatar = null;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -4593,9 +4621,21 @@ async function loadMyProfile() {
       if (data.vibes) PROFILES.you.vibes = data.vibes;
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
+      if (data.avatar_url) customAvatar = data.avatar_url;
       renderProfileMeta("you");
     }
   } catch (e) {}
+
+  if (customAvatar) {
+    // A custom-uploaded photo always takes priority over whatever Telegram provides.
+    PROFILES.you.photoUrl = customAvatar;
+    setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
+    setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
+    if (currentProfileId === "you" && document.getElementById("profilePage").classList.contains("open")) {
+      setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
+    }
+    return;
+  }
 
   // Telegram's WebApp initData doesn't always include a fresh photo_url.
   // Fall back to whatever photo was last saved for this Telegram account
@@ -4719,6 +4759,42 @@ async function saveEditProfile() {
   btn.style.pointerEvents = "none";
   btn.style.opacity = "0.7";
   setTimeout(() => closeEditProfile(), 1000);
+}
+
+function handleAvatarFileSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Please choose an image file.");
+    input.value = "";
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Please choose an image under 2MB.");
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = reader.result;
+    PROFILES.you.photoUrl = dataUrl;
+    setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
+    setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
+    if (currentProfileId === "you") {
+      setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
+    }
+    haptic("light");
+    if (sb && telegramUser && telegramUser.id !== undefined) {
+      try {
+        await sb.from("profiles").upsert(
+          { telegram_id: String(telegramUser.id), avatar_url: dataUrl },
+          { onConflict: "telegram_id" }
+        );
+      } catch (e) {}
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
 }
 
 /* =========================================================================
