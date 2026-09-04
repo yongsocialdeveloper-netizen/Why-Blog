@@ -1588,56 +1588,6 @@
   .post-options-delete { color: #e0555a; }
   .post-options-cancel { color: var(--ink-soft); margin-top: 6px; border-bottom: none; }
 
-  .eco-value {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--accent);
-    background: var(--accent-soft);
-    border: 1px solid rgba(47,163,147,0.35);
-    padding: 1px 6px 1px 8px;
-    border-radius: 999px;
-    margin-left: 2px;
-    flex-shrink: 0;
-  }
-  .eco-info {
-    display: flex;
-    align-items: center;
-    color: var(--accent);
-    opacity: 0.75;
-  }
-  .eco-info:hover { opacity: 1; }
-
-  .eco-tooltip {
-    position: fixed;
-    left: 14px;
-    right: 14px;
-    bottom: 84px;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 14px 16px;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--ink-soft);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    z-index: 40;
-    display: none;
-  }
-  .eco-tooltip.open { display: block; }
-  .eco-tooltip strong { color: var(--ink); }
-  .eco-tooltip-close {
-    display: block;
-    margin-top: 8px;
-    color: var(--accent);
-    font-weight: 700;
-    font-size: 12px;
-  }
-
   .stat.gift:hover, .stat.gift.active { color: #f5a623; }
   .stat.gift.active svg { fill: #f5a623; }
 
@@ -2096,18 +2046,12 @@
 
   <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu(false)"></div>
 
-  <div class="eco-tooltip" id="ecoTooltip">
-    <strong>What is this number?</strong><br />
-    An estimate of the value this creator's posts have generated, based on engagement quality, engagement velocity, likes, comments, bookmarks, and posting velocity. It's a score, not a confirmed payout.
-    <a class="eco-tooltip-close" onclick="toggleEcoTooltip(false)">Got it</a>
-  </div>
   <aside class="menu-panel" id="menuPanel">
     <div class="menu-avatar" id="menuAvatar">Y</div>
     <div class="menu-name" id="menuName">You</div>
     <div class="menu-handle" id="menuHandle"></div>
     <div class="menu-telegram-id" id="menuTelegramId"></div>
     <div class="menu-access-status preview" id="menuAccessStatus"><span class="menu-access-dot"></span>Browser preview</div>
-    <div class="eco-value" style="margin:8px 0 4px;">$0 <span style="opacity:.7;font-weight:500;">· private</span><button class="eco-info" onclick="event.stopPropagation(); toggleEcoTooltip(true)" aria-label="What is this?"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg></button></div>
 
     <hr class="menu-divider" />
 
@@ -4620,7 +4564,6 @@ function haptic(style) {
 function anyOverlayOpen() {
   return document.getElementById("menuPanel").classList.contains("open")
     || document.getElementById("settingsSheet").classList.contains("open")
-    || document.getElementById("ecoTooltip").classList.contains("open")
     || document.getElementById("searchPage").classList.contains("open")
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
@@ -4670,8 +4613,6 @@ function closeTopOverlay() {
     closeInvite();
   } else if (document.getElementById("settingsSheet").classList.contains("open")) {
     toggleSettingsSheet(false);
-  } else if (document.getElementById("ecoTooltip").classList.contains("open")) {
-    toggleEcoTooltip(false);
   } else if (document.getElementById("menuPanel").classList.contains("open")) {
     toggleMenu(false);
   }
@@ -4689,17 +4630,6 @@ function syncBackButton() {
 if (tg && tg.BackButton) {
   tg.BackButton.onClick(closeTopOverlay);
 }
-
-function toggleEcoTooltip(open) {
-  document.getElementById("ecoTooltip").classList.toggle("open", open);
-  syncBackButton();
-}
-document.addEventListener("click", (e) => {
-  const tip = document.getElementById("ecoTooltip");
-  if (tip.classList.contains("open") && !tip.contains(e.target) && !e.target.closest(".eco-info")) {
-    toggleEcoTooltip(false);
-  }
-});
 
 const SNOOZE_TOPICS = [
   { key: "politics", label: "Politics", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 7h14M4 7l-2 6h6l-2-6zM20 7l-2 6h6l-2-6z"/><path d="M8 21h8"/></svg>` },
@@ -5547,12 +5477,17 @@ async function renderBookmarksPage() {
       `;
     }
 
+    const photoUrl = safeTelegramPhotoUrl(post.photoUrl);
+    const avatarInner = photoUrl
+      ? `<img src="${escapeHtml(photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : escapeHtml(post.initials || "T");
+
     return `
       <div class="bookmark-item" style="cursor:pointer" onclick="openPostDetail('${post.id}')">
-        <div class="avatar" style="background:${post.color};cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.initials || "T")}</div>
+        <div class="avatar" style="background:${post.color};cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarInner}</div>
         <div class="bookmark-item-body">
           <div class="bookmark-item-meta">
-            <span class="bookmark-item-source">${escapeHtml(post.name || "Telegram user")}</span>
+            <span class="bookmark-item-source">${escapeHtml(post.name || "Telegram user")}${post.username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(post.username)}</span>` : ""}</span>
             <span>· ${formatRelativeTime(post.createdAtMillis)}</span>
           </div>
           ${post.question ? `<div class="bookmark-item-title">${escapeHtml(post.question)}</div>` : ""}
