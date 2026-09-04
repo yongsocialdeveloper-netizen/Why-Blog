@@ -1151,22 +1151,6 @@
   }
 
   .profile-avatar-wrap { position: relative; flex-shrink: 0; }
-  .profile-avatar-edit-btn {
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #0d1116;
-    border: 3px solid var(--card);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1;
-  }
-  .profile-avatar-edit-btn:hover { filter: brightness(1.08); }
 
   .profile-action-btn {
     padding: 8px 18px;
@@ -2213,11 +2197,7 @@
       <div class="profile-avatar-row">
         <div class="profile-avatar-wrap">
           <div class="profile-avatar-lg" id="profileAvatar"></div>
-          <button class="profile-avatar-edit-btn" id="profileAvatarEditBtn" onclick="event.stopPropagation(); document.getElementById('avatarFileInput').click();" style="display:none" aria-label="Change profile photo">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </button>
         </div>
-        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarFileSelect(this)" />
         <div class="profile-action-row">
           <button class="profile-action-btn profile-star-btn" id="profileStarBtn" onclick="toggleStar(currentProfileId)" style="display:none">
             <span id="profileStarBtnIcon"></span><span id="profileStarBtnLabel">Star</span>
@@ -2539,19 +2519,16 @@ function openProfile(id) {
   const actionBtn = document.getElementById("profileActionBtn");
   const starBtn = document.getElementById("profileStarBtn");
   const editBtn = document.getElementById("profileEditBtn");
-  const avatarEditBtn = document.getElementById("profileAvatarEditBtn");
   if (id === "you") {
     actionBtn.style.display = "none";
     starBtn.style.display = "none";
     editBtn.style.display = "inline-flex";
-    avatarEditBtn.style.display = "flex";
   } else {
     actionBtn.style.display = "inline-flex";
     actionBtn.textContent = "Message";
     actionBtn.onclick = messageProfile;
     starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "inline-flex" : "none";
     editBtn.style.display = "none";
-    avatarEditBtn.style.display = "none";
   }
 
   renderProfileMeta(id);
@@ -4846,53 +4823,6 @@ async function saveEditProfile() {
   haptic("medium");
   btn.textContent = "Saved";
   setTimeout(() => closeEditProfile(), 1000);
-}
-
-function handleAvatarFileSelect(input) {
-  const file = input.files && input.files[0];
-  if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    alert("Please choose an image file.");
-    input.value = "";
-    return;
-  }
-  if (file.size > 2 * 1024 * 1024) {
-    alert("Please choose an image under 2MB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const dataUrl = reader.result;
-    PROFILES.you.photoUrl = dataUrl;
-    setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
-    setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
-    if (currentProfileId === "you") {
-      setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
-    }
-    haptic("light");
-    if (sb && telegramUser && telegramUser.id !== undefined) {
-      try {
-        const telegramId = String(telegramUser.id);
-        const { data: existingRow, error: lookupError } = await sb
-          .from("profiles")
-          .select("telegram_id")
-          .eq("telegram_id", telegramId)
-          .maybeSingle();
-        if (lookupError) throw lookupError;
-
-        const { error } = existingRow
-          ? await sb.from("profiles").update({ avatar_url: dataUrl }).eq("telegram_id", telegramId)
-          : await sb.from("profiles").insert({ telegram_id: telegramId, avatar_url: dataUrl });
-        if (error) throw error;
-      } catch (e) {
-        console.error("Avatar save failed:", e);
-        alert(`Your new photo shows locally but couldn't be saved${e && e.message ? ` (${e.message})` : ""}. It won't persist after you close the app.`);
-      }
-    }
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
 }
 
 /* =========================================================================
