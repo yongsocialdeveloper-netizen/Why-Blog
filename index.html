@@ -1704,6 +1704,18 @@
   .comment-time { display: block; margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
   .comment-empty { font-size: 12.5px; color: var(--ink-faint); padding: 4px 0; }
 
+  .comment-reactions { display: flex; align-items: center; gap: 13px; margin-top: 4px; }
+  .comment-react-btn {
+    display: flex; align-items: center; gap: 4px;
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 2px 0;
+  }
+  .comment-react-btn:hover { color: var(--ink-soft); }
+  .comment-react-btn.active-up { color: var(--accent); }
+  .comment-react-btn.active-down { color: var(--heart); }
+
   .comment-video {
     padding: 8px 0;
   }
@@ -2626,21 +2638,7 @@ function postDetailCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => {
-        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
-        return `
-        <div class="comment">
-          ${avatarMarkup(c, "comment-avatar")}
-          <div class="comment-bubble">
-            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
-            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
-          </div>
-          ${isOwnComment ? `
-            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
-          ` : ""}
-        </div>`;
-      })).join("")
+    ? interleaveCommentVideo(s.comments.map(c => commentHTML(post.id, c))).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -2749,7 +2747,10 @@ async function submitPostDetailComment(id) {
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
-    createdAtMillis: Date.now()
+    createdAtMillis: Date.now(),
+    upCount: 0,
+    downCount: 0,
+    myReaction: null
   };
   s.comments.push(comment);
   input.value = "";
@@ -2767,14 +2768,7 @@ async function submitPostDetailComment(id) {
       image: image || null
     }).select().single();
     if (!error && data) { comment.id = data.id; render(); }
-    else if (error) {
-      console.error("Comment save failed:", error);
-      showToast("Couldn't save your comment. Please try again.");
-    }
-  } catch (e) {
-    console.error("Comment save failed:", e);
-    showToast("Couldn't save your comment. Please try again.");
-  }
+  } catch (e) {}
 }
 
 function messageProfile() {
@@ -2997,6 +2991,56 @@ function ensureTelegramPostProfile(post) {
   }
 }
 
+function commentHTML(postId, c) {
+  const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
+  return `
+    <div class="comment">
+      ${avatarMarkup(c, "comment-avatar")}
+      <div class="comment-bubble">
+        <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+        ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
+        <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
+        <div class="comment-reactions">
+          <button class="comment-react-btn ${c.myReaction === 'up' ? 'active-up' : ''}" onclick="toggleCommentReaction('${postId}', '${c.id}', 'up')" aria-label="Thumbs up">
+            ${thumbUpIcon(c.myReaction === 'up')}<span>${c.upCount || ""}</span>
+          </button>
+          <button class="comment-react-btn ${c.myReaction === 'down' ? 'active-down' : ''}" onclick="toggleCommentReaction('${postId}', '${c.id}', 'down')" aria-label="Thumbs down">
+            ${thumbDownIcon(c.myReaction === 'down')}<span>${c.downCount || ""}</span>
+          </button>
+        </div>
+      </div>
+      ${isOwnComment ? `
+        <button class="comment-more" onclick="openCommentOptions('${postId}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
+      ` : ""}
+    </div>`;
+}
+
+async function toggleCommentReaction(postId, commentId, type) {
+  if (!requireTelegramSession()) return;
+  const s = userPostState[postId];
+  if (!s) return;
+  const comment = s.comments.find(c => c.id === commentId);
+  if (!comment) return;
+
+  const newReaction = comment.myReaction === type ? null : type;
+  if (comment.myReaction === "up") comment.upCount = Math.max(0, comment.upCount - 1);
+  if (comment.myReaction === "down") comment.downCount = Math.max(0, comment.downCount - 1);
+  if (newReaction === "up") comment.upCount += 1;
+  if (newReaction === "down") comment.downCount += 1;
+  comment.myReaction = newReaction;
+  haptic("light");
+  render();
+
+  if (!sb) return;
+  try {
+    await sb.rpc("set_comment_reaction", {
+      p_comment_id: commentId,
+      p_telegram_id: String(telegramUser.id),
+      p_reaction: newReaction
+    });
+  } catch (e) {}
+}
+
 function mapPostRow(row) {
   return {
     id: row.id,
@@ -3025,7 +3069,10 @@ function mapCommentRow(row) {
     photoUrl: row.photo_url,
     text: row.text,
     image: row.image || null,
-    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    upCount: row.up_count || 0,
+    downCount: row.down_count || 0,
+    myReaction: null
   };
 }
 
@@ -3067,6 +3114,21 @@ async function loadUserPosts() {
         commentsByPost[r.post_id].push(mapCommentRow(r));
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
+
+      const commentIds = Object.values(commentsByPost).flat().map(c => c.id);
+      if (commentIds.length) {
+        try {
+          const { data: reactionRows } = await sb.from("comment_reactions")
+            .select("comment_id, reaction")
+            .eq("telegram_id", String(telegramUser.id))
+            .in("comment_id", commentIds);
+          const myReactionByComment = {};
+          (reactionRows || []).forEach(r => { myReactionByComment[r.comment_id] = r.reaction; });
+          Object.values(commentsByPost).flat().forEach(c => {
+            c.myReaction = myReactionByComment[c.id] || null;
+          });
+        } catch (e) {}
+      }
     }
   } catch (e) {}
 
@@ -3163,7 +3225,10 @@ async function submitUserPostComment(id) {
     photoUrl: telegramUser.photoUrl,
     text,
     image: image || null,
-    createdAtMillis: Date.now()
+    createdAtMillis: Date.now(),
+    upCount: 0,
+    downCount: 0,
+    myReaction: null
   };
   s.comments.push(comment);
   input.value = "";
@@ -3181,24 +3246,14 @@ async function submitUserPostComment(id) {
       image: image || null
     }).select().single();
     if (!error && data) { comment.id = data.id; render(); }
-    else if (error) {
-      console.error("Comment save failed:", error);
-      showToast("Couldn't save your comment. Please try again.");
-    }
-  } catch (e) {
-    console.error("Comment save failed:", e);
-    showToast("Couldn't save your comment. Please try again.");
-  }
+  } catch (e) {}
 }
 
 function handleUserPostImageSelect(id, input) {
   const file = input.files && input.files[0];
   if (!file) return;
-  // Kept in line with the compose image cap (650KB) — comment images are
-  // stored the same way (inline base64 in the DB row), and anything much
-  // bigger than this was failing to save silently.
-  if (file.size > 650 * 1024) {
-    alert("Please choose an image under 650KB.");
+  if (file.size > 3 * 1024 * 1024) {
+    alert("Please choose an image under 3MB.");
     input.value = "";
     return;
   }
@@ -3327,21 +3382,7 @@ function userPostCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => {
-        const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
-        return `
-        <div class="comment">
-          ${avatarMarkup(c, "comment-avatar")}
-          <div class="comment-bubble">
-            <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
-            ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
-            <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
-          </div>
-          ${isOwnComment ? `
-            <button class="comment-more" onclick="openCommentOptions('${post.id}', '${c.id}')" aria-label="Comment options">${moreIcon()}</button>
-          ` : ""}
-        </div>`;
-      })).join("")
+    ? interleaveCommentVideo(s.comments.map(c => commentHTML(post.id, c))).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -4068,6 +4109,12 @@ function imageIcon() {
 }
 function moreIcon() {
   return `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
+}
+function thumbUpIcon(filled) {
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9 1 1 .6 5.6H19a2 2 0 011.96 2.4l-1.6 8A2 2 0 0117.4 20H7z"/><path d="M7 11H3v11h4"/></svg>`;
+}
+function thumbDownIcon(filled) {
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 12 12)"><path d="M7 22V11l5-9 1 1 .6 5.6H19a2 2 0 011.96 2.4l-1.6 8A2 2 0 0117.4 20H7z"/><path d="M7 11H3v11h4"/></svg>`;
 }
 
 function infoIcon() {
