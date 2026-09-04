@@ -2629,12 +2629,15 @@ function renderProfileStats(id) {
   if (currentProfileId !== id) return;
   const statsEl = document.getElementById("profileStats");
   if (!statsEl) return;
-  const postCount = USER_POSTS.filter(p => p.profileId === id && userPostState[p.id]).length;
+  const profilePosts = USER_POSTS.filter(p => p.profileId === id && userPostState[p.id]);
+  const postCount = profilePosts.length;
+  const likeCount = profilePosts.reduce((sum, p) => sum + (userPostState[p.id].likeCount || 0), 0);
   const stats = [`
     <div class="profile-stat profile-stat-active" style="cursor:pointer" onclick="scrollToProfilePosts()">
       <b>${postCount}</b><span>Posts</span>
     </div>
   `];
+  stats.push(`<div class="profile-stat"><b>${fmt(likeCount)}</b><span>Likes</span></div>`);
   const starCount = (starState[id] && starState[id].count) || 0;
   stats.push(`<div class="profile-stat" style="cursor:pointer" id="profileStarStat" onclick="openStarrers('${id}')"><b>${starCount}</b><span>Stars</span></div>`);
   statsEl.innerHTML = stats.join("");
