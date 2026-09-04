@@ -2767,7 +2767,14 @@ async function submitPostDetailComment(id) {
       image: image || null
     }).select().single();
     if (!error && data) { comment.id = data.id; render(); }
-  } catch (e) {}
+    else if (error) {
+      console.error("Comment save failed:", error);
+      showToast("Couldn't save your comment. Please try again.");
+    }
+  } catch (e) {
+    console.error("Comment save failed:", e);
+    showToast("Couldn't save your comment. Please try again.");
+  }
 }
 
 function messageProfile() {
@@ -3174,14 +3181,24 @@ async function submitUserPostComment(id) {
       image: image || null
     }).select().single();
     if (!error && data) { comment.id = data.id; render(); }
-  } catch (e) {}
+    else if (error) {
+      console.error("Comment save failed:", error);
+      showToast("Couldn't save your comment. Please try again.");
+    }
+  } catch (e) {
+    console.error("Comment save failed:", e);
+    showToast("Couldn't save your comment. Please try again.");
+  }
 }
 
 function handleUserPostImageSelect(id, input) {
   const file = input.files && input.files[0];
   if (!file) return;
-  if (file.size > 3 * 1024 * 1024) {
-    alert("Please choose an image under 3MB.");
+  // Kept in line with the compose image cap (650KB) — comment images are
+  // stored the same way (inline base64 in the DB row), and anything much
+  // bigger than this was failing to save silently.
+  if (file.size > 650 * 1024) {
+    alert("Please choose an image under 650KB.");
     input.value = "";
     return;
   }
