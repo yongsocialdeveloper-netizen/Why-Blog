@@ -781,6 +781,27 @@
   }
   .form-vibe-chip.selected { color: #0d1116; border-color: transparent; }
 
+  .avatar-edit-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .avatar-edit-actions { display: flex; flex-direction: column; }
+  .avatar-edit-btn {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 8px 14px;
+    border-radius: 999px;
+    width: fit-content;
+  }
+  .avatar-edit-btn:hover { opacity: 0.85; }
+
+  .username-input-wrap { display: flex; align-items: center; border: 1px solid var(--line); background: var(--paper); border-radius: 12px; padding: 0 13px; }
+  .username-input-wrap:focus-within { border-color: var(--accent); }
+  .username-at { color: var(--ink-faint); font-size: 14px; padding-right: 2px; }
+  .username-input-wrap .username-input { border: none; background: none; padding: 11px 0; }
+  .username-input-wrap .username-input:focus { border: none; }
+  #editUsernameStatus.status-ok { color: var(--accent); }
+  #editUsernameStatus.status-error { color: var(--heart); }
+
   .form-sheet-footer { padding: 12px 18px 20px; flex-shrink: 0; border-top: 1px solid var(--line); }
   .form-submit-btn {
     width: 100%;
@@ -2022,7 +2043,7 @@
     </form>
     <button class="auth-reset" id="authResetButton" type="button" onclick="resetPassword()">Forgot password?</button>
     <div class="auth-message" id="authMessage" role="status"></div>
-    <p class="auth-footnote">Your Telegram name, profile photo, username, and ID are linked to this account automatically.</p>
+    <p class="auth-footnote">Your Telegram ID links this account automatically. You'll pick your own display name, username, and photo on WhyBlog after signing in.</p>
   </section>
 </div>
 
@@ -2285,13 +2306,38 @@
   <div class="form-sheet-overlay" id="editProfileOverlay" onclick="closeEditProfile()"></div>
   <div class="form-sheet" id="editProfileSheet">
     <div class="form-sheet-header">
-      <div class="form-sheet-title">Edit profile</div>
-      <button class="form-sheet-close" onclick="closeEditProfile()" aria-label="Close">
+      <div class="form-sheet-title" id="editProfileTitle">Edit profile</div>
+      <button class="form-sheet-close" id="editProfileCloseBtn" onclick="closeEditProfile()" aria-label="Close">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
     </div>
     <div class="form-sheet-body">
+      <div class="form-note" id="editProfileSetupNote" style="display:none;margin:0 0 14px;">Pick how you'll appear on WhyBlog. This isn't pulled from Telegram — it's yours to set.</div>
       <div class="form-note" id="editProfileCooldownNote" style="display:none;margin:0 0 14px;"></div>
+
+      <div class="avatar-edit-row">
+        <div class="avatar profile-avatar-lg" id="editAvatarPreview" style="width:64px;height:64px;font-size:22px;"></div>
+        <div class="avatar-edit-actions">
+          <button type="button" class="avatar-edit-btn" onclick="document.getElementById('editAvatarFile').click()">Change photo</button>
+          <div class="form-note" id="editAvatarNote" style="margin:4px 0 0;"></div>
+        </div>
+        <input type="file" id="editAvatarFile" accept="image/*" style="display:none" onchange="handleAvatarFileSelect(this)" />
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Display name</label>
+        <input class="form-input" id="editNameInput" type="text" maxlength="40" placeholder="Your name" autocomplete="off" oninput="updateEditProfileSaveState()" />
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Username</label>
+        <div class="username-input-wrap">
+          <span class="username-at">@</span>
+          <input class="form-input username-input" id="editUsernameInput" type="text" maxlength="20" placeholder="yourname" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="handleUsernameInput()" />
+        </div>
+        <div class="form-note" id="editUsernameStatus">3-20 characters: lowercase letters, numbers, underscores.</div>
+      </div>
+
       <div class="form-field">
         <label class="form-label">Bio</label>
         <textarea class="form-textarea" id="editBioInput" maxlength="200" placeholder="Tell people what you're into" oninput="updateEditBioCount()"></textarea>
@@ -2748,6 +2794,7 @@ function updatePostDetailCommentCount(id) {
 
 async function submitPostDetailComment(id) {
   if (!requireTelegramSession()) return;
+  if (!requireIdentitySetup()) return;
   const input = document.getElementById(`detail-upinput-${id}`);
   if (!input) return;
   const text = input.value.trim();
@@ -2774,10 +2821,10 @@ async function submitPostDetailComment(id) {
   const localId = `local-${Date.now()}`;
   const comment = {
     id: localId,
-    author: telegramUser.name,
+    author: PROFILES.you.name,
     userId: telegramUser.id,
-    initials: telegramUser.initials,
-    photoUrl: telegramUser.photoUrl,
+    initials: PROFILES.you.initials,
+    photoUrl: PROFILES.you.photoUrl,
     text,
     image: image || null,
     createdAtMillis: Date.now(),
@@ -2794,9 +2841,9 @@ async function submitPostDetailComment(id) {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
       telegram_id: String(telegramUser.id),
-      author: telegramUser.name,
-      initials: telegramUser.initials,
-      photo_url: telegramUser.photoUrl,
+      author: PROFILES.you.name,
+      initials: PROFILES.you.initials,
+      photo_url: PROFILES.you.photoUrl,
       text,
       image: image || null
     }).select().single();
@@ -3931,6 +3978,7 @@ function removeComposeImage() {
 
 async function submitCompose() {
   if (!requireTelegramSession()) return;
+  if (!requireIdentitySetup()) return;
   if (!sb) { showToast("Can't post right now — try again in a moment."); return; }
 
   if (editingPostId) return submitPostEdit();
@@ -3949,12 +3997,12 @@ async function submitCompose() {
         type: "poll",
         question,
         options: options.map(text => ({ text, votes: 0 })),
-        name: telegramUser.name,
-        username: telegramUser.username,
+        name: PROFILES.you.name,
+        username: PROFILES.you.username,
         telegram_id: String(telegramUser.id),
-        photo_url: telegramUser.photoUrl,
-        initials: telegramUser.initials,
-        color: telegramUser.color,
+        photo_url: PROFILES.you.photoUrl,
+        initials: PROFILES.you.initials,
+        color: PROFILES.you.color,
         like_count: 0
       }).select().single();
       if (error) throw error;
@@ -3990,12 +4038,12 @@ async function submitCompose() {
       type: "text",
       text: pendingText || null,
       image: pendingImage,
-      name: telegramUser.name,
-      username: telegramUser.username,
+      name: PROFILES.you.name,
+      username: PROFILES.you.username,
       telegram_id: String(telegramUser.id),
-      photo_url: telegramUser.photoUrl,
-      initials: telegramUser.initials,
-      color: telegramUser.color,
+      photo_url: PROFILES.you.photoUrl,
+      initials: PROFILES.you.initials,
+      color: PROFILES.you.color,
       like_count: 0
     }).select().single();
     if (error) throw error;
@@ -4119,20 +4167,24 @@ function avatarMarkup(user, className, fallbackColor) {
 }
 
 function initTelegramIdentity() {
+  // Seeds PROFILES.you with placeholders so the UI has something to show
+  // before loadMyProfile() finishes. This is NOT the app identity -- it's
+  // overwritten by the user's saved WhyBlog name/username/photo as soon as
+  // loadMyProfile() resolves (or replaced by an onboarding prompt if the
+  // user hasn't set one yet). Telegram's name/username/photo are only ever
+  // used as first-run *suggestions*, never synced in afterward.
   const profile = PROFILES.you;
   profile.name = telegramUser.name;
   profile.initials = telegramUser.initials;
-  profile.photoUrl = telegramUser.photoUrl;
+  profile.photoUrl = "";
   profile.telegramId = telegramUser.id;
-  profile.username = telegramUser.username;
+  profile.username = "";
   profile.color = telegramUser.color;
 
-  setAvatarElement(document.getElementById("menuAvatar"), telegramUser);
-  setAvatarElement(document.getElementById("composeAvatar"), telegramUser);
-  document.getElementById("menuName").textContent = telegramUser.name;
-  document.getElementById("menuHandle").textContent = telegramUser.username
-    ? `@${telegramUser.username}`
-    : "Telegram profile";
+  setAvatarElement(document.getElementById("menuAvatar"), profile);
+  setAvatarElement(document.getElementById("composeAvatar"), profile);
+  document.getElementById("menuName").textContent = profile.name;
+  document.getElementById("menuHandle").textContent = "Set up your profile";
   document.getElementById("menuTelegramId").textContent = `Telegram ID: ${telegramUser.id}`;
 
   const status = document.getElementById("menuAccessStatus");
@@ -4143,6 +4195,15 @@ function initTelegramIdentity() {
 function requireTelegramSession() {
   if (isTelegramSession) return true;
   showToast("Open WhyBlog from Telegram to use your account");
+  return false;
+}
+
+// Posts/comments need a username to be written -- if the person dismissed
+// setup somehow (or it hasn't loaded yet), re-open it instead of posting
+// with a blank handle.
+function requireIdentitySetup() {
+  if (PROFILES.you.username) return true;
+  openEditProfile({ setupRequired: true });
   return false;
 }
 
@@ -4284,35 +4345,30 @@ async function refreshTelegramLinkSnapshot() {
     return;
   }
 
-  const identityChanged = previous && (
-    (updates.telegram_name && updates.telegram_name !== previous.telegram_name) ||
-    (updates.telegram_username && updates.telegram_username !== previous.telegram_username) ||
-    (updates.telegram_photo_url && updates.telegram_photo_url !== previous.telegram_photo_url)
-  );
-  if (identityChanged) {
-    await backfillIdentityAcrossContent();
-  }
+  // Note: we deliberately do NOT push Telegram identity changes into posts/
+  // comments here anymore. Name/username/photo on WhyBlog are user-owned --
+  // see pushIdentityToOwnContent(), called from saveEditProfile() instead.
 }
 
 // Posts and comments store a denormalized copy of the author's name/username/
-// photo/initials at the time they were created, so a Telegram profile change
-// doesn't retroactively show up on old content unless we push it through here.
-// We re-sync it whenever refreshTelegramLinkSnapshot() detects a real change,
-// so old posts always reflect the poster's current identity rather than a
-// stale snapshot (avoids the "who is this?" confusion of mismatched names/photos).
-async function backfillIdentityAcrossContent() {
+// photo/initials at the time they were created (for fast feed rendering
+// without a join). When the user changes their WhyBlog name, username, or
+// photo in Edit Profile, we push it onto their existing posts/comments here
+// so old content reflects the update too, instead of staying frozen with
+// whatever was true when each post was made.
+async function pushIdentityToOwnContent() {
   if (!sb) return;
   const telegramId = String(telegramUser.id);
   const postFields = {
-    name: telegramUser.name,
-    username: telegramUser.username,
-    photo_url: telegramUser.photoUrl,
-    initials: telegramUser.initials
+    name: PROFILES.you.name,
+    username: PROFILES.you.username,
+    photo_url: PROFILES.you.photoUrl,
+    initials: PROFILES.you.initials
   };
   const commentFields = {
-    author: telegramUser.name,
-    photo_url: telegramUser.photoUrl,
-    initials: telegramUser.initials
+    author: PROFILES.you.name,
+    photo_url: PROFILES.you.photoUrl,
+    initials: PROFILES.you.initials
   };
 
   try {
@@ -4329,18 +4385,18 @@ async function backfillIdentityAcrossContent() {
   // immediately, without waiting for the next fetch from the DB.
   USER_POSTS.forEach(p => {
     if (String(p.userId) === telegramId) {
-      p.name = telegramUser.name;
-      p.username = telegramUser.username;
-      p.photoUrl = telegramUser.photoUrl;
-      p.initials = telegramUser.initials;
+      p.name = PROFILES.you.name;
+      p.username = PROFILES.you.username;
+      p.photoUrl = PROFILES.you.photoUrl;
+      p.initials = PROFILES.you.initials;
     }
   });
   Object.values(userPostState).forEach(s => {
     (s.comments || []).forEach(c => {
       if (String(c.userId) === telegramId) {
-        c.author = telegramUser.name;
-        c.photoUrl = telegramUser.photoUrl;
-        c.initials = telegramUser.initials;
+        c.author = PROFILES.you.name;
+        c.photoUrl = PROFILES.you.photoUrl;
+        c.initials = PROFILES.you.initials;
       }
     });
   });
@@ -4714,12 +4770,17 @@ function toggleMenu(open) {
 
 const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"];
 
+// WhyBlog identity (display name, username, photo) is owned by the user and
+// set in-app -- it is never pulled live from Telegram. Telegram only supplies
+// the account link (telegram_id) plus first-run suggestions. See
+// openEditProfile()/saveEditProfile() for where it's actually set, and
+// pushIdentityToOwnContent() for how a change propagates to past posts.
 async function loadMyProfile() {
   if (!sb) return;
-  let customAvatar = null;
+  let hasUsername = false;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -4728,42 +4789,46 @@ async function loadMyProfile() {
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
-      if (data.avatar_url) customAvatar = data.avatar_url;
+
+      // Custom identity, saved once by the user, takes over from here --
+      // it does not get overwritten by Telegram on future opens.
+      if (data.username) {
+        PROFILES.you.username = data.username;
+        hasUsername = true;
+      }
+      if (data.display_name) {
+        PROFILES.you.name = data.display_name;
+        PROFILES.you.initials = initialsFromName(data.display_name);
+      }
+      if (data.avatar_url) {
+        PROFILES.you.photoUrl = data.avatar_url;
+      }
+
+      setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
+      setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
+      document.getElementById("menuName").textContent = PROFILES.you.name;
+      document.getElementById("menuHandle").textContent = PROFILES.you.username
+        ? `@${PROFILES.you.username}`
+        : "Set up your profile";
+      if (currentProfileId === "you" && document.getElementById("profilePage").classList.contains("open")) {
+        setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
+      }
       renderProfileMeta("you");
     }
   } catch (e) {}
 
-  if (customAvatar) {
-    // A custom-uploaded photo always takes priority over whatever Telegram provides.
-    PROFILES.you.photoUrl = customAvatar;
-    setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
-    setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
-    if (currentProfileId === "you" && document.getElementById("profilePage").classList.contains("open")) {
-      setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
-    }
-    return;
+  if (!hasUsername && isTelegramSession) {
+    // First run (or an account created before usernames existed): the user
+    // hasn't chosen a name/username/photo yet, so prompt for it now instead
+    // of silently defaulting to Telegram's.
+    openEditProfile({ setupRequired: true });
   }
+}
 
-  // Telegram's WebApp initData doesn't always include a fresh photo_url.
-  // Fall back to whatever photo was last saved for this Telegram account
-  // (captured previously via linkTelegramIdentity) so the avatar still shows.
-  if (!PROFILES.you.photoUrl) {
-    try {
-      const { data: link } = await sb.from("telegram_links")
-        .select("telegram_photo_url")
-        .eq("telegram_id", String(telegramUser.id))
-        .maybeSingle();
-      const savedPhoto = link && safeTelegramPhotoUrl(link.telegram_photo_url);
-      if (savedPhoto) {
-        PROFILES.you.photoUrl = savedPhoto;
-        setAvatarElement(document.getElementById("menuAvatar"), PROFILES.you);
-        setAvatarElement(document.getElementById("composeAvatar"), PROFILES.you);
-        if (currentProfileId === "you" && document.getElementById("profilePage").classList.contains("open")) {
-          setAvatarElement(document.getElementById("profileAvatar"), PROFILES.you, PROFILES.you.color);
-        }
-      }
-    } catch (e) {}
-  }
+function initialsFromName(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return "Y";
+  return trimmed.slice(0, 2).toUpperCase();
 }
 
 const PROFILE_EDIT_LIMIT = 2;
@@ -4798,11 +4863,173 @@ function updateEditBioCount() {
   counter.textContent = `${input.value.length}/200`;
 }
 
-function openEditProfile() {
+let identitySetupRequired = false;
+let pendingAvatarUrl = null; // set once a new avatar upload finishes; null = no change
+let usernameCheckTimer = null;
+let usernameCheckToken = 0;
+let usernameAvailable = null; // true / false / null (unknown / unchecked)
+
+function validateUsernameFormat(value) {
+  return /^[a-z0-9_]{3,20}$/.test(value);
+}
+
+function handleUsernameInput() {
+  const input = document.getElementById("editUsernameInput");
+  // Keep it simple to type: force lowercase, strip anything outside a-z0-9_.
+  const cleaned = input.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (cleaned !== input.value) input.value = cleaned;
+
+  const status = document.getElementById("editUsernameStatus");
+  status.classList.remove("status-ok", "status-error");
+  usernameAvailable = null;
+  updateEditProfileSaveState();
+
+  if (!cleaned) {
+    status.textContent = "3-20 characters: lowercase letters, numbers, underscores.";
+    return;
+  }
+  if (!validateUsernameFormat(cleaned)) {
+    status.textContent = cleaned.length < 3
+      ? "Too short -- at least 3 characters."
+      : "3-20 characters: lowercase letters, numbers, underscores.";
+    status.classList.add("status-error");
+    return;
+  }
+  if (cleaned === (PROFILES.you.username || "")) {
+    status.textContent = "This is your current username.";
+    usernameAvailable = true;
+    updateEditProfileSaveState();
+    return;
+  }
+
+  status.textContent = "Checking availability...";
+  const token = ++usernameCheckToken;
+  clearTimeout(usernameCheckTimer);
+  usernameCheckTimer = setTimeout(async () => {
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.from("profiles")
+        .select("telegram_id")
+        .eq("username", cleaned)
+        .maybeSingle();
+      if (error) throw error;
+      if (token !== usernameCheckToken) return; // a newer keystroke superseded this check
+      const taken = Boolean(data) && String(data.telegram_id) !== String(telegramUser.id);
+      usernameAvailable = !taken;
+      status.textContent = taken ? "That username is taken." : "Available.";
+      status.classList.toggle("status-error", taken);
+      status.classList.toggle("status-ok", !taken);
+      updateEditProfileSaveState();
+    } catch (e) {
+      if (token !== usernameCheckToken) return;
+      status.textContent = "Couldn't check availability -- try again.";
+      status.classList.add("status-error");
+      usernameAvailable = null;
+      updateEditProfileSaveState();
+    }
+  }, 450);
+}
+
+function updateEditProfileSaveState() {
+  if (!identitySetupRequired) return;
+  const btn = document.getElementById("editProfileSaveBtn");
+  const nameOk = document.getElementById("editNameInput").value.trim().length > 0;
+  const usernameInput = document.getElementById("editUsernameInput").value.trim();
+  const ready = nameOk && validateUsernameFormat(usernameInput) && usernameAvailable === true;
+  btn.style.opacity = ready ? "1" : "0.5";
+}
+
+async function handleAvatarFileSelect(input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToast("Please choose an image file.");
+    return;
+  }
+
+  const note = document.getElementById("editAvatarNote");
+  const preview = document.getElementById("editAvatarPreview");
+  note.textContent = "Uploading...";
+
+  try {
+    const resizedBlob = await resizeImageFile(file, 512);
+    const path = `${telegramUser.id}/${Date.now()}.jpg`;
+    if (!sb) throw new Error("Not connected");
+    const { error: uploadError } = await sb.storage
+      .from("avatars")
+      .upload(path, resizedBlob, { contentType: "image/jpeg", upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = sb.storage.from("avatars").getPublicUrl(path);
+    pendingAvatarUrl = publicData.publicUrl;
+    preview.classList.add("has-photo");
+    preview.style.background = PROFILES.you.color || "#2fa393";
+    preview.innerHTML = `<img src="${escapeHtml(pendingAvatarUrl)}" alt="" />`;
+    note.textContent = "Photo ready -- tap Save to apply.";
+  } catch (e) {
+    console.error("Avatar upload failed:", e);
+    const detail = e && (e.message || e.error || e.statusCode) ? ` (${e.message || e.error || e.statusCode})` : "";
+    note.textContent = `Couldn't upload that photo${detail}.`;
+  }
+}
+
+// Downscales/compresses client-side before upload so we're not pushing full
+// camera-resolution photos through Supabase Storage for a small avatar.
+function resizeImageFile(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not process image")), "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Could not read image")); };
+    img.src = objectUrl;
+  });
+}
+
+function openEditProfile(options) {
+  identitySetupRequired = Boolean(options && options.setupRequired);
+  pendingAvatarUrl = null;
+  usernameAvailable = null;
+
   const p = PROFILES.you;
+  const nameInput = document.getElementById("editNameInput");
+  const usernameInput = document.getElementById("editUsernameInput");
   const bioInput = document.getElementById("editBioInput");
   const walletInput = document.getElementById("editWalletInput");
   const note = document.getElementById("editProfileCooldownNote");
+  const setupNote = document.getElementById("editProfileSetupNote");
+  const title = document.getElementById("editProfileTitle");
+  const closeBtn = document.getElementById("editProfileCloseBtn");
+  const usernameStatus = document.getElementById("editUsernameStatus");
+
+  // Pre-fill name/username with the saved value, or -- for first-time setup
+  // only -- a suggestion pulled from Telegram that the user can freely change.
+  nameInput.value = p.username ? p.name : (p.name || telegramUser.name || "");
+  usernameInput.value = p.username || (telegramUser.username ? telegramUser.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20) : "");
+  usernameStatus.textContent = "3-20 characters: lowercase letters, numbers, underscores.";
+  usernameStatus.classList.remove("status-ok", "status-error");
+
+  const preview = document.getElementById("editAvatarPreview");
+  document.getElementById("editAvatarNote").textContent = "";
+  if (p.photoUrl) {
+    preview.classList.add("has-photo");
+    preview.style.background = p.color || "#2fa393";
+    preview.innerHTML = `<img src="${escapeHtml(p.photoUrl)}" alt="" />`;
+  } else {
+    preview.classList.remove("has-photo");
+    preview.style.background = p.color || "#2fa393";
+    preview.textContent = p.initials || "Y";
+  }
+
   const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
   bioInput.value = isPlaceholder ? "" : (p.bio || "");
   walletInput.value = p.tonWallet || "";
@@ -4810,7 +5037,7 @@ function openEditProfile() {
 
   const recent = recentProfileEdits();
   const editsLeft = PROFILE_EDIT_LIMIT - recent.length;
-  if (editsLeft <= 0) {
+  if (!identitySetupRequired && editsLeft <= 0) {
     bioInput.disabled = true;
     walletInput.disabled = true;
     note.style.display = "";
@@ -4818,7 +5045,7 @@ function openEditProfile() {
   } else {
     bioInput.disabled = false;
     walletInput.disabled = false;
-    if (editsLeft < PROFILE_EDIT_LIMIT) {
+    if (!identitySetupRequired && editsLeft < PROFILE_EDIT_LIMIT) {
       note.style.display = "";
       note.textContent = `You have ${editsLeft} profile edit${editsLeft === 1 ? "" : "s"} left this week.`;
     } else {
@@ -4826,17 +5053,30 @@ function openEditProfile() {
     }
   }
 
+  if (identitySetupRequired) {
+    title.textContent = "Set up your profile";
+    setupNote.style.display = "";
+    closeBtn.style.display = "none";
+  } else {
+    title.textContent = "Edit profile";
+    setupNote.style.display = "none";
+    closeBtn.style.display = "";
+  }
+
   const btn = document.getElementById("editProfileSaveBtn");
   btn.textContent = "Save";
   btn.style.pointerEvents = "auto";
   btn.style.opacity = "1";
+  updateEditProfileSaveState();
 
   document.getElementById("editProfileOverlay").classList.add("open");
   document.getElementById("editProfileSheet").classList.add("open");
+  document.getElementById("editProfileOverlay").onclick = identitySetupRequired ? null : closeEditProfile;
   syncBackButton();
 }
 
 function closeEditProfile() {
+  if (identitySetupRequired) return; // must finish setup (Save) first
   document.getElementById("editProfileOverlay").classList.remove("open");
   document.getElementById("editProfileSheet").classList.remove("open");
   syncBackButton();
@@ -4844,23 +5084,41 @@ function closeEditProfile() {
 
 async function saveEditProfile() {
   const p = PROFILES.you;
+  const nameInput = document.getElementById("editNameInput");
+  const usernameInput = document.getElementById("editUsernameInput");
   const bioInput = document.getElementById("editBioInput");
   const walletInput = document.getElementById("editWalletInput");
+  const newName = nameInput.value.trim();
+  const newUsername = usernameInput.value.trim();
   const newBio = bioInput.value.trim();
   const newWallet = walletInput.value.trim();
 
+  if (identitySetupRequired) {
+    if (!newName) { showToast("Add a display name to continue."); return; }
+    if (!validateUsernameFormat(newUsername)) { showToast("Pick a valid username to continue."); return; }
+    if (usernameAvailable !== true) { showToast("Choose an available username to continue."); return; }
+  }
+
+  const nameChanged = newName !== (p.name || "") && newName.length > 0;
+  const usernameChanged = newUsername !== (p.username || "") && validateUsernameFormat(newUsername);
+  const avatarChanged = Boolean(pendingAvatarUrl);
   const isPlaceholder = p.bio === "Add a bio to tell people what you're into.";
   const currentBio = isPlaceholder ? "" : (p.bio || "");
   const bioChanged = !bioInput.disabled && newBio !== currentBio;
   const walletChanged = !walletInput.disabled && newWallet !== (p.tonWallet || "");
 
-  if (!bioChanged && !walletChanged) {
+  if (usernameChanged && usernameAvailable !== true) {
+    showToast("That username isn't available.");
+    return;
+  }
+
+  if (!nameChanged && !usernameChanged && !avatarChanged && !bioChanged && !walletChanged) {
     closeEditProfile();
     return;
   }
 
-  if (profileEditCooldownRemainingMs() > 0) {
-    alert(`You can only change your bio or TON wallet ${PROFILE_EDIT_LIMIT} times a week. Try again in ${formatCooldownRemaining(profileEditCooldownRemainingMs())}.`);
+  if (!identitySetupRequired && profileEditCooldownRemainingMs() > 0) {
+    alert(`You can only change your profile ${PROFILE_EDIT_LIMIT} times a week. Try again in ${formatCooldownRemaining(profileEditCooldownRemainingMs())}.`);
     return;
   }
 
@@ -4868,6 +5126,9 @@ async function saveEditProfile() {
   const newEditLog = [...recentProfileEdits(), nowIso];
 
   const update = { telegram_id: String(telegramUser.id), edit_log: newEditLog };
+  if (nameChanged) update.display_name = newName;
+  if (usernameChanged) update.username = newUsername;
+  if (avatarChanged) update.avatar_url = pendingAvatarUrl;
   if (bioChanged) {
     update.bio = newBio || null;
     update.bio_updated_at = nowIso;
@@ -4906,10 +5167,20 @@ async function saveEditProfile() {
     btn.style.pointerEvents = "auto";
     btn.style.opacity = "1";
     const detail = e && (e.message || e.hint || e.code) ? ` (${e.message || e.hint || e.code})` : "";
-    alert(`Couldn't save your changes${detail}. Please try again.`);
+    // A unique-constraint violation on username shows up here if two people
+    // raced for the same handle between the availability check and saving.
+    if (e && (e.code === "23505" || /duplicate|unique/i.test(e.message || ""))) {
+      alert("That username was just taken. Please pick another.");
+    } else {
+      alert(`Couldn't save your changes${detail}. Please try again.`);
+    }
     return;
   }
 
+  const identityChanged = nameChanged || usernameChanged || avatarChanged;
+  if (nameChanged) { p.name = newName; p.initials = initialsFromName(newName); }
+  if (usernameChanged) p.username = newUsername;
+  if (avatarChanged) p.photoUrl = pendingAvatarUrl;
   if (bioChanged) {
     p.bio = newBio || "Add a bio to tell people what you're into.";
     p.bioUpdatedAt = nowIso;
@@ -4918,10 +5189,24 @@ async function saveEditProfile() {
     p.tonWallet = newWallet;
   }
   p.editLog = newEditLog;
+
+  if (identityChanged) {
+    setAvatarElement(document.getElementById("menuAvatar"), p);
+    setAvatarElement(document.getElementById("composeAvatar"), p);
+    document.getElementById("menuName").textContent = p.name;
+    document.getElementById("menuHandle").textContent = p.username ? `@${p.username}` : "Set up your profile";
+    if (currentProfileId === "you") {
+      setAvatarElement(document.getElementById("profileAvatar"), p, p.color);
+      renderProfileMeta("you");
+    }
+    pushIdentityToOwnContent();
+  }
   if (currentProfileId === "you") {
     document.getElementById("profileBio").textContent = p.bio;
   }
 
+  identitySetupRequired = false;
+  pendingAvatarUrl = null;
   haptic("medium");
   btn.textContent = "Saved";
   setTimeout(() => closeEditProfile(), 1000);
