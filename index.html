@@ -1112,18 +1112,26 @@
   .profile-topbar-back { display: flex; color: #fff; flex-shrink: 0; }
   .profile-topbar-name { font-size: 15.5px; font-weight: 700; color: #fff; }
 
+  .profile-hero {
+    position: relative;
+    padding: 0 18px 46px;
+  }
+
   .profile-banner {
     height: 120px;
-    margin-top: -46px;
+    margin: 0 -18px;
   }
 
   .profile-header { padding: 0 18px; }
 
   .profile-avatar-row {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 0;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    margin-top: -38px;
   }
 
   .profile-avatar-lg {
@@ -1131,6 +1139,7 @@
     height: 76px;
     border-radius: 50%;
     border: 4px solid var(--card);
+    background: var(--card);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1166,11 +1175,9 @@
     color: var(--accent);
     font-weight: 700;
     font-size: 13.5px;
-    margin-bottom: 6px;
   }
   .profile-action-btn:hover { background: rgba(47,163,147,0.12); }
-  .profile-action-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .profile-action-row .profile-action-btn { margin-bottom: 0; }
+  .profile-action-row { display: flex; align-items: center; gap: 8px; }
   .profile-star-btn { display: flex; align-items: center; gap: 5px; }
   .profile-star-btn.starred { background: var(--accent); color: #fff; }
 
@@ -2177,8 +2184,8 @@
       </button>
       <div class="profile-topbar-name" id="profileTopbarName"></div>
     </div>
-    <div class="profile-banner" id="profileBanner"></div>
-    <div class="profile-header">
+    <div class="profile-hero">
+      <div class="profile-banner" id="profileBanner"></div>
       <div class="profile-avatar-row">
         <div class="profile-avatar-wrap">
           <div class="profile-avatar-lg" id="profileAvatar"></div>
@@ -2195,6 +2202,8 @@
           <button class="profile-action-btn" id="profileActionBtn" onclick="messageProfile()">Message</button>
         </div>
       </div>
+    </div>
+    <div class="profile-header">
       <div class="profile-name-row">
         <div class="profile-name" id="profileName"></div>
         <span class="profile-verified" id="profileVerified"></span>
