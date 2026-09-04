@@ -1238,6 +1238,14 @@
   .post-detail-page.open { transform: translateX(0); }
   .post-detail-article { border-bottom: none; }
 
+  .post-detail-reply-bar {
+    flex-shrink: 0;
+    border-top: 1px solid var(--line);
+    background: var(--card);
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .post-detail-reply-bar .comment-form { margin-top: 0; }
+
   .profile-section-title {
     font-size: 14px;
     font-weight: 700;
@@ -2240,6 +2248,7 @@
       <div class="bookmarks-title">Post</div>
     </div>
     <div class="bookmarks-body" id="postDetailBody"></div>
+    <div class="post-detail-reply-bar" id="postDetailReplyBar"></div>
   </div>
 
   <div class="bookmarks-page" id="starrersPage">
@@ -2630,18 +2639,21 @@ function closePostDetail() {
 
 function renderPostDetail() {
   const body = document.getElementById("postDetailBody");
-  if (!body) return;
+  const replyBar = document.getElementById("postDetailReplyBar");
+  if (!body || !replyBar) return;
   const post = findUserPostById(currentPostDetailId);
-  if (!post || !userPostState[post.id]) { body.innerHTML = ""; return; }
+  if (!post || !userPostState[post.id]) { body.innerHTML = ""; replyBar.innerHTML = ""; return; }
   body.innerHTML = postDetailCardHTML(post);
+  replyBar.innerHTML = postDetailReplyBarHTML(post);
 }
 
 function postDetailCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => commentHTML(post.id, c))).join("")
+  const newestFirst = [...s.comments].sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+  const commentsHtml = newestFirst.length
+    ? interleaveCommentVideo(newestFirst.map(c => commentHTML(post.id, c))).join("")
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
@@ -2676,26 +2688,33 @@ function postDetailCardHTML(post) {
         </div>
         <div class="comments">
           ${commentsHtml}
-          ${s.draftImage ? `
-            <div class="comment-preview">
-              <img src="${s.draftImage}" alt="" />
-              <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
-            </div>
-          ` : ""}
-          <div class="comment-form">
-            <button class="comment-image-btn" onclick="document.getElementById('detail-upfile-${post.id}').click()">
-              ${imageIcon()}
-            </button>
-            <input type="file" id="detail-upfile-${post.id}" accept="image/*" style="display:none" onchange="handleUserPostImageSelect('${post.id}', this)" />
-            <input id="detail-upinput-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updatePostDetailCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitPostDetailComment('${post.id}')" />
-            <button class="comment-send" onclick="submitPostDetailComment('${post.id}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            </button>
-          </div>
-          <div class="comment-count" id="detail-upcount-${post.id}"></div>
         </div>
       </div>
     </article>
+  `;
+}
+
+function postDetailReplyBarHTML(post) {
+  const s = userPostState[post.id];
+  if (!s) return "";
+  return `
+    ${s.draftImage ? `
+      <div class="comment-preview">
+        <img src="${s.draftImage}" alt="" />
+        <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
+      </div>
+    ` : ""}
+    <div class="comment-form">
+      <button class="comment-image-btn" onclick="document.getElementById('detail-upfile-${post.id}').click()">
+        ${imageIcon()}
+      </button>
+      <input type="file" id="detail-upfile-${post.id}" accept="image/*" style="display:none" onchange="handleUserPostImageSelect('${post.id}', this)" />
+      <input id="detail-upinput-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updatePostDetailCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitPostDetailComment('${post.id}')" />
+      <button class="comment-send" onclick="submitPostDetailComment('${post.id}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </div>
+    <div class="comment-count" id="detail-upcount-${post.id}"></div>
   `;
 }
 
@@ -3193,67 +3212,6 @@ function sendUserPostGift(id) {
   setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
 }
 
-function toggleUserPostComments(id) {
-  userPostState[id].showComments = !userPostState[id].showComments;
-  render();
-}
-
-async function submitUserPostComment(id) {
-  if (!requireTelegramSession()) return;
-  const input = document.getElementById(`upinput-${id}`);
-  const text = input.value.trim();
-  const s = userPostState[id];
-  const image = s.draftImage;
-
-  if (s.editingCommentId) {
-    if (!text) return;
-    const commentId = s.editingCommentId;
-    const comment = s.comments.find(c => c.id === commentId);
-    if (comment) comment.text = text;
-    s.editingCommentId = null;
-    input.value = "";
-    render();
-    if (sb) {
-      sb.from("comments").update({ text }).eq("id", commentId).then(() => {});
-    }
-    return;
-  }
-
-  if (!text && !image) return;
-
-  const localId = `local-${Date.now()}`;
-  const comment = {
-    id: localId,
-    author: telegramUser.name,
-    userId: telegramUser.id,
-    initials: telegramUser.initials,
-    photoUrl: telegramUser.photoUrl,
-    text,
-    image: image || null,
-    createdAtMillis: Date.now(),
-    upCount: 0,
-    downCount: 0,
-    myReaction: null
-  };
-  s.comments.push(comment);
-  input.value = "";
-  s.draftImage = null;
-  render();
-  if (!sb) return;
-  try {
-    const { data, error } = await sb.from("comments").insert({
-      post_id: id,
-      telegram_id: String(telegramUser.id),
-      author: telegramUser.name,
-      initials: telegramUser.initials,
-      photo_url: telegramUser.photoUrl,
-      text,
-      image: image || null
-    }).select().single();
-    if (!error && data) { comment.id = data.id; render(); }
-  } catch (e) {}
-}
-
 function handleUserPostImageSelect(id, input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -3282,10 +3240,9 @@ function editUserComment(postId, commentId) {
   const comment = s.comments.find(c => c.id === commentId);
   if (!comment) return;
   s.editingCommentId = commentId;
-  s.showComments = true;
-  render();
+  openPostDetail(postId);
   setTimeout(() => {
-    const input = document.getElementById(`upinput-${postId}`);
+    const input = document.getElementById(`detail-upinput-${postId}`);
     if (input) { input.value = comment.text; input.focus(); }
   }, 50);
 }
@@ -3297,23 +3254,6 @@ function deleteUserComment(postId, commentId) {
   render();
   if (!sb) return;
   sb.from("comments").delete().eq("id", commentId).then(() => {});
-}
-
-function updateUserPostCommentCount(id) {
-  const input = document.getElementById(`upinput-${id}`);
-  const counter = document.getElementById(`upcount-${id}`);
-  if (!input || !counter) return;
-  const remaining = 280 - input.value.length;
-  counter.className = "comment-count";
-  if (remaining <= 0) {
-    counter.textContent = "0 characters left";
-    counter.classList.add("limit");
-  } else if (remaining <= 30) {
-    counter.textContent = `${remaining} characters left`;
-    counter.classList.add("warn");
-  } else {
-    counter.textContent = "";
-  }
 }
 
 const POST_TEXT_LIMIT = 200;
@@ -3386,9 +3326,6 @@ function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
-  const commentsHtml = s.comments.length
-    ? interleaveCommentVideo(s.comments.map(c => commentHTML(post.id, c))).join("")
-    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post">
@@ -3407,7 +3344,7 @@ function userPostCardHTML(post) {
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         ${post.type === "poll" ? renderPollPost(post, s) : ""}
         <div class="stat-row">
-          <button class="stat reply" onclick="toggleUserPostComments('${post.id}')">
+          <button class="stat reply" onclick="openPostDetail('${post.id}')">
             ${replyIcon()}<span>${s.comments.length || ""}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
@@ -3420,28 +3357,6 @@ function userPostCardHTML(post) {
             ${giftIcon(s.gifted)}
           </button>
         </div>
-        ${s.showComments ? `
-          <div class="comments">
-            ${commentsHtml}
-            ${s.draftImage ? `
-              <div class="comment-preview">
-                <img src="${s.draftImage}" alt="" />
-                <button class="comment-preview-remove" onclick="removeUserPostDraftImage('${post.id}')">Remove</button>
-              </div>
-            ` : ""}
-            <div class="comment-form">
-              <button class="comment-image-btn" onclick="document.getElementById('upfile-${post.id}').click()">
-                ${imageIcon()}
-              </button>
-              <input type="file" id="upfile-${post.id}" accept="image/*" style="display:none" onchange="handleUserPostImageSelect('${post.id}', this)" />
-              <input id="upinput-${post.id}" class="comment-input" placeholder="Post your reply" maxlength="280" oninput="updateUserPostCommentCount('${post.id}')" onkeydown="if(event.key==='Enter') submitUserPostComment('${post.id}')" />
-              <button class="comment-send" onclick="submitUserPostComment('${post.id}')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-              </button>
-            </div>
-            <div class="comment-count" id="upcount-${post.id}"></div>
-          </div>
-        ` : ""}
       </div>
     </article>
   `;
