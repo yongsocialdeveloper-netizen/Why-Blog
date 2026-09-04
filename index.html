@@ -2259,6 +2259,10 @@
       </button>
       <div class="bookmarks-title" id="starrersTitle">Stars</div>
     </div>
+    <div class="feed-tabs" id="starrersTabs">
+      <button class="feed-tab active" id="starrersTabStars" onclick="setStarrersTab('stars')">Stars</button>
+      <button class="feed-tab" id="starrersTabStarred" onclick="setStarrersTab('starred')">Starred</button>
+    </div>
     <div class="bookmarks-body" id="starrersBody"></div>
   </div>
 
@@ -2863,6 +2867,8 @@ async function submitPostDetailComment(id) {
 
 // ---------- Stars (lightweight "follow" signal on a profile) ----------
 let starState = {}; // profileId -> { starred: bool, count: number }
+let starrersProfileId = null;
+let starrersActiveTab = "stars"; // "stars" (incoming) or "starred" (outgoing)
 
 function renderStarButton(id) {
   if (currentProfileId !== id) return;
@@ -2920,11 +2926,37 @@ function toggleStar(id) {
 function openStarrers(id) {
   const p = PROFILES[id];
   if (!p) return;
-  document.getElementById("starrersTitle").textContent = id === "you" ? "Your stars" : `Stars for ${p.name}`;
+  starrersProfileId = id;
+  starrersActiveTab = "stars";
+  document.getElementById("starrersTabStars").classList.add("active");
+  document.getElementById("starrersTabStarred").classList.remove("active");
+  updateStarrersTitle();
   document.getElementById("starrersBody").innerHTML = `<div class="search-empty">Loading\u2026</div>`;
   document.getElementById("starrersPage").classList.add("open");
   syncBackButton();
-  renderStarrersPage(id);
+  renderStarrersPage();
+}
+
+function updateStarrersTitle() {
+  const p = PROFILES[starrersProfileId];
+  if (!p) return;
+  const isYou = starrersProfileId === "you";
+  if (starrersActiveTab === "stars") {
+    document.getElementById("starrersTitle").textContent = isYou ? "Your stars" : `Stars for ${p.name}`;
+  } else {
+    document.getElementById("starrersTitle").textContent = isYou ? "Who you've starred" : `Who ${p.name} has starred`;
+  }
+}
+
+function setStarrersTab(tab) {
+  if (starrersActiveTab === tab) return;
+  starrersActiveTab = tab;
+  document.getElementById("starrersTabStars").classList.toggle("active", tab === "stars");
+  document.getElementById("starrersTabStarred").classList.toggle("active", tab === "starred");
+  haptic("light");
+  updateStarrersTitle();
+  document.getElementById("starrersBody").innerHTML = `<div class="search-empty">Loading\u2026</div>`;
+  renderStarrersPage();
 }
 
 function closeStarrersPage() {
@@ -2932,44 +2964,59 @@ function closeStarrersPage() {
   syncBackButton();
 }
 
-async function renderStarrersPage(id) {
+// Renders whichever tab is currently active for starrersProfileId:
+// "stars" = people who starred this profile (stars.to_telegram_id = them),
+// "starred" = people this profile has starred (stars.from_telegram_id = them).
+async function renderStarrersPage() {
+  const id = starrersProfileId;
+  const tab = starrersActiveTab;
   const body = document.getElementById("starrersBody");
   const p = PROFILES[id];
   if (!sb || !p || p.telegramId === null || p.telegramId === undefined) {
-    body.innerHTML = `<div class="search-empty">No stars yet.</div>`;
+    body.innerHTML = `<div class="search-empty">${tab === "stars" ? "No stars yet." : "Not starring anyone yet."}</div>`;
     return;
   }
+
+  const isStarsTab = tab === "stars";
+  const matchColumn = isStarsTab ? "to_telegram_id" : "from_telegram_id";
+  const otherColumn = isStarsTab ? "from_telegram_id" : "to_telegram_id";
+
   try {
     const { data: starRows } = await sb.from("stars")
-      .select("from_telegram_id, created_at")
-      .eq("to_telegram_id", String(p.telegramId))
+      .select(`${otherColumn}, created_at`)
+      .eq(matchColumn, String(p.telegramId))
       .order("created_at", { ascending: false });
 
+    // The person may have switched tabs or closed the page while this was
+    // in flight -- don't paint a stale result over whatever they're on now.
+    if (starrersProfileId !== id || starrersActiveTab !== tab) return;
+
     if (!starRows || !starRows.length) {
-      body.innerHTML = `<div class="search-empty">No stars yet.<br />Be the first to star this profile.</div>`;
+      body.innerHTML = `<div class="search-empty">${isStarsTab ? "No stars yet.<br />Be the first to star this profile." : "Not starring anyone yet."}</div>`;
       return;
     }
 
-    const ids = starRows.map(r => r.from_telegram_id);
-    const { data: linkRows } = await sb.from("telegram_links")
-      .select("telegram_id, telegram_name, telegram_username, telegram_photo_url")
-      .in("telegram_id", ids);
-    const linkById = {};
-    (linkRows || []).forEach(r => { linkById[r.telegram_id] = r; });
+    const otherIds = starRows.map(r => r[otherColumn]);
+    const { data: profileRows } = await sb.from("profiles")
+      .select("telegram_id, username, display_name, avatar_url")
+      .in("telegram_id", otherIds);
+    const profileById = {};
+    (profileRows || []).forEach(r => { profileById[r.telegram_id] = r; });
 
     body.innerHTML = starRows.map(row => {
-      const link = linkById[row.from_telegram_id];
-      const isYou = String(row.from_telegram_id) === String(telegramUser.id);
-      const profileId = isYou ? "you" : `telegram-${String(row.from_telegram_id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
-      const name = isYou ? "You" : (link ? link.telegram_name : "Telegram user") || "Telegram user";
-      const initials = (name || "T").slice(0, 2).toUpperCase();
-      const photoUrl = link ? safeTelegramPhotoUrl(link.telegram_photo_url) : "";
+      const otherId = row[otherColumn];
+      const isYou = String(otherId) === String(telegramUser.id);
+      const profileId = isYou ? "you" : `telegram-${String(otherId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+      const otherProfile = profileById[otherId];
+      const name = isYou ? PROFILES.you.name : ((otherProfile && otherProfile.display_name) || "Telegram user");
+      const initials = initialsFromName(name);
+      const photoUrl = otherProfile ? safeTelegramPhotoUrl(otherProfile.avatar_url) : "";
 
       if (!isYou && !PROFILES[profileId]) {
         PROFILES[profileId] = {
           name, initials, color: "#2fa393", photoUrl,
-          telegramId: row.from_telegram_id,
-          username: link ? link.telegram_username : "",
+          telegramId: otherId,
+          username: (otherProfile && otherProfile.username) || "",
           verified: false, bio: "No bio yet.",
           joined: "Recently",
           vibes: []
@@ -2991,7 +3038,7 @@ async function renderStarrersPage(id) {
       `;
     }).join("");
   } catch (e) {
-    body.innerHTML = `<div class="search-empty">Couldn't load stars. Try again later.</div>`;
+    body.innerHTML = `<div class="search-empty">Couldn't load this list. Try again later.</div>`;
   }
 }
 
