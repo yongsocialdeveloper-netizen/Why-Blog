@@ -2490,12 +2490,45 @@ async function fetchProfileSignupEmail(id) {
   } catch (e) {}
 }
 
+const DEFAULT_PROFILE_BANNER_URL = "https://i.ibb.co/FkYZrgsX/file-000000005e2c82119401492496b4e07d-copy-991x396.png";
+let defaultBannerLoadStatus = null; // null = unknown, true = loaded, false = failed
+
+function setProfileBanner(p) {
+  const banner = document.getElementById("profileBanner");
+  if (!banner) return;
+  const fallback = `linear-gradient(135deg, ${p.color}, #16202b)`;
+
+  if (defaultBannerLoadStatus === false) {
+    banner.style.backgroundImage = fallback;
+    return;
+  }
+
+  banner.style.backgroundImage = `url('${DEFAULT_PROFILE_BANNER_URL}'), ${fallback}`;
+  banner.style.backgroundSize = "cover, cover";
+  banner.style.backgroundPosition = "center, center";
+  banner.style.backgroundRepeat = "no-repeat, no-repeat";
+
+  if (defaultBannerLoadStatus === null) {
+    const probe = new Image();
+    probe.onload = () => { defaultBannerLoadStatus = true; };
+    probe.onerror = () => {
+      defaultBannerLoadStatus = false;
+      console.warn("Default profile banner failed to load:", DEFAULT_PROFILE_BANNER_URL);
+      if (currentProfileId && PROFILES[currentProfileId]) {
+        document.getElementById("profileBanner").style.backgroundImage =
+          `linear-gradient(135deg, ${PROFILES[currentProfileId].color}, #16202b)`;
+      }
+    };
+    probe.src = DEFAULT_PROFILE_BANNER_URL;
+  }
+}
+
 function openProfile(id) {
   const p = PROFILES[id];
   if (!p) return;
   currentProfileId = id;
   document.getElementById("profileTopbarName").textContent = p.name;
-  document.getElementById("profileBanner").style.background = `center / cover no-repeat url('https://iili.io/nJNsNOx.png'), linear-gradient(135deg, ${p.color}, #16202b)`;
+  setProfileBanner(p);
   const avatar = document.getElementById("profileAvatar");
   setAvatarElement(avatar, p, p.color);
   document.getElementById("profileName").textContent = p.name;
