@@ -2770,6 +2770,7 @@ function renderPostDetail() {
   if (!post || !userPostState[post.id]) { body.innerHTML = ""; replyBar.innerHTML = ""; return; }
   body.innerHTML = postDetailCardHTML(post);
   replyBar.innerHTML = postDetailReplyBarHTML(post);
+  attachVideoDwellTrackingToNewCards();
 }
 
 function postDetailCardHTML(post) {
@@ -5946,21 +5947,18 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Featured video shown after the 2nd post, then again after every 5th
-// post following that (positions 2, 7, 12, 17, ...).
-const FEATURED_VIDEO_PLAYLIST_IDS = [
-  "PLadFF3L73w94", // politics
-  "PLKTsFeLPgTLI", // sports
-  "PLS1H2lMubDyw", // business & finance
-  "PLVaCuikp6yOU", // science & technology
-  "PLV8tuViPsZzM", // entertainment & arts
-  "PLHwx6zaxd5cI", // artificial intelligence
-  "PLXr6h16cQqUM", // gaming
-  "PLHOO8ILTojpI", // crypto
+// Featured video shown after the 1st post, then again after every 5th
+// post following that (positions 1, 6, 11, 16, ...).
+const FEATURED_VIDEO_PLAYLISTS = [
+  { id: "politics", playlistId: "PLadFF3L73w94" },
+  { id: "sports", playlistId: "PLKTsFeLPgTLI" },
+  { id: "business", playlistId: "PLS1H2lMubDyw" },
+  { id: "science-tech", playlistId: "PLVaCuikp6yOU" },
+  { id: "entertainment", playlistId: "PLV8tuViPsZzM" },
+  { id: "ai", playlistId: "PLHwx6zaxd5cI" },
+  { id: "gaming", playlistId: "PLXr6h16cQqUM" },
+  { id: "crypto", playlistId: "PLHOO8ILTojpI" },
 ];
-function randomFeaturedPlaylistId() {
-  return FEATURED_VIDEO_PLAYLIST_IDS[Math.floor(Math.random() * FEATURED_VIDEO_PLAYLIST_IDS.length)];
-}
 const FEATURED_VIDEO_FIRST_AT = 1;
 const FEATURED_VIDEO_REPEAT_EVERY = 5;
 
@@ -5969,12 +5967,138 @@ const FEATURED_VIDEO_REPEAT_EVERY = 5;
 const COMMENT_VIDEO_FIRST_AT = 4;
 const COMMENT_VIDEO_REPEAT_EVERY = 9;
 
+// ---- Category interest scoring -------------------------------------
+// Each video's category is picked with a softmax over a per-user
+// interest score, instead of a uniform random pick. Scores build up
+// from dwell time (seconds a video is visible on screen) and decay
+// gradually over days so stale interest fades out.
+const CATEGORY_INTEREST_STORAGE_KEY = "categoryInterestScores";
+const CATEGORY_DECAY_TS_STORAGE_KEY = "categoryInterestLastDecayTs";
+const CATEGORY_DECAY_PER_DAY = 0.98;        // multiplicative decay applied per elapsed day
+const CATEGORY_SOFTMAX_TEMPERATURE = 1.5;   // lower = more biased to top categories
+const CATEGORY_WATCH_SCORE_PER_SEC = 0.1;   // score gained per second visible
+const CATEGORY_WATCH_SCORE_CAP_PER_VIEW = 3; // max score a single view can contribute
+const CATEGORY_VISIBILITY_THRESHOLD = 0.5;  // must be >=50% on screen to count as "watching"
+
+function loadCategoryInterestScores() {
+  let scores;
+  try {
+    scores = JSON.parse(localStorage.getItem(CATEGORY_INTEREST_STORAGE_KEY)) || {};
+  } catch (e) {
+    scores = {};
+  }
+  FEATURED_VIDEO_PLAYLISTS.forEach(c => {
+    if (typeof scores[c.id] !== "number") scores[c.id] = 0;
+  });
+
+  const lastDecayTs = Number(localStorage.getItem(CATEGORY_DECAY_TS_STORAGE_KEY)) || Date.now();
+  const daysElapsed = Math.max(0, (Date.now() - lastDecayTs) / 86400000);
+  const decayFactor = Math.pow(CATEGORY_DECAY_PER_DAY, daysElapsed);
+  Object.keys(scores).forEach(id => { scores[id] *= decayFactor; });
+  localStorage.setItem(CATEGORY_DECAY_TS_STORAGE_KEY, String(Date.now()));
+
+  return scores;
+}
+
+let categoryInterestScores = loadCategoryInterestScores();
+
+function saveCategoryInterestScores() {
+  try {
+    localStorage.setItem(CATEGORY_INTEREST_STORAGE_KEY, JSON.stringify(categoryInterestScores));
+  } catch (e) {}
+}
+
+// Softmax-weighted pick over current interest scores. All-zero scores
+// (a fresh user) fall back to a uniform random pick across categories.
+function weightedRandomCategory() {
+  const exps = FEATURED_VIDEO_PLAYLISTS.map(c =>
+    Math.exp((categoryInterestScores[c.id] || 0) / CATEGORY_SOFTMAX_TEMPERATURE)
+  );
+  const total = exps.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < FEATURED_VIDEO_PLAYLISTS.length; i++) {
+    r -= exps[i];
+    if (r <= 0) return FEATURED_VIDEO_PLAYLISTS[i];
+  }
+  return FEATURED_VIDEO_PLAYLISTS[FEATURED_VIDEO_PLAYLISTS.length - 1];
+}
+
+function recordCategoryWatchSeconds(categoryId, seconds) {
+  const capSeconds = CATEGORY_WATCH_SCORE_CAP_PER_VIEW / CATEGORY_WATCH_SCORE_PER_SEC;
+  const addScore = Math.min(seconds, capSeconds) * CATEGORY_WATCH_SCORE_PER_SEC;
+  if (addScore <= 0) return;
+  categoryInterestScores[categoryId] = (categoryInterestScores[categoryId] || 0) + addScore;
+  saveCategoryInterestScores();
+}
+
+let videoDwellCounter = 0;
+const observedVideoDwellIds = new Set();
+
+// Watches a single video card's on-screen time and periodically banks
+// the watched seconds into that category's interest score.
+function attachVideoDwellTracking(container, categoryId) {
+  let visibleSince = null;
+  let bankedMs = 0;
+  let lastBankedSec = 0;
+
+  function currentMs() {
+    return bankedMs + (visibleSince !== null ? performance.now() - visibleSince : 0);
+  }
+
+  function flush() {
+    const totalSec = currentMs() / 1000;
+    const deltaSec = totalSec - lastBankedSec;
+    if (deltaSec > 0.5) {
+      recordCategoryWatchSeconds(categoryId, deltaSec);
+      lastBankedSec = totalSec;
+    }
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && entry.intersectionRatio >= CATEGORY_VISIBILITY_THRESHOLD) {
+        if (visibleSince === null) visibleSince = performance.now();
+      } else if (visibleSince !== null) {
+        bankedMs += performance.now() - visibleSince;
+        visibleSince = null;
+        flush();
+      }
+    });
+  }, { threshold: [0, CATEGORY_VISIBILITY_THRESHOLD, 1] });
+
+  observer.observe(container);
+
+  const interval = setInterval(() => {
+    if (visibleSince !== null) flush();
+    if (!document.body.contains(container)) {
+      flush();
+      observer.disconnect();
+      clearInterval(interval);
+    }
+  }, 3000);
+}
+
+// Finds any newly-rendered video cards in the DOM and starts tracking
+// them. Safe to call after any render pass; already-tracked cards are
+// skipped via observedVideoDwellIds.
+function attachVideoDwellTrackingToNewCards() {
+  document.querySelectorAll("[data-video-dwell-id]").forEach(el => {
+    const dwellId = el.getAttribute("data-video-dwell-id");
+    const categoryId = el.getAttribute("data-video-category");
+    if (observedVideoDwellIds.has(dwellId)) return;
+    observedVideoDwellIds.add(dwellId);
+    attachVideoDwellTracking(el, categoryId);
+  });
+}
+
 function featuredVideoHTML() {
+  const category = weightedRandomCategory();
+  const dwellId = `fv-${++videoDwellCounter}`;
   return `
-    <div class="video-post">
+    <div class="video-post" data-video-dwell-id="${dwellId}" data-video-category="${category.id}">
       <div class="video-embed">
         <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${randomFeaturedPlaylistId()}"
+          src="https://www.youtube.com/embed/videoseries?list=${category.playlistId}"
           title="Featured video"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -5986,11 +6110,13 @@ function featuredVideoHTML() {
 }
 
 function commentVideoHTML() {
+  const category = weightedRandomCategory();
+  const dwellId = `cv-${++videoDwellCounter}`;
   return `
-    <div class="comment-video">
+    <div class="comment-video" data-video-dwell-id="${dwellId}" data-video-category="${category.id}">
       <div class="video-embed">
         <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${randomFeaturedPlaylistId()}"
+          src="https://www.youtube.com/embed/videoseries?list=${category.playlistId}"
           title="Featured video"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -6023,6 +6149,47 @@ function interleaveCommentVideo(items) {
   return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
+// ---- User posts feed ranking (For You tab) --------------------------
+// The "For You" tab is scored/ranked rather than shown in pure
+// chronological order. "Stars" tab (people you've starred, i.e. your
+// "following" list) stays pure reverse-chronological, same as X's
+// "Following" tab vs its algorithmic "For You" tab.
+const POST_SCORE_DECAY_LAMBDA = 0.02;       // higher = faster drop-off with age (per hour)
+const POST_SCORE_LIKE_WEIGHT = 1;
+const POST_SCORE_COMMENT_WEIGHT = 4;        // comments signal deeper engagement than likes
+const POST_SCORE_BOOKMARK_WEIGHT = 6;
+const POST_SCORE_GIFT_WEIGHT = 10;          // gifting is the strongest signal available
+const POST_SCORE_STARRED_AUTHOR_BOOST = 8;  // "in-network": you've starred this author
+const POST_SCORE_BASE = 1;                  // keeps brand-new, zero-engagement posts from scoring 0
+
+function postEngagementScore(post) {
+  const s = userPostState[post.id];
+  if (!s) return 0;
+
+  const ageHours = Math.max(0, (Date.now() - (post.createdAtMillis || Date.now())) / 3600000);
+  const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
+
+  const engagement =
+    (s.likeCount || 0) * POST_SCORE_LIKE_WEIGHT +
+    (s.comments ? s.comments.length : 0) * POST_SCORE_COMMENT_WEIGHT +
+    (s.bookmarked ? 1 : 0) * POST_SCORE_BOOKMARK_WEIGHT +
+    (s.gifted ? 1 : 0) * POST_SCORE_GIFT_WEIGHT;
+
+  const authorBoost = myStarredIds.has(String(post.userId)) ? POST_SCORE_STARRED_AUTHOR_BOOST : 0;
+
+  return (engagement + authorBoost + POST_SCORE_BASE) * timeDecay;
+}
+
+// Ranks posts by score, highest first. Ties (e.g. two brand-new posts
+// with no engagement yet) fall back to newest-first since USER_POSTS
+// is already loaded in that order.
+function rankForYouFeed(posts) {
+  return posts
+    .map((post, index) => ({ post, index, score: postEngagementScore(post) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(x => x.post);
+}
+
 function render() {
   const feed = document.getElementById("feed");
   const isStarsFeed = activeFeedTab === "stars";
@@ -6030,6 +6197,8 @@ function render() {
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
   if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
+  } else {
+    feedPosts = rankForYouFeed(feedPosts);
   }
 
   const allPostParts = feedPosts.map(userPostCardHTML);
@@ -6059,6 +6228,7 @@ function render() {
   if (document.getElementById("postDetailPage").classList.contains("open")) {
     renderPostDetail();
   }
+  attachVideoDwellTrackingToNewCards();
 }
 
 startSupabaseAuth();
