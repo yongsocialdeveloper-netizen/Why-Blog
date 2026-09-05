@@ -3069,6 +3069,7 @@ async function submitPostDetailComment(id) {
     id: localId,
     author: PROFILES.you.name,
     userId: telegramUser.id,
+    profileId: "you",
     initials: PROFILES.you.initials,
     photoUrl: PROFILES.you.photoUrl,
     text,
@@ -3349,13 +3350,38 @@ function ensureTelegramPostProfile(post) {
   }
 }
 
+function ensureTelegramCommentProfile(c) {
+  if (!c || c.userId === undefined || c.userId === null) return;
+  if (telegramUser && String(c.userId) === String(telegramUser.id)) {
+    c.profileId = "you";
+    return;
+  }
+
+  const profileId = `telegram-${String(c.userId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  c.profileId = profileId;
+  if (!PROFILES[profileId]) {
+    PROFILES[profileId] = {
+      name: c.author || "Telegram user",
+      initials: c.initials || "T",
+      color: c.color || "#2fa393",
+      photoUrl: safeTelegramPhotoUrl(c.photoUrl),
+      telegramId: c.userId,
+      username: c.username || "",
+      verified: false,
+      bio: "No bio yet.",
+      joined: "Recently",
+      vibes: []
+    };
+  }
+}
+
 function commentHTML(postId, c) {
   const isOwnComment = telegramUser && String(c.userId) === String(telegramUser.id);
   return `
     <div class="comment">
-      ${avatarMarkup(c, "comment-avatar")}
+      <div onclick="event.stopPropagation(); openProfile('${c.profileId}')">${avatarMarkup(c, "comment-avatar")}</div>
       <div class="comment-bubble">
-        <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${inlineVerifiedBadge(c.userId)}${escapeHtml(c.text)}
+        <span class="comment-author" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${c.profileId}')">${escapeHtml(c.author || "Telegram user")}</span>${inlineVerifiedBadge(c.userId)}${escapeHtml(c.text)}
         ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
         <div class="comment-footer">
           <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
@@ -3514,7 +3540,9 @@ async function loadUserPosts() {
       (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
       (commentsRes.data || []).forEach(r => {
         if (!commentsByPost[r.post_id]) commentsByPost[r.post_id] = [];
-        commentsByPost[r.post_id].push(mapCommentRow(r));
+        const comment = mapCommentRow(r);
+        ensureTelegramCommentProfile(comment);
+        commentsByPost[r.post_id].push(comment);
       });
       (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
 
