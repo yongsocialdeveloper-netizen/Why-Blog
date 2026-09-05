@@ -1303,6 +1303,7 @@
   .profile-action-row { display: flex; align-items: center; gap: 8px; }
   .profile-star-btn { display: flex; align-items: center; gap: 5px; }
   .profile-star-btn.starred { background: var(--accent); color: #fff; }
+  #profilePremiumBtn.active { background: var(--accent); color: #0d1116; border-color: var(--accent); }
 
   .profile-name-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
   .profile-name { font-size: 19px; font-weight: 700; }
@@ -2285,6 +2286,7 @@
             <span id="profileStarBtnIcon"></span><span id="profileStarBtnLabel">Star</span>
           </button>
           <button class="profile-action-btn" id="profileEditBtn" onclick="openEditProfile()" style="display:none">Edit profile</button>
+          <button class="profile-action-btn" id="profilePremiumBtn" onclick="openPremiumModal()" style="display:none">Go Premium</button>
         </div>
       </div>
     </div>
@@ -2540,6 +2542,27 @@
     </div>
   </div>
 
+  <div class="form-sheet-overlay" id="premiumOverlay" onclick="closePremiumModal()"></div>
+  <div class="form-sheet" id="premiumSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Go Premium</div>
+      <button class="form-sheet-close" onclick="closePremiumModal()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-note">Verified badge, pin a post, 1000-character posts, and access to Quests.</div>
+      <div class="form-field">
+        <label class="form-label">Plan</label>
+        <div class="gift-token-row" id="premiumPlanRow" data-value="monthly"></div>
+      </div>
+      <div class="gift-status-line" id="premiumStatusLine"></div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" id="premiumBuyBtn" onclick="submitPremiumPurchase()">Pay with Stars</button>
+    </div>
+  </div>
+
   <div class="compose-page" id="composePage">
     <div class="compose-topbar">
       <button class="compose-close" onclick="closeCompose()" aria-label="Close">
@@ -2763,12 +2786,22 @@ function openProfile(id) {
 
   const starBtn = document.getElementById("profileStarBtn");
   const editBtn = document.getElementById("profileEditBtn");
+  const premiumBtn = document.getElementById("profilePremiumBtn");
   if (id === "you") {
     starBtn.style.display = "none";
     editBtn.style.display = "inline-flex";
+    premiumBtn.style.display = "inline-flex";
+    if (isPremiumUser()) {
+      premiumBtn.textContent = `Premium \u00b7 until ${formatPremiumUntil(PROFILES.you.premiumUntil)}`;
+      premiumBtn.classList.add("active");
+    } else {
+      premiumBtn.textContent = "Go Premium";
+      premiumBtn.classList.remove("active");
+    }
   } else {
     starBtn.style.display = (p.telegramId !== null && p.telegramId !== undefined) ? "inline-flex" : "none";
     editBtn.style.display = "none";
+    premiumBtn.style.display = "none";
   }
 
   renderProfileMeta(id);
@@ -3748,6 +3781,112 @@ let currentQuestReviewId = null;
 function isPremiumUser() {
   const until = PROFILES.you.premiumUntil;
   return !!until && new Date(until).getTime() > Date.now();
+}
+
+function formatPremiumUntil(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  if (d.getFullYear() > 3000) return "forever"; // lifetime/admin grants
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ---------- Premium (Telegram Stars) ----------
+// NOTE: actually creating a Stars invoice requires your bot's token, which
+// can only be used server-side. This calls out to your existing bot
+// backend to get an invoice link, then hands it to Telegram's native
+// payment sheet. Point PREMIUM_INVOICE_ENDPOINT at your bot's real route
+// before this goes live -- it's a placeholder until then.
+const PREMIUM_INVOICE_ENDPOINT = "https://your-bot-domain.example.com/premium/create-invoice";
+const PREMIUM_PLANS = [
+  { id: "monthly", label: "Monthly", stars: 100, sub: "100 \u2b50/mo" },
+  { id: "annual", label: "Annual", stars: 1000, sub: "1000 \u2b50/yr \u00b7 2 months free" }
+];
+
+function openPremiumModal() {
+  document.getElementById("premiumPlanRow").dataset.value = "monthly";
+  renderPremiumPlanRow();
+  setPremiumStatus("");
+  document.getElementById("premiumOverlay").classList.add("open");
+  document.getElementById("premiumSheet").classList.add("open");
+}
+
+function closePremiumModal() {
+  document.getElementById("premiumOverlay").classList.remove("open");
+  document.getElementById("premiumSheet").classList.remove("open");
+}
+
+function renderPremiumPlanRow() {
+  const row = document.getElementById("premiumPlanRow");
+  const active = row.dataset.value;
+  row.innerHTML = PREMIUM_PLANS.map(p => `
+    <button type="button" class="gift-token-pill ${active === p.id ? "active" : ""}" onclick="selectPremiumPlan('${p.id}')">
+      ${p.label}<br /><span style="font-weight:500;font-size:11px;">${p.sub}</span>
+    </button>
+  `).join("");
+}
+
+function selectPremiumPlan(id) {
+  document.getElementById("premiumPlanRow").dataset.value = id;
+  renderPremiumPlanRow();
+}
+
+function setPremiumStatus(text, kind) {
+  const el = document.getElementById("premiumStatusLine");
+  if (!el) return;
+  el.textContent = text || "";
+  el.className = "gift-status-line" + (kind ? " " + kind : "");
+}
+
+async function submitPremiumPurchase() {
+  const planId = document.getElementById("premiumPlanRow").dataset.value;
+  const plan = PREMIUM_PLANS.find(p => p.id === planId);
+  if (!plan) return;
+  const btn = document.getElementById("premiumBuyBtn");
+
+  if (!tg || typeof tg.openInvoice !== "function") {
+    setPremiumStatus("Open WhyBlog inside Telegram to pay with Stars.", "error");
+    return;
+  }
+
+  btn.disabled = true;
+  setPremiumStatus("Preparing invoice\u2026");
+  try {
+    const res = await fetch(PREMIUM_INVOICE_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegram_id: String(telegramUser.id), plan: plan.id, stars: plan.stars })
+    });
+    if (!res.ok) throw new Error("bot request failed");
+    const { invoice_link } = await res.json();
+    if (!invoice_link) throw new Error("no invoice link returned");
+
+    tg.openInvoice(invoice_link, async (status) => {
+      if (status === "paid") {
+        setPremiumStatus("Payment received \u2014 activating Premium\u2026");
+        // The source of truth is your bot's successful_payment webhook,
+        // which writes profiles.premium_until. Poll briefly for it to land.
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 1500));
+          await loadMyProfile();
+          if (isPremiumUser()) {
+            setPremiumStatus("You're Premium!", "success");
+            renderProfileMeta("you");
+            setTimeout(closePremiumModal, 900);
+            return;
+          }
+        }
+        setPremiumStatus("Payment received. This can take a moment to reflect \u2014 check back shortly.");
+      } else if (status === "failed" || status === "cancelled") {
+        setPremiumStatus("Payment " + status + ".", "error");
+      }
+      btn.disabled = false;
+    });
+  } catch (e) {
+    console.error(e);
+    setPremiumStatus("Couldn't start checkout. Please try again.", "error");
+    btn.disabled = false;
+  }
 }
 
 async function loadQuestAdminStatus() {
@@ -5425,6 +5564,7 @@ function anyOverlayOpen() {
     || document.getElementById("questReviewPage").classList.contains("open")
     || document.getElementById("questSubmitSheet").classList.contains("open")
     || document.getElementById("questCreateSheet").classList.contains("open")
+    || document.getElementById("premiumSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
@@ -5457,6 +5597,8 @@ function closeTopOverlay() {
     closeGiftModal();
   } else if (document.getElementById("questCreateSheet").classList.contains("open")) {
     closeQuestCreateModal();
+  } else if (document.getElementById("premiumSheet").classList.contains("open")) {
+    closePremiumModal();
   } else if (document.getElementById("questSubmitSheet").classList.contains("open")) {
     closeQuestSubmitModal();
   } else if (document.getElementById("questReviewPage").classList.contains("open")) {
@@ -5631,6 +5773,7 @@ async function loadMyProfile() {
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       PROFILES.you.premiumUntil = data.premium_until || null;
+      PROFILES.you.verified = isPremiumUser();
       if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
       const joined = formatJoinedDate(data.created_at);
       if (joined) PROFILES.you.joined = joined;
