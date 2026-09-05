@@ -30,6 +30,7 @@
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain;
   }
 
   a { color: inherit; text-decoration: none; }
@@ -1261,6 +1262,34 @@
   .new-posts-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
   .new-posts-banner svg { flex-shrink: 0; }
 
+  /* Custom pull-to-refresh indicator. Height is driven by JS while the
+     user drags (no transition -- must track the finger 1:1), and animates
+     back with a transition on release/reset. */
+  .pull-refresh {
+    height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: height 0.25s ease;
+  }
+  .pull-refresh.dragging { transition: none; }
+  .pull-refresh-mark {
+    display: flex;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    transform: scale(0.75);
+    opacity: 0.55;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .pull-refresh.ready .pull-refresh-mark { transform: scale(1); opacity: 1; }
+  .pull-refresh.spinning .pull-refresh-mark { transform: scale(1); opacity: 1; }
+  .pr-letter.pr-w { color: var(--accent); }
+  .pr-letter.pr-b { color: #fff; }
+  .pr-letter.pr-w.swapped { color: #fff; }
+  .pr-letter.pr-b.swapped { color: var(--accent); }
+
   .profile-topbar {
     position: sticky;
     top: 0;
@@ -2209,6 +2238,12 @@
     <div class="feed-tabs" id="feedTabs">
       <button class="feed-tab active" id="feedTabForYou" onclick="setFeedTab('foryou')">For You</button>
       <button class="feed-tab" id="feedTabStars" onclick="setFeedTab('stars')">Stars ✨</button>
+    </div>
+  </div>
+
+  <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
+    <div class="pull-refresh-mark">
+      <span class="pr-letter pr-w" id="prLetterW">W</span><span class="pr-letter pr-b" id="prLetterB">B</span>
     </div>
   </div>
 
@@ -3678,10 +3713,10 @@ function hideNewPostsBanner() {
 // this session shows everything immediately (nothing to protect the
 // user from yet). After that, only in-place updates to already-visible
 // posts are applied automatically; anything new waits for a banner tap.
-function applyFreshFeedData(freshPosts, freshState) {
+function applyFreshFeedData(freshPosts, freshState, forceApply) {
   const freshIds = new Set(freshPosts.map(p => p.id));
 
-  if (feedRenderedIds.size === 0) {
+  if (feedRenderedIds.size === 0 || forceApply) {
     USER_POSTS = freshPosts;
     userPostState = freshState;
     feedRenderedIds = freshIds;
@@ -3737,7 +3772,135 @@ function scheduleFeedPoll() {
   feedPollTimer = setTimeout(() => { loadUserPosts(); }, FEED_POLL_INTERVAL_MS);
 }
 
-async function loadUserPosts() {
+// ---- Custom pull-to-refresh -----------------------------------------
+// Replaces the browser's native pull-to-refresh with the WB brand mark.
+// Tracks the finger 1:1 (rubber-banded) while dragging; once released
+// past the threshold it locks in place and the two letters blink-swap
+// colors (W/B -> B/W) every 300ms until the fetch resolves. A manual
+// pull always shows whatever comes back immediately -- no "new posts"
+// banner -- since the user explicitly asked for the latest.
+const PULL_REFRESH_THRESHOLD = 70;
+const PULL_REFRESH_MAX = 100;
+const PULL_REFRESH_LOCK_HEIGHT = 56;
+const PULL_REFRESH_BLINK_MS = 300;
+
+let pullStartY = 0;
+let pullCurrentDistance = 0;
+let isPulling = false;
+let pullInFlight = false;
+let pullRefreshBlinkTimer = null;
+
+function pageScrollTop() {
+  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+}
+
+function pullRefreshEnabled() {
+  return document.getElementById("appShell").style.display !== "none" && !anyOverlayOpen() && !pullInFlight;
+}
+
+function updatePullRefreshVisual(distance, ready) {
+  const el = document.getElementById("pullRefresh");
+  if (!el) return;
+  el.classList.add("dragging");
+  el.style.height = `${distance}px`;
+  el.classList.toggle("ready", ready);
+}
+
+function resetPullRefreshVisual() {
+  const el = document.getElementById("pullRefresh");
+  if (!el) return;
+  el.classList.remove("dragging");
+  el.style.height = "0px";
+  el.classList.remove("ready", "spinning");
+  stopPullRefreshBlink();
+}
+
+function startPullRefreshBlink() {
+  const wEl = document.getElementById("prLetterW");
+  const bEl = document.getElementById("prLetterB");
+  if (!wEl || !bEl) return;
+  let swapped = false;
+  stopPullRefreshBlink();
+  pullRefreshBlinkTimer = setInterval(() => {
+    swapped = !swapped;
+    wEl.classList.toggle("swapped", swapped);
+    bEl.classList.toggle("swapped", swapped);
+  }, PULL_REFRESH_BLINK_MS);
+}
+
+function stopPullRefreshBlink() {
+  if (pullRefreshBlinkTimer) clearInterval(pullRefreshBlinkTimer);
+  pullRefreshBlinkTimer = null;
+  const wEl = document.getElementById("prLetterW");
+  const bEl = document.getElementById("prLetterB");
+  if (wEl) wEl.classList.remove("swapped");
+  if (bEl) bEl.classList.remove("swapped");
+}
+
+async function triggerPullRefresh() {
+  pullInFlight = true;
+  const el = document.getElementById("pullRefresh");
+  if (el) {
+    el.classList.remove("dragging");
+    el.style.height = `${PULL_REFRESH_LOCK_HEIGHT}px`;
+    el.classList.add("ready", "spinning");
+  }
+  startPullRefreshBlink();
+  haptic("light");
+  try {
+    await loadUserPosts({ manual: true });
+  } finally {
+    resetPullRefreshVisual();
+    pullInFlight = false;
+    pullCurrentDistance = 0;
+  }
+}
+
+document.addEventListener("touchstart", (e) => {
+  if (!pullRefreshEnabled()) return;
+  if (pageScrollTop() > 0) return;
+  if (e.touches.length !== 1) return;
+  pullStartY = e.touches[0].clientY;
+  isPulling = true;
+}, { passive: true });
+
+document.addEventListener("touchmove", (e) => {
+  if (!isPulling) return;
+  if (!pullRefreshEnabled() || pageScrollTop() > 0) {
+    isPulling = false;
+    resetPullRefreshVisual();
+    return;
+  }
+  const rawDelta = e.touches[0].clientY - pullStartY;
+  if (rawDelta <= 0) {
+    pullCurrentDistance = 0;
+    updatePullRefreshVisual(0, false);
+    return;
+  }
+  const resisted = Math.min(PULL_REFRESH_MAX, rawDelta * 0.5);
+  pullCurrentDistance = resisted;
+  updatePullRefreshVisual(resisted, resisted >= PULL_REFRESH_THRESHOLD);
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener("touchend", () => {
+  if (!isPulling) return;
+  isPulling = false;
+  if (pullCurrentDistance >= PULL_REFRESH_THRESHOLD) {
+    triggerPullRefresh();
+  } else {
+    resetPullRefreshVisual();
+  }
+}, { passive: true });
+
+document.addEventListener("touchcancel", () => {
+  if (!isPulling) return;
+  isPulling = false;
+  resetPullRefreshVisual();
+}, { passive: true });
+
+async function loadUserPosts(options = {}) {
+  const manual = options.manual === true;
   await loadMyStarredIds();
 
   let freshPosts = [];
@@ -3816,7 +3979,7 @@ async function loadUserPosts() {
     };
   }
 
-  applyFreshFeedData(freshPosts, freshState);
+  applyFreshFeedData(freshPosts, freshState, manual);
   saveFeedCache(freshPosts);
 
   const idsToCheck = freshPosts.map(p => p.userId)
