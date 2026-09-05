@@ -3386,11 +3386,28 @@ function sendUserPostGift(id) {
   openGiftModal(id);
 }
 
-function openGiftModal(id) {
+async function openGiftModal(id) {
   const post = findUserPostById(id);
   if (!post) return;
   const profile = PROFILES[post.profileId];
-  if (!profile || !profile.tonWallet) {
+  if (!profile) return;
+
+  // PROFILES entries for other users are built from fields already on the
+  // post row (name/initials/photo) and never include ton_wallet -- that's
+  // only ever loaded for "you". Fetch it lazily here, once, and cache it.
+  if (!profile.tonWallet && profile.telegramId && sb) {
+    try {
+      const { data } = await sb.from("profiles")
+        .select("ton_wallet")
+        .eq("telegram_id", String(profile.telegramId))
+        .maybeSingle();
+      if (data && data.ton_wallet) profile.tonWallet = data.ton_wallet;
+    } catch (e) {
+      console.error("Could not load creator's wallet", e);
+    }
+  }
+
+  if (!profile.tonWallet) {
     haptic("light");
     alert("This creator hasn't added a TON wallet yet.");
     return;
