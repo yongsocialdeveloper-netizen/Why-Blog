@@ -5948,7 +5948,19 @@ function escapeHtml(str) {
 
 // Featured video shown after the 2nd post, then again after every 5th
 // post following that (positions 2, 7, 12, 17, ...).
-const FEATURED_VIDEO_PLAYLIST_ID = "PLUOAoye2Rd5I";
+const FEATURED_VIDEO_PLAYLIST_IDS = [
+  "PLadFF3L73w94", // politics
+  "PLKTsFeLPgTLI", // sports
+  "PLS1H2lMubDyw", // business & finance
+  "PLVaCuikp6yOU", // science & technology
+  "PLV8tuViPsZzM", // entertainment & arts
+  "PLHwx6zaxd5cI", // artificial intelligence
+  "PLXr6h16cQqUM", // gaming
+  "PLHOO8ILTojpI", // crypto
+];
+function randomFeaturedPlaylistId() {
+  return FEATURED_VIDEO_PLAYLIST_IDS[Math.floor(Math.random() * FEATURED_VIDEO_PLAYLIST_IDS.length)];
+}
 const FEATURED_VIDEO_FIRST_AT = 1;
 const FEATURED_VIDEO_REPEAT_EVERY = 5;
 
@@ -5962,7 +5974,7 @@ function featuredVideoHTML() {
     <div class="video-post">
       <div class="video-embed">
         <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${FEATURED_VIDEO_PLAYLIST_ID}"
+          src="https://www.youtube.com/embed/videoseries?list=${randomFeaturedPlaylistId()}"
           title="Featured video"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -5978,7 +5990,7 @@ function commentVideoHTML() {
     <div class="comment-video">
       <div class="video-embed">
         <iframe
-          src="https://www.youtube.com/embed/videoseries?list=${FEATURED_VIDEO_PLAYLIST_ID}"
+          src="https://www.youtube.com/embed/videoseries?list=${randomFeaturedPlaylistId()}"
           title="Featured video"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
