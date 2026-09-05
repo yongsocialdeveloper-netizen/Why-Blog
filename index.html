@@ -6,6 +6,8 @@
 <title>WhyBlog</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+<script src="https://unpkg.com/tonweb/dist/web/index.js"></script>
 <style>
   :root {
     --ink: #e7ecef;
@@ -818,7 +820,69 @@
     text-align: center;
   }
   .form-submit-btn:hover { background: #37bba9; }
+  .form-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .form-note { font-size: 11.5px; color: var(--ink-faint); line-height: 1.5; margin-bottom: 12px; }
+
+  .gift-recipient-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .gift-recipient-row .avatar-sm { width: 36px; height: 36px; font-size: 14px; }
+  .gift-recipient-name { font-weight: 700; font-size: 14.5px; }
+  .gift-recipient-sub { font-size: 12px; color: var(--ink-faint); }
+
+  .gift-token-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .gift-token-pill {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .gift-token-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .gift-token-pill:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .gift-amount-wrap { position: relative; }
+  .gift-amount-wrap .form-input { padding-right: 58px; font-size: 17px; font-weight: 700; }
+  .gift-amount-unit {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ink-faint);
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .gift-memo-preview {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 13px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+
+  .gift-status-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-top: 10px;
+    min-height: 16px;
+  }
+  .gift-status-line.error { color: var(--heart); }
+  .gift-status-line.success { color: var(--accent); }
+  .gift-spinner {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    animation: gift-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes gift-spin { to { transform: rotate(360deg); } }
 
   /* ---------- compose page ---------- */
   .compose-page {
@@ -2305,6 +2369,48 @@
     </div>
   </div>
 
+  <div class="form-sheet-overlay" id="giftOverlay" onclick="closeGiftModal()"></div>
+  <div class="form-sheet" id="giftSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Support creator</div>
+      <button class="form-sheet-close" onclick="closeGiftModal()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="gift-recipient-row">
+        <div class="avatar-sm" id="giftRecipientAvatar"></div>
+        <div>
+          <div class="gift-recipient-name" id="giftRecipientName"></div>
+          <div class="gift-recipient-sub">Sent directly to their TON wallet</div>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Asset</label>
+        <div class="gift-token-row" id="giftTokenRow"></div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Amount</label>
+        <div class="gift-amount-wrap">
+          <input class="form-input" id="giftAmountInput" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal" oninput="updateGiftSendState()" />
+          <span class="gift-amount-unit" id="giftAmountUnit">TON</span>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Memo (auto-added)</label>
+        <div class="gift-memo-preview" id="giftMemoPreview"></div>
+      </div>
+
+      <div class="gift-status-line" id="giftStatusLine"></div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" id="giftSendBtn" onclick="submitGift()" disabled>Send</button>
+    </div>
+  </div>
+
   <div class="compose-page" id="composePage">
     <div class="compose-topbar">
       <button class="compose-close" onclick="closeCompose()" aria-label="Close">
@@ -3254,13 +3360,219 @@ function toggleUserPostBookmark(id) {
   if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
 }
 
+// ---------- Creator support (TON Connect gifts) ----------
+// Phase 1 ships native TON only. Jetton entries (USDT-TON, etc.) are wired
+// into the token list but left disabled until their real jetton-master
+// contract addresses are verified on-chain \u2014 sending to a wrong/guessed
+// master address would misdirect real funds, so we don't ship a guess.
+const GIFT_TOKENS = [
+  { symbol: "TON", label: "TON", decimals: 9, enabled: true },
+  { symbol: "USDT", label: "USDT", decimals: 6, enabled: false, jettonMaster: null },
+  { symbol: "NOT", label: "NOT", decimals: 9, enabled: false, jettonMaster: null }
+];
+
+const TONCONNECT_MANIFEST_URL = "https://whyblog.yongsocial.com/tonconnect-manifest.json";
+let tonConnectUI = null;
+let giftModalState = null; // { postId, token }
+
+function getTonConnectUI() {
+  if (!tonConnectUI && window.TON_CONNECT_UI) {
+    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: TONCONNECT_MANIFEST_URL });
+  }
+  return tonConnectUI;
+}
+
 function sendUserPostGift(id) {
-  const s = userPostState[id];
-  if (s.gifted) return;
-  s.gifted = true;
-  haptic("medium");
-  render();
-  setTimeout(() => alert("Thanks for supporting this creator! (demo only \u2014 no real payment sent)"), 100);
+  openGiftModal(id);
+}
+
+function openGiftModal(id) {
+  const post = findUserPostById(id);
+  if (!post) return;
+  const profile = PROFILES[post.profileId];
+  if (!profile || !profile.tonWallet) {
+    haptic("light");
+    alert("This creator hasn't added a TON wallet yet.");
+    return;
+  }
+
+  giftModalState = { postId: id, token: "TON" };
+
+  const avatarEl = document.getElementById("giftRecipientAvatar");
+  avatarEl.textContent = profile.initials || "?";
+  avatarEl.style.background = profile.color || "var(--accent)";
+  document.getElementById("giftRecipientName").textContent = profile.name || post.author || "Creator";
+  document.getElementById("giftAmountInput").value = "";
+  document.getElementById("giftAmountUnit").textContent = "TON";
+  setGiftStatus("");
+  renderGiftTokenRow();
+  updateGiftMemoPreview();
+  updateGiftSendState();
+
+  document.getElementById("giftOverlay").classList.add("open");
+  document.getElementById("giftSheet").classList.add("open");
+}
+
+function closeGiftModal() {
+  document.getElementById("giftOverlay").classList.remove("open");
+  document.getElementById("giftSheet").classList.remove("open");
+  giftModalState = null;
+}
+
+function renderGiftTokenRow() {
+  const row = document.getElementById("giftTokenRow");
+  if (!row || !giftModalState) return;
+  row.innerHTML = GIFT_TOKENS.map(t => `
+    <button type="button" class="gift-token-pill ${giftModalState.token === t.symbol ? "active" : ""}"
+      ${t.enabled ? "" : 'disabled title="Coming soon"'}
+      onclick="selectGiftToken('${t.symbol}')">${t.label}${t.enabled ? "" : " \u00b7 soon"}</button>
+  `).join("");
+}
+
+function selectGiftToken(symbol) {
+  const token = GIFT_TOKENS.find(t => t.symbol === symbol);
+  if (!token || !token.enabled || !giftModalState) return;
+  giftModalState.token = symbol;
+  document.getElementById("giftAmountUnit").textContent = symbol;
+  renderGiftTokenRow();
+  updateGiftSendState();
+}
+
+function updateGiftMemoPreview() {
+  const handle = telegramUser.username ? `@${telegramUser.username}` : (telegramUser.name || "a WhyBlog reader");
+  const el = document.getElementById("giftMemoPreview");
+  if (el) el.textContent = `WhyBlog support from ${handle}`;
+}
+
+function updateGiftSendState() {
+  const btn = document.getElementById("giftSendBtn");
+  if (!btn) return;
+  const amount = parseFloat(document.getElementById("giftAmountInput").value);
+  btn.disabled = !giftModalState || !(amount > 0);
+}
+
+function setGiftStatus(text, kind) {
+  const el = document.getElementById("giftStatusLine");
+  if (!el) return;
+  el.textContent = text || "";
+  el.className = "gift-status-line" + (kind ? " " + kind : "");
+}
+
+function buildCommentPayload(text) {
+  if (!window.TonWeb) return undefined;
+  const cell = new TonWeb.boc.Cell();
+  cell.bits.writeUint(0, 32); // op 0 = plain-text comment
+  cell.bits.writeBytes(TonWeb.utils.stringToBytes(text));
+  return TonWeb.utils.bytesToBase64(cell.toBoc());
+}
+
+function extractBocHash(bocBase64) {
+  try {
+    const bytes = TonWeb.utils.base64ToBytes(bocBase64);
+    const cell = TonWeb.boc.Cell.oneFromBoc(bytes);
+    return TonWeb.utils.bytesToHex(cell.hash());
+  } catch (e) {
+    return null;
+  }
+}
+
+async function submitGift() {
+  if (!giftModalState) return;
+  const post = findUserPostById(giftModalState.postId);
+  const profile = post && PROFILES[post.profileId];
+  if (!post || !profile || !profile.tonWallet) return;
+
+  const amount = parseFloat(document.getElementById("giftAmountInput").value);
+  if (!(amount > 0)) return;
+
+  const memo = document.getElementById("giftMemoPreview").textContent;
+  const sendBtn = document.getElementById("giftSendBtn");
+  const ui = getTonConnectUI();
+  if (!ui) {
+    setGiftStatus("TON Connect failed to load. Check your connection and try again.", "error");
+    return;
+  }
+
+  sendBtn.disabled = true;
+  try {
+    if (!ui.connected) {
+      setGiftStatus("Connecting your wallet\u2026");
+      await ui.connectWallet();
+    }
+
+    setGiftStatus("Waiting for approval in your wallet\u2026");
+    const nanotons = Math.round(amount * 1e9).toString();
+    const payload = buildCommentPayload(memo);
+
+    const result = await ui.sendTransaction({
+      validUntil: Math.floor(Date.now() / 1000) + 300,
+      messages: [{ address: profile.tonWallet, amount: nanotons, payload }]
+    });
+
+    const txHash = extractBocHash(result.boc);
+    setGiftStatus("Sent \u2014 confirming on-chain\u2026");
+
+    let giftId = null;
+    if (sb) {
+      const { data: giftRow } = await sb.from("gifts").insert({
+        post_id: String(post.id),
+        from_telegram_id: String(telegramUser.id),
+        to_telegram_id: String(profile.telegramId || ""),
+        token: giftModalState.token,
+        amount: amount,
+        memo: memo,
+        tx_hash: txHash,
+        status: "pending"
+      }).select().maybeSingle();
+      giftId = giftRow ? giftRow.id : null;
+    }
+
+    const s = userPostState[post.id];
+    if (s) s.gifted = true;
+    haptic("medium");
+    render();
+
+    pollGiftConfirmation(giftId, profile.tonWallet, txHash, memo);
+    setTimeout(() => closeGiftModal(), 900);
+  } catch (err) {
+    console.error(err);
+    setGiftStatus(err && err.message ? err.message : "Something went wrong sending the gift.", "error");
+    sendBtn.disabled = false;
+  }
+}
+
+function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
+  const maxAttempts = 20; // ~60s at 3s intervals, well within TonCenter's free tier
+  let attempts = 0;
+
+  const tick = async () => {
+    attempts++;
+    try {
+      const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(recipientAddress)}&limit=10&archival=false`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const txs = (json && json.result) || [];
+      const match = txs.find(tx => {
+        const inMsg = tx.in_msg || {};
+        return (txHash && inMsg.hash === txHash) || inMsg.message === memo;
+      });
+      if (match) {
+        if (giftId && sb) {
+          sb.from("gifts").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", giftId).then(() => {});
+        }
+        return;
+      }
+    } catch (e) {
+      // transient network/API error \u2014 keep polling until maxAttempts
+    }
+    if (attempts < maxAttempts) {
+      setTimeout(tick, 3000);
+    } else if (giftId && sb) {
+      sb.from("gifts").update({ status: "timeout" }).eq("id", giftId).then(() => {});
+    }
+  };
+
+  setTimeout(tick, 3000);
 }
 
 function handleUserPostImageSelect(id, input) {
@@ -4571,6 +4883,7 @@ function anyOverlayOpen() {
     || document.getElementById("bookmarksPage").classList.contains("open")
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
+    || document.getElementById("giftSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
@@ -4599,6 +4912,8 @@ function closeTopOverlay() {
     closeCompose();
   } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
     closeEditProfile();
+  } else if (document.getElementById("giftSheet").classList.contains("open")) {
+    closeGiftModal();
   } else if (document.getElementById("starrersPage").classList.contains("open")) {
     closeStarrersPage();
   } else if (document.getElementById("postDetailPage").classList.contains("open")) {
