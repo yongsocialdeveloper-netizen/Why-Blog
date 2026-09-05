@@ -2790,6 +2790,18 @@ function setProfileBanner(p) {
 function openProfile(id) {
   const p = PROFILES[id];
   if (!p) return;
+
+  // post-detail-page sits above profile-page in z-order. If it's open
+  // (e.g. opening a profile from a comment or the OP's name inside a
+  // post's detail view), close it first so the profile is visible
+  // immediately instead of only appearing once the detail page is
+  // later dismissed.
+  const postDetailPage = document.getElementById("postDetailPage");
+  if (postDetailPage.classList.contains("open")) {
+    postDetailPage.classList.remove("open");
+    currentPostDetailId = null;
+  }
+
   currentProfileId = id;
   document.getElementById("profileTopbarName").textContent = p.name;
   setProfileBanner(p);
