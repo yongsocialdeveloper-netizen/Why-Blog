@@ -3063,20 +3063,6 @@ async function submitPostDetailComment(id) {
   if (!s) return;
   const image = s.draftImage;
 
-  if (s.editingCommentId) {
-    if (!text) return;
-    const commentId = s.editingCommentId;
-    const comment = s.comments.find(c => c.id === commentId);
-    if (comment) comment.text = text;
-    s.editingCommentId = null;
-    input.value = "";
-    render();
-    if (sb) {
-      sb.from("comments").update({ text }).eq("id", commentId).then(() => {});
-    }
-    return;
-  }
-
   if (!text && !image) return;
 
   const localId = `local-${Date.now()}`;
@@ -4429,19 +4415,6 @@ function removeUserPostDraftImage(id) {
   render();
 }
 
-function editUserComment(postId, commentId) {
-  const s = userPostState[postId];
-  if (!s) return;
-  const comment = s.comments.find(c => c.id === commentId);
-  if (!comment) return;
-  s.editingCommentId = commentId;
-  openPostDetail(postId);
-  setTimeout(() => {
-    const input = document.getElementById(`detail-upinput-${postId}`);
-    if (input) { input.value = comment.text; input.focus(); }
-  }, 50);
-}
-
 function deleteUserComment(postId, commentId) {
   const s = userPostState[postId];
   if (!s) return;
@@ -4942,14 +4915,17 @@ function saveComposeDraft() {
 function openPostOptions(postId) {
   const post = USER_POSTS.find(p => p.id === postId);
   if (!post) return;
-  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserPost(postId); };
+  const editBtn = document.getElementById("postOptionsEditBtn");
+  editBtn.style.display = "";
+  editBtn.onclick = () => { closePostOptions(); editUserPost(postId); };
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserPost(postId); };
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
 }
 
 function openCommentOptions(postId, commentId) {
-  document.getElementById("postOptionsEditBtn").onclick = () => { closePostOptions(); editUserComment(postId, commentId); };
+  // Comments can only be deleted, never edited.
+  document.getElementById("postOptionsEditBtn").style.display = "none";
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
@@ -6724,7 +6700,7 @@ function clearSearch() {
 // Counts every hashtag currently in use across loaded posts. This is a
 // plain frequency count for now — no recency weighting or decay yet;
 // that ranking logic comes later, same as the video category scoring.
-function trendingHashtags(limit = 6) {
+function trendingHashtags(limit = 10) {
   const counts = {};
   USER_POSTS.forEach(p => {
     if (!userPostState[p.id]) return;
@@ -6739,17 +6715,86 @@ function trendingHashtags(limit = 6) {
     .map(([tag]) => tag);
 }
 
+function startOfTodayMillis() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// Trending profiles: top N by engagement received today only (likes +
+// comments, weighted, on posts created since midnight). Global signal,
+// not personalized — separate from the "For You" post ranking.
+function trendingProfilesToday(limit = 3) {
+  const todayStart = startOfTodayMillis();
+  const scoreByProfile = {};
+
+  USER_POSTS.forEach(post => {
+    const s = userPostState[post.id];
+    if (!s || !post.profileId || (post.createdAtMillis || 0) < todayStart) return;
+    const score = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 3;
+    scoreByProfile[post.profileId] = (scoreByProfile[post.profileId] || 0) + score;
+  });
+
+  return Object.entries(scoreByProfile)
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([profileId]) => PROFILES[profileId])
+    .filter(Boolean);
+}
+
+// Trending posts: top N by raw aggregate engagement (likes + comments),
+// with a time-decay so currently-hot posts outrank old viral ones.
+// Uses global counts everyone can see, not the viewer's personal state.
+function trendingPostsNow(limit = 5) {
+  const now = Date.now();
+  return USER_POSTS
+    .filter(p => userPostState[p.id])
+    .map(post => {
+      const s = userPostState[post.id];
+      const ageHours = Math.max(0, (now - (post.createdAtMillis || now)) / 3600000);
+      const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
+      const engagement = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 4;
+      return { post, score: engagement * timeDecay };
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(x => x.post);
+}
+
 function renderSearchDefault() {
   const body = document.getElementById("searchBody");
-  const tags = trendingHashtags();
-  body.innerHTML = `
-    <div class="search-section-title">Trending on WhyBlog</div>
+  const tags = trendingHashtags(10);
+  const profiles = trendingProfilesToday(3);
+  const posts = trendingPostsNow(5);
+
+  const sections = [];
+
+  sections.push(`
+    <div class="search-section-title">Trending topics</div>
     <div class="search-chip-row">
       ${tags.length
         ? tags.map(t => `<button class="search-chip" onclick="setSearchQuery('#${t}')">#${t}</button>`).join("")
         : TRENDING_TOPICS.map(t => `<button class="search-chip" onclick="setSearchQuery('${t}')">${t}</button>`).join("")}
     </div>
-  `;
+  `);
+
+  if (profiles.length) {
+    sections.push(`
+      <div class="search-section-title">Trending profiles today</div>
+      ${profiles.map(searchResultProfileHTML).join("")}
+    `);
+  }
+
+  if (posts.length) {
+    sections.push(`
+      <div class="search-section-title">Trending posts</div>
+      ${posts.map(searchResultPostHTML).join("")}
+    `);
+  }
+
+  body.innerHTML = sections.join("");
 }
 
 function setSearchQuery(q) {
