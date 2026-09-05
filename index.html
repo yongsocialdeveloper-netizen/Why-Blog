@@ -3416,8 +3416,10 @@ async function openGiftModal(id) {
   giftModalState = { postId: id, token: "TON" };
 
   const avatarEl = document.getElementById("giftRecipientAvatar");
-  avatarEl.textContent = profile.initials || "?";
   avatarEl.style.background = profile.color || "var(--accent)";
+  avatarEl.innerHTML = profile.photoUrl
+    ? `<img src="${profile.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : escapeHtml(profile.initials || "?");
   document.getElementById("giftRecipientName").textContent = profile.name || post.author || "Creator";
   document.getElementById("giftAmountInput").value = "";
   document.getElementById("giftAmountUnit").textContent = "TON";
@@ -3456,7 +3458,7 @@ function selectGiftToken(symbol) {
 }
 
 function updateGiftMemoPreview() {
-  const handle = telegramUser.username ? `@${telegramUser.username}` : (telegramUser.name || "a WhyBlog reader");
+  const handle = PROFILES.you.username ? `@${PROFILES.you.username}` : (PROFILES.you.name || "a WhyBlog reader");
   const el = document.getElementById("giftMemoPreview");
   if (el) el.textContent = `WhyBlog support from ${handle}`;
 }
