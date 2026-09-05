@@ -1238,6 +1238,29 @@
   .feed-empty-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px; }
   .feed-empty-sub { font-size: 13.5px; color: var(--ink-soft); }
 
+  .new-posts-banner {
+    position: fixed;
+    left: 50%;
+    top: 100px;
+    transform: translateX(-50%) translateY(-16px);
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #0d1116;
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+  }
+  .new-posts-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+  .new-posts-banner svg { flex-shrink: 0; }
+
   .profile-topbar {
     position: sticky;
     top: 0;
@@ -2143,6 +2166,11 @@
   </div>
 
   <div class="feed" id="feed"></div>
+
+  <button class="new-posts-banner" id="newPostsBanner" onclick="applyPendingNewPosts()" aria-live="polite">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+    <span id="newPostsBannerText">New posts</span>
+  </button>
 
   <button class="post-fab" id="postFab" onclick="openCompose()" aria-label="Create a post">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
@@ -3504,24 +3532,181 @@ function inlineVerifiedBadge(id) {
   return isPremiumTelegramId(id) ? `<span class="post-verified">${verifiedBadge()}</span>` : "";
 }
 
+// ---- Feed cache (instant paint) + "new posts" banner --------------
+// On boot we paint whatever's in localStorage right away (if it's not
+// too old to trust), then always fetch fresh data underneath. If the
+// fresh fetch turns up posts that aren't already on screen, they're
+// held behind a tappable banner instead of being spliced into the feed
+// — so the feed never jumps or reflows out from under someone who's
+// mid-scroll or watching a video. Already-visible posts still get their
+// like/comment counts refreshed in place, since that doesn't move or
+// insert anything.
+const FEED_CACHE_KEY = "feedCache:v1";
+const FEED_CACHE_TTL_MS = 10 * 60 * 1000;   // cached feed is only trusted for instant paint up to this old
+const FEED_POLL_INTERVAL_MS = 45 * 1000;    // how often to quietly check for new posts in the background
+
+let feedRenderedIds = new Set();
+let pendingNewPosts = new Map(); // id -> { post, state }
+let feedPollTimer = null;
+
+function loadFeedCache() {
+  try {
+    const raw = localStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    if (!cache || !Array.isArray(cache.posts) || !cache.ts) return null;
+    if (Date.now() - cache.ts > FEED_CACHE_TTL_MS) return null; // too old to trust -- treat as no cache
+    return cache;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveFeedCache(posts) {
+  try {
+    // Only cache the public post fields. Likes/bookmarks/comments are
+    // per-viewer state and always refetched fresh, never cached.
+    const slim = posts.map(p => ({
+      id: p.id, type: p.type, text: p.text, image: p.image, question: p.question,
+      options: p.options, name: p.name, username: p.username, userId: p.userId,
+      photoUrl: p.photoUrl, initials: p.initials, color: p.color,
+      likeCount: p.likeCount, createdAtMillis: p.createdAtMillis
+    }));
+    localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ posts: slim, ts: Date.now() }));
+  } catch (e) {}
+}
+
+// Paints cached posts immediately, before any network call resolves.
+// Uses placeholder engagement state (no likes/comments yet) purely so
+// there's something on screen instantly; the real fetch right behind it
+// fills in accurate state within the same "first load" pass, so the
+// placeholder is never visibly stale for more than a moment.
+function paintCachedFeedImmediately() {
+  const cache = loadFeedCache();
+  if (!cache || !cache.posts.length) return false;
+
+  USER_POSTS = cache.posts;
+  USER_POSTS.forEach(ensureTelegramPostProfile);
+  userPostState = {};
+  USER_POSTS.forEach(post => {
+    userPostState[post.id] = {
+      liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
+      comments: [], showComments: false, textExpanded: false, draftImage: null,
+      pollVoted: null
+    };
+  });
+  feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+  render();
+  return true;
+}
+
+function positionNewPostsBanner() {
+  const banner = document.getElementById("newPostsBanner");
+  const topbar = document.querySelector(".topbar");
+  if (!banner || !topbar) return;
+  banner.style.top = `${topbar.offsetHeight + 10}px`;
+}
+window.addEventListener("resize", positionNewPostsBanner);
+
+function showNewPostsBanner(count) {
+  const banner = document.getElementById("newPostsBanner");
+  if (!banner) return;
+  document.getElementById("newPostsBannerText").textContent =
+    count === 1 ? "1 new post" : `${count} new posts`;
+  positionNewPostsBanner();
+  banner.classList.add("show");
+}
+
+function hideNewPostsBanner() {
+  const banner = document.getElementById("newPostsBanner");
+  if (banner) banner.classList.remove("show");
+}
+
+// Merges a freshly-fetched feed into what's on screen. First load ever
+// this session shows everything immediately (nothing to protect the
+// user from yet). After that, only in-place updates to already-visible
+// posts are applied automatically; anything new waits for a banner tap.
+function applyFreshFeedData(freshPosts, freshState) {
+  const freshIds = new Set(freshPosts.map(p => p.id));
+
+  if (feedRenderedIds.size === 0) {
+    USER_POSTS = freshPosts;
+    userPostState = freshState;
+    feedRenderedIds = freshIds;
+    pendingNewPosts.clear();
+    hideNewPostsBanner();
+    render();
+    return;
+  }
+
+  USER_POSTS.forEach(post => {
+    if (freshState[post.id]) {
+      userPostState[post.id] = freshState[post.id];
+      const freshCopy = freshPosts.find(p => p.id === post.id);
+      if (freshCopy) Object.assign(post, freshCopy);
+    }
+  });
+  USER_POSTS = USER_POSTS.filter(p => freshIds.has(p.id)); // drop anything deleted server-side
+  feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+
+  pendingNewPosts.clear();
+  freshPosts.forEach(post => {
+    if (!feedRenderedIds.has(post.id)) {
+      pendingNewPosts.set(post.id, { post, state: freshState[post.id] });
+    }
+  });
+
+  render();
+  if (pendingNewPosts.size) {
+    showNewPostsBanner(pendingNewPosts.size);
+  } else {
+    hideNewPostsBanner();
+  }
+}
+
+// Called when the user taps the "N new posts" banner.
+function applyPendingNewPosts() {
+  if (!pendingNewPosts.size) return;
+  const newOnes = Array.from(pendingNewPosts.values());
+  newOnes.forEach(({ post, state }) => { userPostState[post.id] = state; });
+  USER_POSTS = newOnes.map(x => x.post).concat(USER_POSTS);
+  feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+  pendingNewPosts.clear();
+  hideNewPostsBanner();
+  render();
+  saveFeedCache(USER_POSTS);
+  haptic("light");
+  const feedEl = document.getElementById("feed");
+  if (feedEl) feedEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function scheduleFeedPoll() {
+  if (feedPollTimer) clearTimeout(feedPollTimer);
+  feedPollTimer = setTimeout(() => { loadUserPosts(); }, FEED_POLL_INTERVAL_MS);
+}
+
 async function loadUserPosts() {
   await loadMyStarredIds();
 
+  let freshPosts = [];
   try {
     if (sb) {
       const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
       if (error) throw error;
-      const posts = (data || []).map(mapPostRow);
-      posts.forEach(ensureTelegramPostProfile);
-      USER_POSTS = posts;
+      freshPosts = (data || []).map(mapPostRow);
+      freshPosts.forEach(ensureTelegramPostProfile);
     }
   } catch (e) {
     console.error("loadUserPosts failed:", e);
   }
 
-  if (!USER_POSTS.length) { render(); return; }
+  if (!freshPosts.length) {
+    if (!USER_POSTS.length) render();
+    scheduleFeedPoll();
+    return;
+  }
 
-  const ids = USER_POSTS.map(p => p.id);
+  const ids = freshPosts.map(p => p.id);
   let likedIds = new Set();
   let bookmarkedIds = new Set();
   let commentsByPost = {};
@@ -3564,8 +3749,9 @@ async function loadUserPosts() {
     }
   } catch (e) {}
 
-  for (const post of USER_POSTS) {
-    userPostState[post.id] = {
+  const freshState = {};
+  for (const post of freshPosts) {
+    freshState[post.id] = {
       liked: likedIds.has(post.id),
       likeCount: post.likeCount || 0,
       bookmarked: bookmarkedIds.has(post.id),
@@ -3577,11 +3763,15 @@ async function loadUserPosts() {
       pollVoted: post.type === "poll" ? (votesByPost[post.id] ?? null) : null
     };
   }
-  render();
 
-  const idsToCheck = USER_POSTS.map(p => p.userId)
+  applyFreshFeedData(freshPosts, freshState);
+  saveFeedCache(freshPosts);
+
+  const idsToCheck = freshPosts.map(p => p.userId)
     .concat(Object.values(commentsByPost).flat().map(c => c.userId));
   hydratePremiumBadges(idsToCheck);
+
+  scheduleFeedPoll();
 }
 
 function toggleUserPostLike(id) {
@@ -5432,6 +5622,7 @@ function showAuthenticatedApp(user) {
   appBooted = true;
   initTelegramIdentity();
   refreshTelegramLinkSnapshot();
+  paintCachedFeedImmediately();
   loadMyProfile();
   loadUserPosts();
   loadQuestAdminStatus();
