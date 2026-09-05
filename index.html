@@ -6739,7 +6739,7 @@ function trendingProfilesToday(limit = 3) {
     .filter(([, score]) => score > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
-    .map(([profileId]) => PROFILES[profileId])
+    .map(([profileId]) => PROFILES[profileId] ? { id: profileId, ...PROFILES[profileId] } : null)
     .filter(Boolean);
 }
 
