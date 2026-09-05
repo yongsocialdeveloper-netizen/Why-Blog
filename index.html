@@ -931,6 +931,11 @@
     color: var(--accent);
   }
   .quest-review-action.reject { color: var(--heart); }
+  .quest-card-tier { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-bottom: 8px; }
+  .quest-card-tier.silver { background: rgba(160,170,180,0.18); color: #b8c2cc; }
+  .quest-card-tier.gold { background: rgba(224,178,60,0.18); color: #e0b23c; }
+  .quest-submit-btn.locked { background: none; border: 1px solid var(--line); color: var(--ink-faint); }
+  .quest-delete-btn { color: var(--heart); display: flex; align-items: center; margin-left: auto; }
   .gift-icon-btn { color: var(--accent); display: flex; align-items: center; }
 
   /* ---------- compose page ---------- */
@@ -2472,6 +2477,10 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
       </button>
     </div>
+    <div class="feed-tabs" id="questsTabs">
+      <button class="feed-tab active" id="questsTabSilver" onclick="setQuestsTier('silver')">Silver</button>
+      <button class="feed-tab" id="questsTabGold" onclick="setQuestsTier('gold')">Gold</button>
+    </div>
     <div class="bookmarks-body" id="questsBody"></div>
   </div>
 
@@ -2515,6 +2524,11 @@
       </button>
     </div>
     <div class="form-sheet-body">
+      <div class="form-field">
+        <label class="form-label">Tier</label>
+        <div class="gift-token-row" id="questCreateTier" data-value="silver"></div>
+        <div class="form-note">Everyone can view and submit to Silver. Gold is visible to everyone but only Premium members can submit.</div>
+      </div>
       <div class="form-field">
         <label class="form-label">Title</label>
         <input class="form-input" id="questCreateTitleInput" type="text" placeholder="e.g. Design a WhyBlog sticker pack" autocomplete="off" />
@@ -3826,6 +3840,7 @@ let isQuestAdmin = false;
 let questsCache = [];
 let mySubmissionsCache = {}; // quest_id -> submission row (mine)
 let currentQuestReviewId = null;
+let questsActiveTier = "silver";
 
 function isPremiumUser() {
   const until = PROFILES.you.premiumUntil;
@@ -3951,6 +3966,14 @@ async function loadQuestAdminStatus() {
   }
 }
 
+function setQuestsTier(tier) {
+  if (questsActiveTier === tier) return;
+  questsActiveTier = tier;
+  document.getElementById("questsTabSilver").classList.toggle("active", tier === "silver");
+  document.getElementById("questsTabGold").classList.toggle("active", tier === "gold");
+  renderQuestsPage();
+}
+
 function openQuestsPage() {
   document.getElementById("questsPage").classList.add("open");
   renderQuestsPage();
@@ -3967,11 +3990,6 @@ async function renderQuestsPage() {
   if (!body) return;
   document.getElementById("questsCreateBtn").style.display = isQuestAdmin ? "" : "none";
 
-  if (!isPremiumUser() && !isQuestAdmin) {
-    body.innerHTML = `<div class="search-empty">Quests are a Premium perk.<br />Upgrade to Premium to view and submit to creator bounties.</div>`;
-    return;
-  }
-
   body.innerHTML = `<div class="search-empty">Loading quests\u2026</div>`;
   try {
     const { data: quests, error } = await sb.from("quests")
@@ -3986,12 +4004,14 @@ async function renderQuestsPage() {
     mySubmissionsCache = {};
     (mySubs || []).forEach(s => { mySubmissionsCache[s.quest_id] = s; });
 
-    if (!questsCache.length) {
-      body.innerHTML = `<div class="search-empty">No quests yet. Check back soon.</div>`;
+    const tierQuests = questsCache.filter(q => (q.tier || "silver") === questsActiveTier);
+
+    if (!tierQuests.length) {
+      body.innerHTML = `<div class="search-empty">No ${questsActiveTier} quests yet. Check back soon.</div>`;
       return;
     }
 
-    body.innerHTML = questsCache.map(renderQuestCard).join("");
+    body.innerHTML = tierQuests.map(renderQuestCard).join("");
   } catch (e) {
     body.innerHTML = `<div class="search-empty">Couldn't load quests. Please try again.</div>`;
   }
@@ -3999,38 +4019,62 @@ async function renderQuestsPage() {
 
 function renderQuestCard(q) {
   const mine = mySubmissionsCache[q.id];
+  const isGold = (q.tier || "silver") === "gold";
+  const canSubmit = !isGold || isPremiumUser() || isQuestAdmin;
+
   let actionHtml;
   if (mine) {
     const label = mine.status === "winner" ? `Winner \u00b7 ${mine.reward_amount} TON`
       : mine.status === "rejected" ? "Not selected"
       : "Submitted \u00b7 pending review";
     actionHtml = `<div class="quest-status-pill ${mine.status}">${label}</div>`;
-  } else if (q.status === "open") {
-    actionHtml = `<button class="quest-submit-btn" onclick="openQuestSubmitModal('${q.id}')">Submit</button>`;
-  } else {
+  } else if (q.status !== "open") {
     actionHtml = `<div class="quest-status-pill">Closed</div>`;
+  } else if (!canSubmit) {
+    actionHtml = `<button class="quest-submit-btn locked" onclick="openPremiumModal()">Premium to submit</button>`;
+  } else {
+    actionHtml = `<button class="quest-submit-btn" onclick="openQuestSubmitModal('${q.id}')">Submit</button>`;
   }
 
-  const adminLink = isQuestAdmin
-    ? `<button class="quest-review-link" onclick="openQuestReview('${q.id}')">Review submissions</button>`
-    : "";
+  const adminActions = isQuestAdmin ? `
+    <button class="quest-review-link" onclick="openQuestReview('${q.id}')">Review submissions</button>
+    <button class="quest-delete-btn" onclick="deleteQuest('${q.id}')" aria-label="Delete quest">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+    </button>
+  ` : "";
 
   return `
     <div class="quest-card">
+      <div class="quest-card-tier ${q.tier || "silver"}">${(q.tier || "silver") === "gold" ? "Gold" : "Silver"}</div>
       <div class="quest-card-title">${escapeHtml(q.title)}</div>
       <div class="quest-card-desc">${escapeHtml(q.description)}</div>
       <div class="quest-card-meta">
         <span>${q.total_reward} TON \u00b7 ${q.winner_count} winner${q.winner_count === 1 ? "" : "s"}</span>
         <span>${q.distribution === "diversify" ? "Ranked payout" : "Equal split"}</span>
       </div>
-      <div class="quest-card-footer">${actionHtml}${adminLink}</div>
+      <div class="quest-card-footer">${actionHtml}${adminActions}</div>
     </div>
   `;
+}
+
+async function deleteQuest(questId) {
+  if (!confirm("Delete this quest and all its submissions? This can't be undone.")) return;
+  try {
+    const { error } = await sb.from("quests").delete().eq("id", questId);
+    if (error) throw error;
+    renderQuestsPage();
+  } catch (e) {
+    alert("Couldn't delete this quest. Please try again.");
+  }
 }
 
 function openQuestSubmitModal(questId) {
   const quest = questsCache.find(q => q.id === questId);
   if (!quest) return;
+  if ((quest.tier || "silver") === "gold" && !isPremiumUser() && !isQuestAdmin) {
+    openPremiumModal();
+    return;
+  }
   document.getElementById("questSubmitTitle").textContent = quest.title;
   document.getElementById("questSubmitLinkInput").value = "";
   document.getElementById("questSubmitLinkInput").dataset.questId = questId;
@@ -4074,7 +4118,9 @@ function openQuestCreateModal() {
   document.getElementById("questCreateRewardInput").value = "";
   document.getElementById("questCreateWinnersInput").value = "1";
   document.getElementById("questCreateDistribution").dataset.value = "equalize";
+  document.getElementById("questCreateTier").dataset.value = "silver";
   renderQuestDistributionPills();
+  renderQuestTierPills();
   document.getElementById("questCreateOverlay").classList.add("open");
   document.getElementById("questCreateSheet").classList.add("open");
 }
@@ -4082,6 +4128,20 @@ function openQuestCreateModal() {
 function closeQuestCreateModal() {
   document.getElementById("questCreateOverlay").classList.remove("open");
   document.getElementById("questCreateSheet").classList.remove("open");
+}
+
+function renderQuestTierPills() {
+  const active = document.getElementById("questCreateTier").dataset.value;
+  document.getElementById("questCreateTier").innerHTML = ["silver", "gold"].map(v => `
+    <button type="button" class="gift-token-pill ${active === v ? "active" : ""}" onclick="setQuestTier('${v}')">
+      ${v === "silver" ? "Silver" : "Gold"}
+    </button>
+  `).join("");
+}
+
+function setQuestTier(value) {
+  document.getElementById("questCreateTier").dataset.value = value;
+  renderQuestTierPills();
 }
 
 function renderQuestDistributionPills() {
@@ -4104,6 +4164,7 @@ async function submitQuestCreate() {
   const totalReward = parseFloat(document.getElementById("questCreateRewardInput").value);
   const winnerCount = parseInt(document.getElementById("questCreateWinnersInput").value, 10);
   const distribution = document.getElementById("questCreateDistribution").dataset.value;
+  const tier = document.getElementById("questCreateTier").dataset.value;
 
   if (!title || !description || !(totalReward > 0) || !(winnerCount >= 1)) return;
 
@@ -4113,6 +4174,7 @@ async function submitQuestCreate() {
       total_reward: totalReward,
       winner_count: winnerCount,
       distribution,
+      tier,
       created_by: String(telegramUser.id)
     });
     if (error) throw error;
