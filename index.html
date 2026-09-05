@@ -2722,6 +2722,7 @@ function formatJoinedDate(isoString) {
 async function fetchOtherProfileDetails(id) {
   const p = PROFILES[id];
   if (!p || id === "you" || !sb || p.telegramId === null || p.telegramId === undefined) return;
+  hydratePremiumBadges([p.telegramId]);
   try {
     const { data } = await sb.from("profiles")
       .select("bio, created_at")
@@ -2873,7 +2874,7 @@ function profilePostCardHTML(post) {
       <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="post-source" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          <span class="post-source" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
@@ -2949,7 +2950,7 @@ function postDetailCardHTML(post) {
       <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
@@ -3219,6 +3220,7 @@ async function renderStarrersPage() {
       .in("telegram_id", otherIds);
     const profileById = {};
     (profileRows || []).forEach(r => { profileById[r.telegram_id] = r; });
+    hydratePremiumBadges(otherIds);
 
     body.innerHTML = starRows.map(row => {
       const otherId = row[otherColumn];
@@ -3249,7 +3251,7 @@ async function renderStarrersPage() {
         <div class="bookmark-item" style="cursor:pointer" onclick="openStarrerProfile('${profileId}')">
           <div class="avatar" style="background:#2fa393">${avatarInner}</div>
           <div class="bookmark-item-body">
-            <div class="bookmark-item-source">${escapeHtml(name)}${username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(username)}</span>` : ""}</div>
+            <div class="bookmark-item-source">${escapeHtml(name)}${inlineVerifiedBadge(otherId)}${username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(username)}</span>` : ""}</div>
             <div class="bookmark-item-excerpt">Starred ${formatRelativeTime(new Date(row.created_at).getTime())}</div>
           </div>
         </div>
@@ -3339,7 +3341,7 @@ function commentHTML(postId, c) {
     <div class="comment">
       ${avatarMarkup(c, "comment-avatar")}
       <div class="comment-bubble">
-        <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${escapeHtml(c.text)}
+        <span class="comment-author">${escapeHtml(c.author || "Telegram user")}</span>${inlineVerifiedBadge(c.userId)}${escapeHtml(c.text)}
         ${c.image ? `<img class="comment-img" src="${c.image}" alt="" />` : ""}
         <div class="comment-footer">
           <span class="comment-time" data-ts="${c.createdAtMillis}">${formatRelativeTime(c.createdAtMillis)}</span>
@@ -3420,6 +3422,47 @@ function mapCommentRow(row) {
   };
 }
 
+// Badge visibility for other users (feed authors, commenters) works
+// differently from "you": PROFILES entries for other people are built
+// straight from post-row fields and never carry premium_until, so we
+// batch-check it here instead of querying once per post/comment.
+const premiumCheckedIds = new Set();
+const premiumVerifiedIds = new Set();
+
+async function hydratePremiumBadges(telegramIds) {
+  if (!sb) return;
+  const toCheck = [...new Set(telegramIds.filter(Boolean).map(String))]
+    .filter(id => !premiumCheckedIds.has(id));
+  if (!toCheck.length) return;
+  toCheck.forEach(id => premiumCheckedIds.add(id));
+
+  try {
+    const { data } = await sb.from("profiles")
+      .select("telegram_id, premium_until")
+      .in("telegram_id", toCheck);
+    (data || []).forEach(row => {
+      if (row.premium_until && new Date(row.premium_until).getTime() > Date.now()) {
+        premiumVerifiedIds.add(String(row.telegram_id));
+      }
+    });
+    Object.values(PROFILES).forEach(p => {
+      if (p.telegramId != null && premiumVerifiedIds.has(String(p.telegramId))) p.verified = true;
+    });
+    render();
+    if (document.getElementById("profilePage").classList.contains("open")) renderProfileMeta(currentProfileId);
+  } catch (e) {}
+}
+
+function isPremiumTelegramId(id) {
+  if (id == null) return false;
+  if (telegramUser && String(id) === String(telegramUser.id)) return isPremiumUser();
+  return premiumVerifiedIds.has(String(id));
+}
+
+function inlineVerifiedBadge(id) {
+  return isPremiumTelegramId(id) ? `<span class="post-verified">${verifiedBadge()}</span>` : "";
+}
+
 async function loadUserPosts() {
   await loadMyStarredIds();
 
@@ -3490,6 +3533,10 @@ async function loadUserPosts() {
     };
   }
   render();
+
+  const idsToCheck = USER_POSTS.map(p => p.userId)
+    .concat(Object.values(commentsByPost).flat().map(c => c.userId));
+  hydratePremiumBadges(idsToCheck);
 }
 
 function toggleUserPostLike(id) {
@@ -4126,6 +4173,8 @@ async function renderQuestReview() {
       return { submission: s, profile };
     }));
 
+    hydratePremiumBadges(subs.map(s => s.telegram_id));
+
     body.innerHTML = rows.map(({ submission: s, profile }) => renderQuestSubmissionRow(quest, s, profile)).join("");
   } catch (e) {
     body.innerHTML = `<div class="search-empty">Couldn't load submissions. Please try again.</div>`;
@@ -4133,7 +4182,7 @@ async function renderQuestReview() {
 }
 
 function renderQuestSubmissionRow(quest, s, profile) {
-  const nameLine = profile.username ? `${escapeHtml(profile.name)} \u00b7 @${escapeHtml(profile.username)}` : escapeHtml(profile.name);
+  const nameLine = (profile.username ? `${escapeHtml(profile.name)} \u00b7 @${escapeHtml(profile.username)}` : escapeHtml(profile.name)) + inlineVerifiedBadge(s.telegram_id);
   const avatarHtml = profile.photoUrl
     ? `<img src="${profile.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
     : escapeHtml((profile.name || "?").slice(0, 1).toUpperCase());
@@ -4370,7 +4419,7 @@ function userPostCardHTML(post) {
       <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>
+          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
@@ -4401,7 +4450,9 @@ function userPostCardHTML(post) {
 }
 
 let composeImage = null;
-const COMPOSE_MAX = 500;
+function getComposeMax() {
+  return isPremiumUser() ? 1000 : 500;
+}
 const POLL_QUESTION_MAX = 300;
 const POLL_OPTION_MAX = 150;
 const POLL_MAX_OPTIONS = 6;
@@ -4910,17 +4961,18 @@ function updateComposeState() {
   }
 
   const counter = document.getElementById("composeCharCount");
+  const composeMax = getComposeMax();
   let weighted = computeWeightedLength(textarea.value);
-  if (weighted > COMPOSE_MAX) {
-    textarea.value = truncateToWeightedLimit(textarea.value, COMPOSE_MAX);
-    weighted = COMPOSE_MAX;
+  if (weighted > composeMax) {
+    textarea.value = truncateToWeightedLimit(textarea.value, composeMax);
+    weighted = composeMax;
     haptic("light");
   }
 
-  counter.textContent = `${weighted}/${COMPOSE_MAX}`;
+  counter.textContent = `${weighted}/${composeMax}`;
   counter.className = "compose-char-count";
-  if (weighted >= COMPOSE_MAX) counter.classList.add("limit");
-  else if (weighted >= COMPOSE_MAX - 40) counter.classList.add("warn");
+  if (weighted >= composeMax) counter.classList.add("limit");
+  else if (weighted >= composeMax - 40) counter.classList.add("warn");
 
   btn.classList.toggle("enabled", textarea.value.trim().length > 0 || !!composeImage);
 }
@@ -6468,6 +6520,8 @@ async function renderBookmarksPage() {
 
   if (bookmarksRenderToken !== requestToken) return;
 
+  hydratePremiumBadges(Object.values(postsById).map(p => p.userId));
+
   body.innerHTML = bookmarkRows.map(row => {
     const post = postsById[row.post_id];
 
@@ -6495,7 +6549,7 @@ async function renderBookmarksPage() {
         <div class="avatar" style="background:${post.color};cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarInner}</div>
         <div class="bookmark-item-body">
           <div class="bookmark-item-meta">
-            <span class="bookmark-item-source">${escapeHtml(post.name || "Telegram user")}${post.username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(post.username)}</span>` : ""}</span>
+            <span class="bookmark-item-source">${escapeHtml(post.name || "Telegram user")}${inlineVerifiedBadge(post.userId)}${post.username ? ` <span style="color:var(--ink-faint);font-weight:500;">@${escapeHtml(post.username)}</span>` : ""}</span>
             <span>· ${formatRelativeTime(post.createdAtMillis)}</span>
           </div>
           ${post.question ? `<div class="bookmark-item-title">${escapeHtml(post.question)}</div>` : ""}
