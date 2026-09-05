@@ -3474,7 +3474,9 @@ async function loadUserPosts() {
       posts.forEach(ensureTelegramPostProfile);
       USER_POSTS = posts;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("loadUserPosts failed:", e);
+  }
 
   if (!USER_POSTS.length) { render(); return; }
 
@@ -5047,6 +5049,7 @@ async function submitCompose() {
       if (pendingDraftId) removeDraft(pendingDraftId);
       showPostedSuccessToast();
     } catch (e) {
+      console.error("submitCompose (poll) failed:", e);
       haptic("medium");
       showToast("Couldn't save your post. Please try again.");
     }
@@ -5088,6 +5091,7 @@ async function submitCompose() {
     if (pendingDraftId) removeDraft(pendingDraftId);
     showPostedSuccessToast();
   } catch (e) {
+    console.error("submitCompose (post) failed:", e);
     haptic("medium");
     showToast("Couldn't save your post. Please try again.");
   }
