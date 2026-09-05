@@ -884,6 +884,55 @@
   }
   @keyframes gift-spin { to { transform: rotate(360deg); } }
 
+  .quest-header-add { margin-left: auto; color: var(--ink-soft); }
+  .quest-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin: 0 14px 12px;
+    background: var(--card);
+  }
+  .quest-card-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .quest-card-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.4; margin-bottom: 10px; }
+  .quest-card-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-faint); margin-bottom: 12px; }
+  .quest-card-footer { display: flex; align-items: center; gap: 10px; }
+  .quest-submit-btn, .quest-review-link {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0d1116;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .quest-review-link { background: none; border: 1px solid var(--line); color: var(--ink-soft); }
+  .quest-status-pill {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink-faint);
+  }
+  .quest-status-pill.winner { color: var(--accent); border-color: var(--accent); }
+  .quest-status-pill.pending { color: var(--ink-soft); }
+
+  .quest-review-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .quest-review-info { flex: 1; min-width: 0; }
+  .quest-review-name { font-weight: 700; font-size: 13.5px; }
+  .quest-review-link-url { font-size: 12px; color: var(--accent); word-break: break-all; }
+  .quest-review-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .quest-review-action {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .quest-review-action.reject { color: var(--heart); }
+  .gift-icon-btn { color: var(--accent); display: flex; align-items: center; }
+
   /* ---------- compose page ---------- */
   .compose-page {
     position: fixed;
@@ -2127,7 +2176,7 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>
       Bookmarks
     </a>
-    <a class="menu-item" href="#">
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openQuestsPage();">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
       Quests
     </a>
@@ -2411,6 +2460,86 @@
     </div>
   </div>
 
+  <div class="bookmarks-page" id="questsPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closeQuestsPage()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title">Quests</div>
+      <button class="quest-header-add" id="questsCreateBtn" onclick="openQuestCreateModal()" style="display:none" aria-label="New quest">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="bookmarks-body" id="questsBody"></div>
+  </div>
+
+  <div class="bookmarks-page" id="questReviewPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closeQuestReview()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title" id="questReviewTitle">Review</div>
+    </div>
+    <div class="bookmarks-body" id="questReviewBody"></div>
+  </div>
+
+  <div class="form-sheet-overlay" id="questSubmitOverlay" onclick="closeQuestSubmitModal()"></div>
+  <div class="form-sheet" id="questSubmitSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title" id="questSubmitTitle">Submit</div>
+      <button class="form-sheet-close" onclick="closeQuestSubmitModal()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-field">
+        <label class="form-label">Submission link</label>
+        <input class="form-input" id="questSubmitLinkInput" type="url" placeholder="https://" autocomplete="off" />
+      </div>
+      <div class="gift-status-line" id="questSubmitStatus"></div>
+      <div class="form-note">One submission per quest \u2014 make sure the link is right before sending.</div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" onclick="submitQuestEntry()">Submit</button>
+    </div>
+  </div>
+
+  <div class="form-sheet-overlay" id="questCreateOverlay" onclick="closeQuestCreateModal()"></div>
+  <div class="form-sheet" id="questCreateSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">New quest</div>
+      <button class="form-sheet-close" onclick="closeQuestCreateModal()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-field">
+        <label class="form-label">Title</label>
+        <input class="form-input" id="questCreateTitleInput" type="text" placeholder="e.g. Design a WhyBlog sticker pack" autocomplete="off" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="questCreateDescInput" placeholder="What should creators do?" rows="4"></textarea>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Total reward (TON)</label>
+        <input class="form-input" id="questCreateRewardInput" type="number" min="0" step="any" placeholder="10" inputmode="decimal" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Number of winners</label>
+        <input class="form-input" id="questCreateWinnersInput" type="number" min="1" step="1" value="1" inputmode="numeric" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Payout style</label>
+        <div class="gift-token-row" id="questCreateDistribution" data-value="equalize"></div>
+        <div class="form-note">Equalize splits the pool evenly. Diversify pays the best submission the most, decreasing evenly down to the last winner.</div>
+      </div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" onclick="submitQuestCreate()">Create quest</button>
+    </div>
+  </div>
+
   <div class="compose-page" id="composePage">
     <div class="compose-topbar">
       <button class="compose-close" onclick="closeCompose()" aria-label="Close">
@@ -2535,7 +2664,7 @@ const PROFILES = {
     bio: "Add a bio to tell people what you're into.",
     joined: "Recently",
     vibes: [],
-    bioUpdatedAt: null, tonWallet: "", editLog: []
+    bioUpdatedAt: null, tonWallet: "", editLog: [], premiumUntil: null
   }
 };
 
@@ -3507,29 +3636,12 @@ async function submitGift() {
 
   const memo = document.getElementById("giftMemoPreview").textContent;
   const sendBtn = document.getElementById("giftSendBtn");
-  const ui = getTonConnectUI();
-  if (!ui) {
-    setGiftStatus("TON Connect failed to load. Check your connection and try again.", "error");
-    return;
-  }
 
   sendBtn.disabled = true;
   try {
-    if (!ui.connected) {
-      setGiftStatus("Connecting your wallet\u2026");
-      await ui.connectWallet();
-    }
+    setGiftStatus("Connecting your wallet\u2026");
+    const txHash = await tonConnectSendPayment(profile.tonWallet, amount, memo);
 
-    setGiftStatus("Waiting for approval in your wallet\u2026");
-    const nanotons = Math.round(amount * 1e9).toString();
-    const payload = buildCommentPayload(memo);
-
-    const result = await ui.sendTransaction({
-      validUntil: Math.floor(Date.now() / 1000) + 300,
-      messages: [{ address: profile.tonWallet, amount: nanotons, payload }]
-    });
-
-    const txHash = extractBocHash(result.boc);
     setGiftStatus("Sent \u2014 confirming on-chain\u2026");
 
     let giftId = null;
@@ -3561,7 +3673,10 @@ async function submitGift() {
   }
 }
 
-function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
+// Generic on-chain confirmation poller, reused by both creator-gifts and
+// quest-reward payouts. Calls onConfirmed()/onTimeout() -- caller decides
+// what row/table to update.
+function pollTonConfirmation(recipientAddress, txHash, memo, onConfirmed, onTimeout) {
   const maxAttempts = 20; // ~60s at 3s intervals, well within TonCenter's free tier
   let attempts = 0;
 
@@ -3577,9 +3692,7 @@ function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
         return (txHash && inMsg.hash === txHash) || inMsg.message === memo;
       });
       if (match) {
-        if (giftId && sb) {
-          sb.from("gifts").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", giftId).then(() => {});
-        }
+        if (onConfirmed) onConfirmed();
         return;
       }
     } catch (e) {
@@ -3587,12 +3700,415 @@ function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
     }
     if (attempts < maxAttempts) {
       setTimeout(tick, 3000);
-    } else if (giftId && sb) {
-      sb.from("gifts").update({ status: "timeout" }).eq("id", giftId).then(() => {});
+    } else if (onTimeout) {
+      onTimeout();
     }
   };
 
   setTimeout(tick, 3000);
+}
+
+function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
+  pollTonConfirmation(
+    recipientAddress, txHash, memo,
+    () => { if (giftId && sb) sb.from("gifts").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", giftId).then(() => {}); },
+    () => { if (giftId && sb) sb.from("gifts").update({ status: "timeout" }).eq("id", giftId).then(() => {}); }
+  );
+}
+
+// Shared connect-and-send step: opens TON Connect (prompting wallet
+// selection/approval if not already connected), builds a plain TON
+// transfer with a text-comment payload, and returns the tx hash.
+async function tonConnectSendPayment(recipientAddress, amount, memo) {
+  const ui = getTonConnectUI();
+  if (!ui) throw new Error("TON Connect failed to load. Check your connection and try again.");
+  if (!ui.connected) {
+    await ui.connectWallet();
+  }
+  const nanotons = Math.round(amount * 1e9).toString();
+  const payload = buildCommentPayload(memo);
+  const result = await ui.sendTransaction({
+    validUntil: Math.floor(Date.now() / 1000) + 300,
+    messages: [{ address: recipientAddress, amount: nanotons, payload }]
+  });
+  return extractBocHash(result.boc);
+}
+
+// ---------- Quests (Premium perk) ----------
+// Admins (quest_admins table) create bounties with a fixed TON reward
+// pool and a winner count. Premium users submit a link once per quest.
+// Admins mark winners (and, for 'diversify', rank them), then send each
+// winner's computed share via the same TON Connect flow as gifts, with
+// a dedicated memo.
+let isQuestAdmin = false;
+let questsCache = [];
+let mySubmissionsCache = {}; // quest_id -> submission row (mine)
+let currentQuestReviewId = null;
+
+function isPremiumUser() {
+  const until = PROFILES.you.premiumUntil;
+  return !!until && new Date(until).getTime() > Date.now();
+}
+
+async function loadQuestAdminStatus() {
+  if (!sb || !telegramUser.id) return;
+  try {
+    const { data } = await sb.from("quest_admins")
+      .select("telegram_id")
+      .eq("telegram_id", String(telegramUser.id))
+      .maybeSingle();
+    isQuestAdmin = !!data;
+  } catch (e) {
+    isQuestAdmin = false;
+  }
+}
+
+function openQuestsPage() {
+  document.getElementById("questsPage").classList.add("open");
+  renderQuestsPage();
+  syncBackButton();
+}
+
+function closeQuestsPage() {
+  document.getElementById("questsPage").classList.remove("open");
+  syncBackButton();
+}
+
+async function renderQuestsPage() {
+  const body = document.getElementById("questsBody");
+  if (!body) return;
+  document.getElementById("questsCreateBtn").style.display = isQuestAdmin ? "" : "none";
+
+  if (!isPremiumUser() && !isQuestAdmin) {
+    body.innerHTML = `<div class="search-empty">Quests are a Premium perk.<br />Upgrade to Premium to view and submit to creator bounties.</div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="search-empty">Loading quests\u2026</div>`;
+  try {
+    const { data: quests, error } = await sb.from("quests")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    questsCache = quests || [];
+
+    const { data: mySubs } = await sb.from("quest_submissions")
+      .select("*")
+      .eq("telegram_id", String(telegramUser.id));
+    mySubmissionsCache = {};
+    (mySubs || []).forEach(s => { mySubmissionsCache[s.quest_id] = s; });
+
+    if (!questsCache.length) {
+      body.innerHTML = `<div class="search-empty">No quests yet. Check back soon.</div>`;
+      return;
+    }
+
+    body.innerHTML = questsCache.map(renderQuestCard).join("");
+  } catch (e) {
+    body.innerHTML = `<div class="search-empty">Couldn't load quests. Please try again.</div>`;
+  }
+}
+
+function renderQuestCard(q) {
+  const mine = mySubmissionsCache[q.id];
+  let actionHtml;
+  if (mine) {
+    const label = mine.status === "winner" ? `Winner \u00b7 ${mine.reward_amount} TON`
+      : mine.status === "rejected" ? "Not selected"
+      : "Submitted \u00b7 pending review";
+    actionHtml = `<div class="quest-status-pill ${mine.status}">${label}</div>`;
+  } else if (q.status === "open") {
+    actionHtml = `<button class="quest-submit-btn" onclick="openQuestSubmitModal('${q.id}')">Submit</button>`;
+  } else {
+    actionHtml = `<div class="quest-status-pill">Closed</div>`;
+  }
+
+  const adminLink = isQuestAdmin
+    ? `<button class="quest-review-link" onclick="openQuestReview('${q.id}')">Review submissions</button>`
+    : "";
+
+  return `
+    <div class="quest-card">
+      <div class="quest-card-title">${escapeHtml(q.title)}</div>
+      <div class="quest-card-desc">${escapeHtml(q.description)}</div>
+      <div class="quest-card-meta">
+        <span>${q.total_reward} TON \u00b7 ${q.winner_count} winner${q.winner_count === 1 ? "" : "s"}</span>
+        <span>${q.distribution === "diversify" ? "Ranked payout" : "Equal split"}</span>
+      </div>
+      <div class="quest-card-footer">${actionHtml}${adminLink}</div>
+    </div>
+  `;
+}
+
+function openQuestSubmitModal(questId) {
+  const quest = questsCache.find(q => q.id === questId);
+  if (!quest) return;
+  document.getElementById("questSubmitTitle").textContent = quest.title;
+  document.getElementById("questSubmitLinkInput").value = "";
+  document.getElementById("questSubmitLinkInput").dataset.questId = questId;
+  document.getElementById("questSubmitStatus").textContent = "";
+  document.getElementById("questSubmitOverlay").classList.add("open");
+  document.getElementById("questSubmitSheet").classList.add("open");
+}
+
+function closeQuestSubmitModal() {
+  document.getElementById("questSubmitOverlay").classList.remove("open");
+  document.getElementById("questSubmitSheet").classList.remove("open");
+}
+
+async function submitQuestEntry() {
+  const input = document.getElementById("questSubmitLinkInput");
+  const questId = input.dataset.questId;
+  const link = input.value.trim();
+  const statusEl = document.getElementById("questSubmitStatus");
+  if (!link) return;
+  try {
+    const { error } = await sb.from("quest_submissions").insert({
+      quest_id: questId,
+      telegram_id: String(telegramUser.id),
+      submission_link: link
+    });
+    if (error) throw error;
+    closeQuestSubmitModal();
+    renderQuestsPage();
+  } catch (e) {
+    statusEl.textContent = e && e.message && e.message.includes("duplicate")
+      ? "You've already submitted to this quest."
+      : "Couldn't submit. Please try again.";
+    statusEl.className = "gift-status-line error";
+  }
+}
+
+// ---- Admin: create quest ----
+function openQuestCreateModal() {
+  document.getElementById("questCreateTitleInput").value = "";
+  document.getElementById("questCreateDescInput").value = "";
+  document.getElementById("questCreateRewardInput").value = "";
+  document.getElementById("questCreateWinnersInput").value = "1";
+  document.getElementById("questCreateDistribution").dataset.value = "equalize";
+  renderQuestDistributionPills();
+  document.getElementById("questCreateOverlay").classList.add("open");
+  document.getElementById("questCreateSheet").classList.add("open");
+}
+
+function closeQuestCreateModal() {
+  document.getElementById("questCreateOverlay").classList.remove("open");
+  document.getElementById("questCreateSheet").classList.remove("open");
+}
+
+function renderQuestDistributionPills() {
+  const active = document.getElementById("questCreateDistribution").dataset.value;
+  document.getElementById("questCreateDistribution").innerHTML = ["equalize", "diversify"].map(v => `
+    <button type="button" class="gift-token-pill ${active === v ? "active" : ""}" onclick="setQuestDistribution('${v}')">
+      ${v === "equalize" ? "Equalize" : "Diversify"}
+    </button>
+  `).join("");
+}
+
+function setQuestDistribution(value) {
+  document.getElementById("questCreateDistribution").dataset.value = value;
+  renderQuestDistributionPills();
+}
+
+async function submitQuestCreate() {
+  const title = document.getElementById("questCreateTitleInput").value.trim();
+  const description = document.getElementById("questCreateDescInput").value.trim();
+  const totalReward = parseFloat(document.getElementById("questCreateRewardInput").value);
+  const winnerCount = parseInt(document.getElementById("questCreateWinnersInput").value, 10);
+  const distribution = document.getElementById("questCreateDistribution").dataset.value;
+
+  if (!title || !description || !(totalReward > 0) || !(winnerCount >= 1)) return;
+
+  try {
+    const { error } = await sb.from("quests").insert({
+      title, description,
+      total_reward: totalReward,
+      winner_count: winnerCount,
+      distribution,
+      created_by: String(telegramUser.id)
+    });
+    if (error) throw error;
+    closeQuestCreateModal();
+    renderQuestsPage();
+  } catch (e) {
+    alert("Couldn't create the quest. Please try again.");
+  }
+}
+
+// ---- Admin: review submissions ----
+async function openQuestReview(questId) {
+  currentQuestReviewId = questId;
+  document.getElementById("questReviewPage").classList.add("open");
+  syncBackButton();
+  await renderQuestReview();
+}
+
+function closeQuestReview() {
+  document.getElementById("questReviewPage").classList.remove("open");
+  currentQuestReviewId = null;
+  syncBackButton();
+}
+
+async function renderQuestReview() {
+  const body = document.getElementById("questReviewBody");
+  const quest = questsCache.find(q => q.id === currentQuestReviewId);
+  if (!body || !quest) return;
+  document.getElementById("questReviewTitle").textContent = quest.title;
+  body.innerHTML = `<div class="search-empty">Loading submissions\u2026</div>`;
+
+  try {
+    const { data: subs, error } = await sb.from("quest_submissions")
+      .select("*")
+      .eq("quest_id", quest.id)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    if (!subs || !subs.length) {
+      body.innerHTML = `<div class="search-empty">No submissions yet.</div>`;
+      return;
+    }
+
+    // Resolve each submitter's display info + wallet (lazily, like the
+    // gift modal does) since PROFILES may not have them cached.
+    const rows = await Promise.all(subs.map(async s => {
+      let profile = Object.values(PROFILES).find(p => String(p.telegramId) === String(s.telegram_id));
+      if (!profile) {
+        const { data: p } = await sb.from("profiles")
+          .select("display_name, username, avatar_url, ton_wallet")
+          .eq("telegram_id", s.telegram_id)
+          .maybeSingle();
+        profile = p ? {
+          name: p.display_name || "WhyBlog user",
+          username: p.username || "",
+          photoUrl: p.avatar_url || "",
+          tonWallet: p.ton_wallet || ""
+        } : { name: "WhyBlog user", username: "", photoUrl: "", tonWallet: "" };
+      }
+      return { submission: s, profile };
+    }));
+
+    body.innerHTML = rows.map(({ submission: s, profile }) => renderQuestSubmissionRow(quest, s, profile)).join("");
+  } catch (e) {
+    body.innerHTML = `<div class="search-empty">Couldn't load submissions. Please try again.</div>`;
+  }
+}
+
+function renderQuestSubmissionRow(quest, s, profile) {
+  const nameLine = profile.username ? `${escapeHtml(profile.name)} \u00b7 @${escapeHtml(profile.username)}` : escapeHtml(profile.name);
+  const avatarHtml = profile.photoUrl
+    ? `<img src="${profile.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : escapeHtml((profile.name || "?").slice(0, 1).toUpperCase());
+
+  let actionsHtml;
+  if (s.status === "pending") {
+    actionsHtml = `
+      <button class="quest-review-action" onclick="markQuestSubmission('${s.id}', 'winner')">Mark winner</button>
+      <button class="quest-review-action reject" onclick="markQuestSubmission('${s.id}', 'rejected')">Reject</button>
+    `;
+  } else if (s.status === "winner") {
+    if (s.paid_status === "confirmed") {
+      actionsHtml = `<div class="quest-status-pill winner">Paid \u00b7 ${s.reward_amount} TON</div>`;
+    } else if (!profile.tonWallet) {
+      actionsHtml = `<div class="quest-status-pill">No wallet on file</div>`;
+    } else {
+      actionsHtml = `
+        <div class="quest-status-pill winner">${s.reward_amount} TON</div>
+        <button class="gift-icon-btn" title="Send reward" onclick="payQuestReward('${s.id}', '${profile.tonWallet}', ${s.reward_amount})">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>
+        </button>
+        <span class="gift-status-line" id="questPayStatus-${s.id}"></span>
+      `;
+    }
+  } else {
+    actionsHtml = `<div class="quest-status-pill">Rejected</div>`;
+  }
+
+  return `
+    <div class="quest-review-row">
+      <div class="avatar-sm">${avatarHtml}</div>
+      <div class="quest-review-info">
+        <div class="quest-review-name">${nameLine}</div>
+        <a class="quest-review-link-url" href="${escapeHtml(s.submission_link)}" target="_blank" rel="noopener">${escapeHtml(s.submission_link)}</a>
+      </div>
+      <div class="quest-review-actions">${actionsHtml}</div>
+    </div>
+  `;
+}
+
+// Marking a submission winner/rejected. When the quest hits its full
+// winner_count, computes and stores each winner's reward_amount.
+async function markQuestSubmission(submissionId, status) {
+  try {
+    const { error } = await sb.from("quest_submissions").update({ status }).eq("id", submissionId);
+    if (error) throw error;
+
+    if (status === "winner") {
+      await maybeFinalizeQuestPayouts(currentQuestReviewId);
+    }
+    await renderQuestReview();
+  } catch (e) {
+    alert("Couldn't update this submission. Please try again.");
+  }
+}
+
+// Linear rank weighting for 'diversify': weight_i = (winnerCount - rank_i + 1).
+// 'equalize' just splits evenly. Ranks are assigned in submission order
+// among current winners as a simple default -- admins can be given a
+// re-rank control later if needed.
+async function maybeFinalizeQuestPayouts(questId) {
+  const quest = questsCache.find(q => q.id === questId);
+  if (!quest) return;
+
+  const { data: winners } = await sb.from("quest_submissions")
+    .select("*")
+    .eq("quest_id", questId)
+    .eq("status", "winner")
+    .order("created_at", { ascending: true });
+
+  if (!winners || winners.length < quest.winner_count) return; // not full yet
+
+  const n = winners.length;
+  let shares;
+  if (quest.distribution === "diversify") {
+    const weights = winners.map((_, i) => n - i); // 1st marked = highest weight
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    shares = weights.map(w => (w / totalWeight) * quest.total_reward);
+  } else {
+    shares = winners.map(() => quest.total_reward / n);
+  }
+
+  await Promise.all(winners.map((w, i) =>
+    sb.from("quest_submissions").update({
+      reward_amount: Math.round(shares[i] * 1e6) / 1e6,
+      rank: quest.distribution === "diversify" ? i + 1 : null
+    }).eq("id", w.id)
+  ));
+
+  await sb.from("quests").update({ status: "reviewing" }).eq("id", questId);
+}
+
+async function payQuestReward(submissionId, recipientAddress, amount) {
+  const statusEl = document.getElementById(`questPayStatus-${submissionId}`);
+  if (statusEl) { statusEl.textContent = "Sending\u2026"; statusEl.className = "gift-status-line"; }
+  try {
+    const memo = "WhyQuest reward from WhyBlog";
+    const txHash = await tonConnectSendPayment(recipientAddress, amount, memo);
+    await sb.from("quest_submissions").update({ tx_hash: txHash, paid_status: "pending" }).eq("id", submissionId);
+    if (statusEl) statusEl.textContent = "Confirming\u2026";
+
+    pollTonConfirmation(recipientAddress, txHash, memo,
+      async () => {
+        await sb.from("quest_submissions").update({ paid_status: "confirmed" }).eq("id", submissionId);
+        renderQuestReview();
+      },
+      async () => {
+        await sb.from("quest_submissions").update({ paid_status: "timeout" }).eq("id", submissionId);
+        renderQuestReview();
+      }
+    );
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = e && e.message ? e.message : "Send failed."; statusEl.className = "gift-status-line error"; }
+  }
 }
 
 function handleUserPostImageSelect(id, input) {
@@ -4629,6 +5145,7 @@ function showAuthenticatedApp(user) {
   refreshTelegramLinkSnapshot();
   loadMyProfile();
   loadUserPosts();
+  loadQuestAdminStatus();
 }
 
 // Keep the saved Telegram snapshot (telegram_links) from going permanently
@@ -4904,6 +5421,10 @@ function anyOverlayOpen() {
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("giftSheet").classList.contains("open")
+    || document.getElementById("questsPage").classList.contains("open")
+    || document.getElementById("questReviewPage").classList.contains("open")
+    || document.getElementById("questSubmitSheet").classList.contains("open")
+    || document.getElementById("questCreateSheet").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
@@ -4934,6 +5455,14 @@ function closeTopOverlay() {
     closeEditProfile();
   } else if (document.getElementById("giftSheet").classList.contains("open")) {
     closeGiftModal();
+  } else if (document.getElementById("questCreateSheet").classList.contains("open")) {
+    closeQuestCreateModal();
+  } else if (document.getElementById("questSubmitSheet").classList.contains("open")) {
+    closeQuestSubmitModal();
+  } else if (document.getElementById("questReviewPage").classList.contains("open")) {
+    closeQuestReview();
+  } else if (document.getElementById("questsPage").classList.contains("open")) {
+    closeQuestsPage();
   } else if (document.getElementById("starrersPage").classList.contains("open")) {
     closeStarrersPage();
   } else if (document.getElementById("postDetailPage").classList.contains("open")) {
@@ -5093,7 +5622,7 @@ async function loadMyProfile() {
   let hasUsername = false;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at, premium_until")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -5101,6 +5630,7 @@ async function loadMyProfile() {
       if (data.vibes) PROFILES.you.vibes = data.vibes;
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
+      PROFILES.you.premiumUntil = data.premium_until || null;
       if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
       const joined = formatJoinedDate(data.created_at);
       if (joined) PROFILES.you.joined = joined;
