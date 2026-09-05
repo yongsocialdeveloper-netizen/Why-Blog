@@ -6783,10 +6783,11 @@ function searchResultProfileHTML(p) {
 function searchResultPostHTML(post) {
   return `
     <a class="search-result" href="#" onclick="event.preventDefault(); closeSearch(); openPostDetail('${post.id}');">
-      <div class="avatar" style="background:${post.color}">${escapeHtml(post.initials || "T")}</div>
+      ${avatarMarkup(post, "avatar", post.color)}
       <div class="search-result-body">
         <div class="search-result-meta">
-          <span class="search-result-source">${escapeHtml(post.name || "Telegram user")}</span>
+          <span class="search-result-source">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
+          ${post.username ? `<span class="search-result-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="search-result-time">· ${formatRelativeTime(post.createdAtMillis)}</span>
         </div>
         ${post.question ? `<div class="search-result-title">${escapeHtml(post.question)}</div>` : ""}
