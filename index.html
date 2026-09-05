@@ -1732,6 +1732,9 @@
   }
   .read-more-toggle:hover { text-decoration: underline; }
 
+  .hashtag-link { color: var(--accent); cursor: pointer; }
+  .hashtag-link:hover { text-decoration: underline; }
+
   .video-post {
     padding: 12px 14px;
     border-bottom: 1px solid var(--line);
@@ -4450,13 +4453,25 @@ function deleteUserComment(postId, commentId) {
 
 const POST_TEXT_LIMIT = 200;
 
+function extractHashtags(text) {
+  if (!text) return [];
+  const matches = text.match(/#([A-Za-z0-9_]+)/g) || [];
+  return matches.map(m => m.slice(1));
+}
+
+function linkifyHashtags(escapedText) {
+  return escapedText.replace(/#([A-Za-z0-9_]+)/g, (match, tag) =>
+    `<span class="hashtag-link" onclick="event.stopPropagation(); openSearchForHashtag('${tag}')">#${tag}</span>`
+  );
+}
+
 function renderPostText(id, text, expanded) {
   if (text.length <= POST_TEXT_LIMIT) {
-    return `<div class="post-text"><span class="excerpt">${escapeHtml(text)}</span></div>`;
+    return `<div class="post-text"><span class="excerpt">${linkifyHashtags(escapeHtml(text))}</span></div>`;
   }
   const shown = expanded ? text : text.slice(0, POST_TEXT_LIMIT).trimEnd() + "…";
   return `<div class="post-text">
-    <span class="excerpt">${escapeHtml(shown)}</span>
+    <span class="excerpt">${linkifyHashtags(escapeHtml(shown))}</span>
     <button class="read-more-toggle" onclick="event.stopPropagation(); toggleUserPostText('${id}')">${expanded ? "Show less" : "Read more"}</button>
   </div>`;
 }
@@ -6687,6 +6702,11 @@ function openSearch() {
   setTimeout(() => document.getElementById("searchInput").focus(), 200);
 }
 
+function openSearchForHashtag(tag) {
+  openSearch();
+  setSearchQuery(`#${tag}`);
+}
+
 function closeSearch() {
   document.getElementById("searchPage").classList.remove("open");
   document.getElementById("searchInput").value = "";
@@ -6701,12 +6721,33 @@ function clearSearch() {
   runSearch("");
 }
 
+// Counts every hashtag currently in use across loaded posts. This is a
+// plain frequency count for now — no recency weighting or decay yet;
+// that ranking logic comes later, same as the video category scoring.
+function trendingHashtags(limit = 6) {
+  const counts = {};
+  USER_POSTS.forEach(p => {
+    if (!userPostState[p.id]) return;
+    extractHashtags(p.text).forEach(tag => {
+      const key = tag.toLowerCase();
+      counts[key] = (counts[key] || 0) + 1;
+    });
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([tag]) => tag);
+}
+
 function renderSearchDefault() {
   const body = document.getElementById("searchBody");
+  const tags = trendingHashtags();
   body.innerHTML = `
     <div class="search-section-title">Trending on WhyBlog</div>
     <div class="search-chip-row">
-      ${TRENDING_TOPICS.map(t => `<button class="search-chip" onclick="setSearchQuery('${t}')">${t}</button>`).join("")}
+      ${tags.length
+        ? tags.map(t => `<button class="search-chip" onclick="setSearchQuery('#${t}')">#${t}</button>`).join("")
+        : TRENDING_TOPICS.map(t => `<button class="search-chip" onclick="setSearchQuery('${t}')">${t}</button>`).join("")}
     </div>
   `;
 }
@@ -6717,29 +6758,30 @@ function setSearchQuery(q) {
   runSearch(q);
 }
 
-function runSearch(query) {
-  const q = query.trim().toLowerCase();
-  document.getElementById("searchClearBtn").style.display = q ? "flex" : "none";
+// Every profile seen this session (from posts and comments), deduped
+// by profileId, used for the People results section.
+function searchableProfiles() {
+  return Object.entries(PROFILES)
+    .filter(([id]) => id !== "you")
+    .map(([id, p]) => ({ id, ...p }));
+}
 
-  if (!q) {
-    renderSearchDefault();
-    return;
-  }
+function searchResultProfileHTML(p) {
+  return `
+    <a class="search-result" href="#" onclick="event.preventDefault(); closeSearch(); openProfile('${p.id}');">
+      ${avatarMarkup(p, "avatar", p.color)}
+      <div class="search-result-body">
+        <div class="search-result-meta">
+          <span class="search-result-source">${escapeHtml(p.name || "Telegram user")}</span>${p.verified ? verifiedBadge() : ""}
+        </div>
+        ${p.username ? `<div class="search-result-excerpt">@${escapeHtml(p.username)}</div>` : ""}
+      </div>
+    </a>
+  `;
+}
 
-  const matches = USER_POSTS.filter(p => userPostState[p.id] && (
-    (p.name && p.name.toLowerCase().includes(q)) ||
-    (p.username && p.username.toLowerCase().includes(q)) ||
-    (p.text && p.text.toLowerCase().includes(q)) ||
-    (p.question && p.question.toLowerCase().includes(q))
-  ));
-
-  const body = document.getElementById("searchBody");
-  if (matches.length === 0) {
-    body.innerHTML = `<div class="search-empty">No results for &ldquo;${escapeHtml(query)}&rdquo;<br />Try a different name or keyword.</div>`;
-    return;
-  }
-
-  body.innerHTML = matches.map(post => `
+function searchResultPostHTML(post) {
+  return `
     <a class="search-result" href="#" onclick="event.preventDefault(); closeSearch(); openPostDetail('${post.id}');">
       <div class="avatar" style="background:${post.color}">${escapeHtml(post.initials || "T")}</div>
       <div class="search-result-body">
@@ -6751,7 +6793,57 @@ function runSearch(query) {
         <div class="search-result-excerpt">${escapeHtml(post.text || "")}</div>
       </div>
     </a>
-  `).join("");
+  `;
+}
+
+function runSearch(query) {
+  const q = query.trim().toLowerCase();
+  document.getElementById("searchClearBtn").style.display = q ? "flex" : "none";
+
+  if (!q) {
+    renderSearchDefault();
+    return;
+  }
+
+  const isHashtagQuery = q.startsWith("#");
+  const tagQuery = isHashtagQuery ? q.slice(1) : q;
+
+  const matchingPosts = USER_POSTS.filter(p => userPostState[p.id] && (
+    isHashtagQuery
+      ? extractHashtags(p.text).some(tag => tag.toLowerCase() === tagQuery)
+      : (
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.username && p.username.toLowerCase().includes(q)) ||
+        (p.text && p.text.toLowerCase().includes(q)) ||
+        (p.question && p.question.toLowerCase().includes(q))
+      )
+  ));
+
+  const matchingProfiles = isHashtagQuery ? [] : searchableProfiles().filter(p =>
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    (p.username && p.username.toLowerCase().includes(q))
+  );
+
+  const body = document.getElementById("searchBody");
+  if (matchingPosts.length === 0 && matchingProfiles.length === 0) {
+    body.innerHTML = `<div class="search-empty">No results for &ldquo;${escapeHtml(query)}&rdquo;<br />Try a different name, hashtag, or keyword.</div>`;
+    return;
+  }
+
+  const sections = [];
+  if (matchingProfiles.length) {
+    sections.push(`
+      <div class="search-section-title">People</div>
+      ${matchingProfiles.map(searchResultProfileHTML).join("")}
+    `);
+  }
+  if (matchingPosts.length) {
+    sections.push(`
+      <div class="search-section-title">${isHashtagQuery ? `#${escapeHtml(tagQuery)}` : "Posts"}</div>
+      ${matchingPosts.map(searchResultPostHTML).join("")}
+    `);
+  }
+  body.innerHTML = sections.join("");
 }
 
 function fmt(n) {
