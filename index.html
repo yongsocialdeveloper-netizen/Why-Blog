@@ -4064,6 +4064,7 @@ async function deleteQuest(questId) {
     if (error) throw error;
     renderQuestsPage();
   } catch (e) {
+    console.error("deleteQuest failed:", e);
     alert("Couldn't delete this quest. Please try again.");
   }
 }
