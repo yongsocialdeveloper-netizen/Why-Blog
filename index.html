@@ -3931,9 +3931,7 @@ async function loadUserPosts(options = {}) {
     if (sb) {
       const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
         sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
-        currentSupabaseUser
-          ? sb.from("bookmarks").select("post_id").eq("user_id", currentSupabaseUser.id).in("post_id", ids)
-          : Promise.resolve({ data: [] }),
+        sb.from("bookmarks").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
         sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
         sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
       ]);
@@ -4011,11 +4009,11 @@ function toggleUserPostBookmark(id) {
   s.bookmarked = !s.bookmarked;
   haptic("light");
   render();
-  if (!sb || !currentSupabaseUser) return;
+  if (!sb) return;
   if (s.bookmarked) {
-    sb.from("bookmarks").insert({ user_id: currentSupabaseUser.id, post_id: id }).then(() => {});
+    sb.from("bookmarks").insert({ telegram_id: String(telegramUser.id), post_id: id }).then(() => {});
   } else {
-    sb.from("bookmarks").delete().eq("user_id", currentSupabaseUser.id).eq("post_id", id).then(() => {});
+    sb.from("bookmarks").delete().eq("telegram_id", String(telegramUser.id)).eq("post_id", id).then(() => {});
   }
   if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
 }
@@ -7084,7 +7082,7 @@ async function renderBookmarksPage() {
   const body = document.getElementById("bookmarksBody");
   if (!body) return;
 
-  if (!sb || !currentSupabaseUser) {
+  if (!sb) {
     body.innerHTML = `<div class="search-empty">No bookmarks yet.<br />Tap the bookmark icon on any post to save it here.</div>`;
     return;
   }
@@ -7097,7 +7095,7 @@ async function renderBookmarksPage() {
   try {
     const { data, error } = await sb.from("bookmarks")
       .select("post_id, created_at")
-      .eq("user_id", currentSupabaseUser.id)
+      .eq("telegram_id", String(telegramUser.id))
       .order("created_at", { ascending: false });
     if (error) throw error;
     bookmarkRows = data || [];
@@ -7186,9 +7184,9 @@ async function renderBookmarksPage() {
 
 async function removeDeletedBookmark(postId) {
   if (userPostState[postId]) userPostState[postId].bookmarked = false;
-  if (sb && currentSupabaseUser) {
+  if (sb) {
     try {
-      await sb.from("bookmarks").delete().eq("user_id", currentSupabaseUser.id).eq("post_id", postId);
+      await sb.from("bookmarks").delete().eq("telegram_id", String(telegramUser.id)).eq("post_id", postId);
     } catch (e) {}
   }
   renderBookmarksPage();
