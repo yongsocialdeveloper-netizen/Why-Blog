@@ -937,6 +937,8 @@
   .quest-card-tier.gold { background: rgba(224,178,60,0.18); color: #e0b23c; }
   .quest-submit-btn.locked { background: none; border: 1px solid var(--line); color: var(--ink-faint); }
   .quest-delete-btn { color: var(--heart); display: flex; align-items: center; margin-left: auto; }
+  .quest-post-card { margin: 10px 0 0 !important; cursor: pointer; }
+  .quest-post-card .quest-card-meta { margin-bottom: 10px; }
   .gift-icon-btn { color: var(--accent); display: flex; align-items: center; }
 
   /* ---------- compose page ---------- */
@@ -2643,6 +2645,15 @@
         <div class="form-note">Everyone can view and submit to Silver. Gold is visible to everyone but only Premium members can submit.</div>
       </div>
       <div class="form-field">
+        <label class="form-label">Image (optional)</label>
+        <input type="file" id="questCreateImageInput" accept="image/*" style="display:none" onchange="handleQuestCreateImageSelect(this)" />
+        <button type="button" class="form-input" style="text-align:left;color:var(--ink-faint)" onclick="document.getElementById('questCreateImageInput').click()">Choose image\u2026</button>
+        <div id="questCreateImagePreview" style="display:none;margin-top:8px;">
+          <img id="questCreateImagePreviewImg" src="" alt="" style="max-width:100%;border-radius:12px;" />
+          <button type="button" class="form-note" style="color:var(--heart);margin-top:4px;" onclick="removeQuestCreateImage()">Remove image</button>
+        </div>
+      </div>
+      <div class="form-field">
         <label class="form-label">Title</label>
         <input class="form-input" id="questCreateTitleInput" type="text" placeholder="e.g. Design a WhyBlog sticker pack" autocomplete="off" />
       </div>
@@ -2663,9 +2674,14 @@
         <div class="gift-token-row" id="questCreateDistribution" data-value="equalize"></div>
         <div class="form-note">Equalize splits the pool evenly. Diversify pays the best submission the most, decreasing evenly down to the last winner.</div>
       </div>
+      <div class="form-field">
+        <label class="form-label">Submissions close</label>
+        <input class="form-input" id="questCreateEndsInput" type="datetime-local" />
+        <div class="form-note">After this time, users can no longer submit. The quest stays visible.</div>
+      </div>
     </div>
     <div class="form-sheet-footer">
-      <button class="form-submit-btn" onclick="submitQuestCreate()">Create quest</button>
+      <button class="form-submit-btn" id="questPublishBtn" onclick="submitQuestCreate()">Publish quest</button>
     </div>
   </div>
 
@@ -3099,7 +3115,7 @@ function postDetailCardHTML(post) {
         </div>
         ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply">
             ${replyIcon()}<span>${s.comments.length || ""}</span>
@@ -3558,6 +3574,12 @@ function mapPostRow(row) {
     linkDescription: row.link_description || null,
     linkImage: row.link_image || null,
     linkSite: row.link_site || null,
+    questId: row.quest_id || null,
+    questTitle: row.quest_title || null,
+    questTier: row.quest_tier || null,
+    questReward: row.quest_reward || null,
+    questWinnerCount: row.quest_winner_count || null,
+    questEndsAt: row.quest_ends_at || null,
     createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
   };
 }
@@ -4408,8 +4430,9 @@ function setQuestsTier(tier) {
 
 function openQuestsPage() {
   document.getElementById("questsPage").classList.add("open");
-  renderQuestsPage();
+  const p = renderQuestsPage();
   syncBackButton();
+  return p;
 }
 
 function closeQuestsPage() {
@@ -4453,6 +4476,8 @@ function renderQuestCard(q) {
   const mine = mySubmissionsCache[q.id];
   const isGold = (q.tier || "silver") === "gold";
   const canSubmit = !isGold || isPremiumUser() || isQuestAdmin;
+  const submissionOpen = isQuestSubmissionOpen(q);
+  const deadline = formatQuestDeadline(q.ends_at);
 
   let actionHtml;
   if (mine) {
@@ -4460,8 +4485,8 @@ function renderQuestCard(q) {
       : mine.status === "rejected" ? "Not selected"
       : "Submitted \u00b7 pending review";
     actionHtml = `<div class="quest-status-pill ${mine.status}">${label}</div>`;
-  } else if (q.status !== "open") {
-    actionHtml = `<div class="quest-status-pill">Closed</div>`;
+  } else if (!submissionOpen) {
+    actionHtml = `<div class="quest-status-pill">${q.status !== "open" ? "Closed" : "Submissions ended"}</div>`;
   } else if (!canSubmit) {
     actionHtml = `<button class="quest-submit-btn locked" onclick="openPremiumModal()">Premium to submit</button>`;
   } else {
@@ -4478,12 +4503,14 @@ function renderQuestCard(q) {
   return `
     <div class="quest-card">
       <div class="quest-card-tier ${q.tier || "silver"}">${(q.tier || "silver") === "gold" ? "Gold" : "Silver"}</div>
+      ${q.image ? `<img class="user-post-image" src="${q.image}" alt="" style="margin-bottom:10px;" />` : ""}
       <div class="quest-card-title">${escapeHtml(q.title)}</div>
       <div class="quest-card-desc">${escapeHtml(q.description)}</div>
       <div class="quest-card-meta">
         <span>${q.total_reward} TON \u00b7 ${q.winner_count} winner${q.winner_count === 1 ? "" : "s"}</span>
         <span>${q.distribution === "diversify" ? "Ranked payout" : "Equal split"}</span>
       </div>
+      ${deadline ? `<div class="quest-card-meta"><span>${submissionOpen ? "Submissions close" : "Submissions closed"} ${deadline}</span></div>` : ""}
       <div class="quest-card-footer">${actionHtml}${adminActions}</div>
     </div>
   `;
@@ -4504,6 +4531,10 @@ async function deleteQuest(questId) {
 function openQuestSubmitModal(questId) {
   const quest = questsCache.find(q => q.id === questId);
   if (!quest) return;
+  if (!isQuestSubmissionOpen(quest)) {
+    alert("This quest is no longer accepting submissions.");
+    return;
+  }
   if ((quest.tier || "silver") === "gold" && !isPremiumUser() && !isQuestAdmin) {
     openPremiumModal();
     return;
@@ -4545,13 +4576,17 @@ async function submitQuestEntry() {
 }
 
 // ---- Admin: create quest ----
+let questCreateImage = null;
+
 function openQuestCreateModal() {
   document.getElementById("questCreateTitleInput").value = "";
   document.getElementById("questCreateDescInput").value = "";
   document.getElementById("questCreateRewardInput").value = "";
   document.getElementById("questCreateWinnersInput").value = "1";
+  document.getElementById("questCreateEndsInput").value = "";
   document.getElementById("questCreateDistribution").dataset.value = "equalize";
   document.getElementById("questCreateTier").dataset.value = "silver";
+  removeQuestCreateImage();
   renderQuestDistributionPills();
   renderQuestTierPills();
   document.getElementById("questCreateOverlay").classList.add("open");
@@ -4561,6 +4596,35 @@ function openQuestCreateModal() {
 function closeQuestCreateModal() {
   document.getElementById("questCreateOverlay").classList.remove("open");
   document.getElementById("questCreateSheet").classList.remove("open");
+}
+
+function handleQuestCreateImageSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Please choose an image file.");
+    input.value = "";
+    return;
+  }
+  if (file.size > 650 * 1024) {
+    alert("Please choose an image under 650KB.");
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    questCreateImage = reader.result;
+    document.getElementById("questCreateImagePreviewImg").src = questCreateImage;
+    document.getElementById("questCreateImagePreview").style.display = "block";
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function removeQuestCreateImage() {
+  questCreateImage = null;
+  document.getElementById("questCreateImagePreviewImg").src = "";
+  document.getElementById("questCreateImagePreview").style.display = "none";
 }
 
 function renderQuestTierPills() {
@@ -4591,6 +4655,19 @@ function setQuestDistribution(value) {
   renderQuestDistributionPills();
 }
 
+function isQuestSubmissionOpen(q) {
+  if (q.status !== "open") return false;
+  if (q.ends_at && new Date(q.ends_at).getTime() <= Date.now()) return false;
+  return true;
+}
+
+function formatQuestDeadline(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 async function submitQuestCreate() {
   const title = document.getElementById("questCreateTitleInput").value.trim();
   const description = document.getElementById("questCreateDescInput").value.trim();
@@ -4598,24 +4675,101 @@ async function submitQuestCreate() {
   const winnerCount = parseInt(document.getElementById("questCreateWinnersInput").value, 10);
   const distribution = document.getElementById("questCreateDistribution").dataset.value;
   const tier = document.getElementById("questCreateTier").dataset.value;
+  const endsLocal = document.getElementById("questCreateEndsInput").value;
 
-  if (!title || !description || !(totalReward > 0) || !(winnerCount >= 1)) return;
+  if (!title || !description || !(totalReward > 0) || !(winnerCount >= 1) || !endsLocal) return;
+
+  const endsAt = new Date(endsLocal).toISOString();
+  const btn = document.getElementById("questPublishBtn");
+  btn.disabled = true;
 
   try {
-    const { error } = await sb.from("quests").insert({
+    const { data: questRow, error } = await sb.from("quests").insert({
       title, description,
       total_reward: totalReward,
       winner_count: winnerCount,
       distribution,
       tier,
+      image: questCreateImage,
+      ends_at: endsAt,
       created_by: String(telegramUser.id)
-    });
+    }).select().single();
     if (error) throw error;
+
+    // Also publish an announcement post in the main feed, so everyone
+    // sees the quest without needing to open the Quests tab directly.
+    try {
+      const { data: postRow, error: postError } = await sb.from("posts").insert({
+        type: "quest",
+        text: description,
+        image: questCreateImage,
+        name: PROFILES.you.name,
+        username: PROFILES.you.username,
+        telegram_id: String(telegramUser.id),
+        photo_url: PROFILES.you.photoUrl,
+        initials: PROFILES.you.initials,
+        color: PROFILES.you.color,
+        like_count: 0,
+        quest_id: questRow.id,
+        quest_title: title,
+        quest_tier: tier,
+        quest_reward: totalReward,
+        quest_winner_count: winnerCount,
+        quest_ends_at: endsAt
+      }).select().single();
+      if (postError) throw postError;
+
+      const newPost = mapPostRow(postRow);
+      newPost.profileId = "you";
+      newPost.questTitle = title;
+      USER_POSTS.unshift(newPost);
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
+      render();
+    } catch (postErr) {
+      console.error("Quest published, but feed announcement failed:", postErr);
+    }
+
     closeQuestCreateModal();
     renderQuestsPage();
   } catch (e) {
-    alert("Couldn't create the quest. Please try again.");
+    console.error("submitQuestCreate failed:", e);
+    alert("Couldn't publish the quest. Please try again.");
+  } finally {
+    btn.disabled = false;
   }
+}
+
+// Compact quest summary shown inside the feed announcement post.
+function renderQuestPostCard(post) {
+  const tier = post.questTier || "silver";
+  const deadline = formatQuestDeadline(post.questEndsAt);
+  return `
+    <div class="quest-card quest-post-card" onclick="event.stopPropagation(); viewQuestFromPost('${post.questId}')">
+      <div class="quest-card-tier ${tier}">${tier === "gold" ? "Gold Quest" : "Silver Quest"}</div>
+      ${post.questTitle ? `<div class="quest-card-title">${escapeHtml(post.questTitle)}</div>` : ""}
+      <div class="quest-card-meta">
+        <span>${post.questReward} TON \u00b7 ${post.questWinnerCount} winner${post.questWinnerCount === 1 ? "" : "s"}</span>
+        ${deadline ? `<span>Ends ${deadline}</span>` : ""}
+      </div>
+      <button class="quest-submit-btn" onclick="event.stopPropagation(); viewQuestFromPost('${post.questId}')">View quest</button>
+    </div>
+  `;
+}
+
+async function viewQuestFromPost(questId) {
+  if (!questId) return;
+  document.getElementById("questsPage").classList.add("open");
+  syncBackButton();
+  await renderQuestsPage();
+  let quest = questsCache.find(q => q.id === questId);
+  if (quest && (quest.tier || "silver") !== questsActiveTier) {
+    questsActiveTier = quest.tier || "silver";
+    document.getElementById("questsTabSilver").classList.toggle("active", questsActiveTier === "silver");
+    document.getElementById("questsTabGold").classList.toggle("active", questsActiveTier === "gold");
+    await renderQuestsPage();
+    quest = questsCache.find(q => q.id === questId);
+  }
+  if (quest) openQuestSubmitModal(questId);
 }
 
 // ---- Admin: review submissions ----
@@ -5040,7 +5194,7 @@ function userPostCardHTML(post) {
         </div>
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply" onclick="openPostDetail('${post.id}')">
             ${replyIcon()}<span>${s.comments.length || ""}</span>
