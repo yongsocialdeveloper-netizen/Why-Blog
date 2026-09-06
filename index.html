@@ -1097,6 +1097,7 @@
   }
   .poll-post-option:hover { border-color: var(--accent); }
   .poll-post-option.voted { border-color: var(--accent); }
+  .poll-post-option.closed { cursor: default; pointer-events: none; opacity: 0.85; }
   .poll-post-option-fill {
     position: absolute; left: 0; top: 0; bottom: 0;
     background: var(--accent-soft); z-index: 0;
@@ -2745,6 +2746,11 @@
         <div class="compose-char-count" id="pollQuestionCount"></div>
         <div class="poll-options-list" id="pollOptionsList"></div>
         <button class="poll-add-option-btn" id="pollAddOptionBtn" onclick="addPollOption()">+ Add option</button>
+        <div class="form-field" style="margin-top:10px">
+          <label class="form-label">Voting closes</label>
+          <input class="form-input" id="pollEndsInput" type="datetime-local" oninput="updateComposeState()" />
+          <div class="form-note">Optional. Leave blank for a poll that never closes.</div>
+        </div>
       </div>
     </div>
     <div class="compose-reply-row">
@@ -3563,6 +3569,7 @@ function mapPostRow(row) {
     image: row.image,
     question: row.question,
     options: row.options,
+    pollEndsAt: row.poll_ends_at || null,
     name: row.name,
     username: row.username,
     userId: row.telegram_id,
@@ -5129,26 +5136,37 @@ function toggleUserPostText(id) {
   render();
 }
 
+function isPollClosed(post) {
+  return Boolean(post.pollEndsAt) && Date.now() >= new Date(post.pollEndsAt).getTime();
+}
+
 function renderPollPost(post, s) {
   const totalVotes = post.options.reduce((sum, o) => sum + (o.votes || 0), 0);
   const voted = s.pollVoted !== null && s.pollVoted !== undefined;
+  const closed = isPollClosed(post);
+  const locked = voted || closed;
   const optionsHtml = post.options.map((opt, i) => {
     const pct = totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0;
     const isVotedOption = s.pollVoted === i;
     return `
-      <div class="poll-post-option ${isVotedOption ? 'voted' : ''}" onclick="event.stopPropagation(); voteOnPoll('${post.id}', ${i})">
-        ${voted ? `<div class="poll-post-option-fill" style="width:${pct}%"></div>` : ""}
+      <div class="poll-post-option ${isVotedOption ? 'voted' : ''} ${closed ? 'closed' : ''}" onclick="event.stopPropagation(); voteOnPoll('${post.id}', ${i})">
+        ${locked ? `<div class="poll-post-option-fill" style="width:${pct}%"></div>` : ""}
         <div class="poll-post-option-row">
           <span class="poll-post-option-text">${escapeHtml(opt.text)}${isVotedOption ? " ✓" : ""}</span>
-          ${voted ? `<span class="poll-post-option-pct">${pct}%</span>` : ""}
+          ${locked ? `<span class="poll-post-option-pct">${pct}%</span>` : ""}
         </div>
       </div>`;
   }).join("");
 
+  const deadline = formatQuestDeadline(post.pollEndsAt);
+  const statusLine = closed
+    ? `Voting closed${deadline ? ` · ${deadline}` : ""}`
+    : (deadline ? `Voting closes ${deadline}` : null);
+
   return `
     <div class="post-text"><span class="poll-post-question">${escapeHtml(post.question)}</span></div>
     <div class="poll-post-options">${optionsHtml}</div>
-    <div class="poll-post-votecount">${fmt(totalVotes)} vote${totalVotes === 1 ? "" : "s"}</div>
+    <div class="poll-post-votecount">${fmt(totalVotes)} vote${totalVotes === 1 ? "" : "s"}${statusLine ? ` · ${statusLine}` : ""}</div>
   `;
 }
 
@@ -5158,6 +5176,7 @@ async function voteOnPoll(postId, optionIndex) {
   if (!s || s.pollVoted !== null && s.pollVoted !== undefined) return;
   const post = USER_POSTS.find(p => p.id === postId);
   if (!post || post.type !== "poll") return;
+  if (isPollClosed(post)) { showToast("Voting has closed for this poll."); return; }
 
   post.options[optionIndex].votes = (post.options[optionIndex].votes || 0) + 1;
   s.pollVoted = optionIndex;
@@ -5447,6 +5466,7 @@ function resetComposeUI() {
   composeMode = "text";
   pollOptions = ["", ""];
   document.getElementById("pollQuestionInput").value = "";
+  document.getElementById("pollEndsInput").value = "";
   document.getElementById("composePollBlock").style.display = "none";
   document.getElementById("composeImageToolBtn").classList.remove("disabled");
   document.getElementById("composePollToolBtn").classList.remove("active");
@@ -5479,6 +5499,7 @@ function togglePollMode() {
     imageBtn.classList.remove("disabled");
     pollBtn.classList.remove("active");
     document.getElementById("pollQuestionInput").value = "";
+    document.getElementById("pollEndsInput").value = "";
     pollOptions = ["", ""];
   }
   haptic("light");
@@ -5790,6 +5811,9 @@ async function submitCompose() {
     const options = pollOptions.map(o => o.trim()).filter(Boolean);
     if (!question || options.length < 2) return;
 
+    const endsLocal = document.getElementById("pollEndsInput").value;
+    const pollEndsAt = endsLocal ? new Date(endsLocal).toISOString() : null;
+
     const pendingDraftId = currentDraftId;
     resetComposeUI();
     showPostingProgressToast();
@@ -5799,6 +5823,7 @@ async function submitCompose() {
         type: "poll",
         question,
         options: options.map(text => ({ text, votes: 0 })),
+        poll_ends_at: pollEndsAt,
         name: PROFILES.you.name,
         username: PROFILES.you.username,
         telegram_id: String(telegramUser.id),
@@ -7886,6 +7911,13 @@ function refreshRelativeTimes() {
     const ts = Number(el.dataset.ts);
     if (!Number.isNaN(ts)) el.textContent = formatRelativeTime(ts);
   });
+  // Re-render if any visible poll just crossed its close time, so the
+  // "Voting closes ..." line flips to "Voting closed" without a manual refresh.
+  const feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
+  const justClosed = feedPosts.some(p => p.type === "poll" && p.pollEndsAt &&
+    Date.now() - new Date(p.pollEndsAt).getTime() >= 0 &&
+    Date.now() - new Date(p.pollEndsAt).getTime() < 30000);
+  if (justClosed) render();
 }
 
 setInterval(refreshRelativeTimes, 30000);
