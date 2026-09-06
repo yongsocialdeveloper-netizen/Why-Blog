@@ -418,6 +418,34 @@
   }
   .bookmark-remove:hover { background: var(--accent-soft); }
 
+  /* ---------- gift wallet-suggestion sheet ---------- */
+  .gift-suggest-intro { font-size: 13.5px; color: var(--ink-soft); line-height: 1.4; padding: 0 2px 14px; }
+  .gift-suggest-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .gift-suggest-row:last-child { border-bottom: none; }
+  .gift-suggest-name { font-weight: 700; font-size: 14.5px; }
+  .gift-suggest-sub { font-size: 12px; color: var(--ink-faint); }
+  .gift-suggest-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    color: #f5a623;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .gift-suggest-btn:hover { background: rgba(245, 166, 35, 0.12); }
+  .gift-suggest-empty { padding: 18px 2px; font-size: 13.5px; color: var(--ink-faint); text-align: center; }
+
   /* ---------- video zone ---------- */
   .videozone-page {
     position: fixed;
@@ -2583,6 +2611,20 @@
     </div>
   </div>
 
+  <div class="form-sheet-overlay" id="giftSuggestOverlay" onclick="closeGiftSuggestSheet()"></div>
+  <div class="form-sheet" id="giftSuggestSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Wallet not set up yet</div>
+      <button class="form-sheet-close" onclick="closeGiftSuggestSheet()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="gift-suggest-intro" id="giftSuggestIntro"></div>
+      <div id="giftSuggestList"></div>
+    </div>
+  </div>
+
   <div class="bookmarks-page" id="questsPage">
     <div class="bookmarks-header">
       <button class="bookmarks-back" onclick="closeQuestsPage()" aria-label="Back">
@@ -4104,7 +4146,7 @@ async function openGiftModal(id) {
 
   if (!profile.tonWallet) {
     haptic("light");
-    alert("This creator hasn't added a TON wallet yet.");
+    openGiftSuggestSheet(profile);
     return;
   }
 
@@ -4133,6 +4175,68 @@ function closeGiftModal() {
   giftModalState = null;
 }
 
+// ---------- Gift wallet-suggestion sheet ----------
+// Shown when someone taps the gift icon on a creator who hasn't set a
+// TON wallet yet. Rather than a dead-end alert, offer a clear alternative:
+// support WhyBlog's own research/development wallet instead, so gift
+// intent doesn't just evaporate into an error message.
+const WHYBLOG_RESEARCH_WALLET = "UQDagEMfrAHlTRwlGnBeWJGqkfPtjKRaPSqNg3DzGkT0IfiN";
+const WHYBLOG_RESEARCH_MEMO = "WhyBlog research support";
+
+function openGiftSuggestSheet(unpaidProfile) {
+  const overlay = document.getElementById("giftSuggestOverlay");
+  const sheet = document.getElementById("giftSuggestSheet");
+  const intro = document.getElementById("giftSuggestIntro");
+  const list = document.getElementById("giftSuggestList");
+  if (!overlay || !sheet || !intro || !list) return;
+
+  const name = (unpaidProfile && unpaidProfile.name) || "This creator";
+  intro.textContent = `${name} hasn't added a TON wallet yet, so gifts can't reach them right now.`;
+  list.innerHTML = `
+    <div class="gift-suggest-row">
+      <div class="avatar-sm" style="background:var(--accent)">WB</div>
+      <div>
+        <div class="gift-suggest-name">WhyBlog Research</div>
+        <div class="gift-suggest-sub">Support WhyBlog's research instead</div>
+      </div>
+      <button class="gift-suggest-btn" aria-label="Support WhyBlog research" onclick="openWhyBlogResearchGiftModal()">
+        ${giftIcon(false)}
+      </button>
+    </div>
+  `;
+  overlay.classList.add("open");
+  sheet.classList.add("open");
+}
+
+function closeGiftSuggestSheet() {
+  document.getElementById("giftSuggestOverlay").classList.remove("open");
+  document.getElementById("giftSuggestSheet").classList.remove("open");
+}
+
+// Opens the standard gift sheet, but pointed at WhyBlog's fixed research
+// wallet instead of a post author -- no post/profile involved, so this
+// bypasses the post-lookup path entirely and skips the "gifts" table
+// insert (which is keyed to a post_id). The on-chain send and its
+// confirmation polling still run the same as any other gift.
+function openWhyBlogResearchGiftModal() {
+  closeGiftSuggestSheet();
+  giftModalState = { postId: null, token: "TON", fixedRecipient: { wallet: WHYBLOG_RESEARCH_WALLET, name: "WhyBlog Research", memo: WHYBLOG_RESEARCH_MEMO } };
+
+  const avatarEl = document.getElementById("giftRecipientAvatar");
+  avatarEl.style.background = "var(--accent)";
+  avatarEl.innerHTML = "WB";
+  document.getElementById("giftRecipientName").textContent = "WhyBlog Research";
+  document.getElementById("giftAmountInput").value = "";
+  document.getElementById("giftAmountUnit").textContent = "TON";
+  setGiftStatus("");
+  renderGiftTokenRow();
+  updateGiftMemoPreview();
+  updateGiftSendState();
+
+  document.getElementById("giftOverlay").classList.add("open");
+  document.getElementById("giftSheet").classList.add("open");
+}
+
 function renderGiftTokenRow() {
   const row = document.getElementById("giftTokenRow");
   if (!row || !giftModalState) return;
@@ -4153,9 +4257,14 @@ function selectGiftToken(symbol) {
 }
 
 function updateGiftMemoPreview() {
-  const handle = PROFILES.you.username ? `@${PROFILES.you.username}` : (PROFILES.you.name || "a WhyBlog reader");
   const el = document.getElementById("giftMemoPreview");
-  if (el) el.textContent = `WhyBlog support from ${handle}`;
+  if (!el) return;
+  if (giftModalState && giftModalState.fixedRecipient) {
+    el.textContent = giftModalState.fixedRecipient.memo;
+    return;
+  }
+  const handle = PROFILES.you.username ? `@${PROFILES.you.username}` : (PROFILES.you.name || "a WhyBlog reader");
+  el.textContent = `WhyBlog support from ${handle}`;
 }
 
 function updateGiftSendState() {
@@ -4192,6 +4301,33 @@ function extractBocHash(bocBase64) {
 
 async function submitGift() {
   if (!giftModalState) return;
+
+  // Fixed-recipient gifts (e.g. WhyBlog Research) have no post/author --
+  // send directly and skip the "gifts" table insert, which is keyed to a
+  // post_id that doesn't exist for this case.
+  if (giftModalState.fixedRecipient) {
+    const recipient = giftModalState.fixedRecipient;
+    const amount = parseFloat(document.getElementById("giftAmountInput").value);
+    if (!(amount > 0)) return;
+
+    const memo = document.getElementById("giftMemoPreview").textContent;
+    const sendBtn = document.getElementById("giftSendBtn");
+    sendBtn.disabled = true;
+    try {
+      setGiftStatus("Connecting your wallet\u2026");
+      const txHash = await tonConnectSendPayment(recipient.wallet, amount, memo);
+      setGiftStatus("Sent \u2014 thank you for supporting WhyBlog!", "success");
+      haptic("medium");
+      pollTonConfirmation(recipient.wallet, txHash, memo, null, null);
+      setTimeout(() => closeGiftModal(), 900);
+    } catch (err) {
+      console.error(err);
+      setGiftStatus(err && err.message ? err.message : "Something went wrong sending the gift.", "error");
+      sendBtn.disabled = false;
+    }
+    return;
+  }
+
   const post = findUserPostById(giftModalState.postId);
   const profile = post && PROFILES[post.profileId];
   if (!post || !profile || !profile.tonWallet) return;
@@ -6418,6 +6554,7 @@ function anyOverlayOpen() {
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
     || document.getElementById("giftSheet").classList.contains("open")
+    || document.getElementById("giftSuggestSheet").classList.contains("open")
     || document.getElementById("questsPage").classList.contains("open")
     || document.getElementById("questReviewPage").classList.contains("open")
     || document.getElementById("questSubmitSheet").classList.contains("open")
@@ -6451,6 +6588,8 @@ function closeTopOverlay() {
     closeCompose();
   } else if (document.getElementById("editProfileSheet").classList.contains("open")) {
     closeEditProfile();
+  } else if (document.getElementById("giftSuggestSheet").classList.contains("open")) {
+    closeGiftSuggestSheet();
   } else if (document.getElementById("giftSheet").classList.contains("open")) {
     closeGiftModal();
   } else if (document.getElementById("questCreateSheet").classList.contains("open")) {
