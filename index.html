@@ -3448,7 +3448,8 @@ async function loadMyStarredIds() {
     myStarredIds = new Set((data || []).map(row => String(row.to_telegram_id)));
   } catch (e) {
     console.error("Could not load starred profiles", e);
-    myStarredIds = new Set();
+    // Keep whatever we last loaded successfully instead of wiping it —
+    // a transient network error shouldn't make real starred posts vanish.
   }
 }
 
