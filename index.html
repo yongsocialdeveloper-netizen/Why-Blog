@@ -3756,6 +3756,7 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
     return;
   }
 
+  const deletedIds = USER_POSTS.filter(p => !freshIds.has(p.id)).map(p => p.id);
   USER_POSTS.forEach(post => {
     if (freshState[post.id]) {
       userPostState[post.id] = freshState[post.id];
@@ -3773,7 +3774,13 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
     }
   });
 
-  render();
+  // Quiet background update: patch counts in place instead of a full
+  // render(), so video embeds already on screen don't get torn down and
+  // restarted. The feed doesn't reorder or gain cards here — that still
+  // happens on the next full render (banner tap, tab switch, etc). Posts
+  // deleted server-side are removed directly, same reasoning.
+  patchVisiblePostCounts(Object.keys(freshState));
+  removeVisiblePostCards(deletedIds);
   if (pendingNewPosts.size) {
     showNewPostsBanner(pendingNewPosts.size);
   } else {
@@ -5200,7 +5207,7 @@ function userPostCardHTML(post) {
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
 
   return `
-    <article class="post">
+    <article class="post" data-post-id="${post.id}">
       <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
@@ -5214,13 +5221,13 @@ function userPostCardHTML(post) {
         </div>
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}</div>
         <div class="stat-row">
           <button class="stat reply" onclick="openPostDetail('${post.id}')">
-            ${replyIcon()}<span>${s.comments.length || ""}</span>
+            ${replyIcon()}<span class="stat-reply-count">${s.comments.length || ""}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
-            ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
+            ${heartIcon(s.liked)}<span class="stat-like-count">${fmt(s.likeCount)}</span>
           </button>
           <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleUserPostBookmark('${post.id}')">
             ${bookmarkIcon(s.bookmarked)}
@@ -7861,6 +7868,56 @@ function rankForYouFeed(posts) {
     .map((post, index) => ({ post, index, score: postEngagementScore(post) }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map(x => x.post);
+}
+
+// Patches like/comment-count/bookmark state for posts already on screen
+// in the main feed, without touching the feed's DOM tree. Used for
+// background poll updates specifically so video iframes (YouTube embeds
+// interleaved into the feed) never get torn down and restarted just
+// because someone's like count ticked up somewhere on the page.
+// Does NOT reorder the feed or add/remove cards — that still waits for
+// a full render() (tab switch, manual pull-to-refresh, banner tap, etc).
+function patchVisiblePostCounts(changedIds) {
+  const feedEl = document.getElementById("feed");
+  if (!feedEl) return;
+  changedIds.forEach(id => {
+    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
+    if (!card) return; // not currently rendered (e.g. off in a pending-new-posts state) — nothing to patch
+    const post = USER_POSTS.find(p => p.id === id);
+    const s = userPostState[id];
+    if (!post || !s) return;
+
+    const replyCount = card.querySelector(".stat-reply-count");
+    if (replyCount) replyCount.textContent = s.comments.length || "";
+
+    const likeBtn = card.querySelector(".stat.like");
+    if (likeBtn) {
+      likeBtn.classList.toggle("active", Boolean(s.liked));
+      const likeCount = likeBtn.querySelector(".stat-like-count");
+      if (likeCount) likeCount.textContent = fmt(s.likeCount);
+    }
+
+    const bookmarkBtn = card.querySelector(".stat.bookmark");
+    if (bookmarkBtn) bookmarkBtn.classList.toggle("active", Boolean(s.bookmarked));
+
+    // Polls have no video/iframe, so it's safe to just re-render their
+    // embed slot wholesale to pick up new vote counts.
+    if (post.type === "poll") {
+      const slot = card.querySelector(".post-embed-slot");
+      if (slot) slot.innerHTML = renderPollPost(post, s);
+    }
+  });
+}
+
+// Removes cards for posts deleted server-side, without a full render().
+function removeVisiblePostCards(deletedIds) {
+  if (!deletedIds.length) return;
+  const feedEl = document.getElementById("feed");
+  if (!feedEl) return;
+  deletedIds.forEach(id => {
+    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
+    if (card) card.remove();
+  });
 }
 
 function render() {
