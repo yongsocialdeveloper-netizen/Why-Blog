@@ -4680,13 +4680,25 @@ function toggleUserPostBookmark(id) {
 
   if (!sb || !telegramUser || telegramUser.id === null || telegramUser.id === undefined) return;
 
+  if (!currentSupabaseUser) {
+    s.bookmarked = wasBookmarked;
+    render();
+    if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
+    showToast("Sign in again to bookmark posts.");
+    return;
+  }
+
   const telegramId = String(telegramUser.id);
 
   const prevChain = bookmarkRequestChains.get(id) || Promise.resolve();
   const chain = prevChain.catch(() => {}).then(async () => {
     try {
       const writeResult = nextBookmarked
-        ? await sb.from("bookmarks").insert({ telegram_id: telegramId, post_id: id })
+        ? await sb.from("bookmarks").insert({
+            telegram_id: telegramId,
+            post_id: id,
+            user_id: currentSupabaseUser ? currentSupabaseUser.id : null
+          })
         : await sb.from("bookmarks").delete().eq("telegram_id", telegramId).eq("post_id", id);
       if (writeResult.error) throw writeResult.error;
     } catch (e) {
