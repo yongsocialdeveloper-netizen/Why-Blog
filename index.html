@@ -3193,11 +3193,15 @@ function openProfile(id) {
   if (id === "you") {
     starBtn.style.display = "none";
     editBtn.style.display = "inline-flex";
-    premiumBtn.style.display = "inline-flex";
+    // While Premium is active, the button is hidden entirely rather than
+    // showing an active/renew state -- this keeps renewal impossible
+    // before expiry, which means the webhook never has to reason about
+    // stacking on top of remaining time. It reappears once premium_until
+    // passes.
     if (isPremiumUser()) {
-      premiumBtn.textContent = `Premium \u00b7 until ${formatPremiumUntil(PROFILES.you.premiumUntil)}`;
-      premiumBtn.classList.add("active");
+      premiumBtn.style.display = "none";
     } else {
+      premiumBtn.style.display = "inline-flex";
       premiumBtn.textContent = "Go Premium";
       premiumBtn.classList.remove("active");
     }
@@ -4660,12 +4664,12 @@ function formatPremiumUntil(isoString) {
 }
 
 // ---------- Premium (Telegram Stars) ----------
-// NOTE: actually creating a Stars invoice requires your bot's token, which
-// can only be used server-side. This calls out to your existing bot
-// backend to get an invoice link, then hands it to Telegram's native
-// payment sheet. Point PREMIUM_INVOICE_ENDPOINT at your bot's real route
-// before this goes live -- it's a placeholder until then.
-const PREMIUM_INVOICE_ENDPOINT = "https://your-bot-domain.example.com/premium/create-invoice";
+// Invoice creation + payment confirmation both live in Supabase Edge
+// Functions (see premium-create-invoice.ts / premium-webhook.ts) since
+// they need the bot token and service-role key, which must stay
+// server-side. Replace <project-ref> once deployed:
+//   supabase functions deploy premium-create-invoice
+const PREMIUM_INVOICE_ENDPOINT = "https://<project-ref>.supabase.co/functions/v1/premium-create-invoice";
 const PREMIUM_PLANS = [
   { id: "monthly", label: "Monthly", stars: 100, sub: "100 \u2b50/mo" },
   { id: "annual", label: "Annual", stars: 1000, sub: "1000 \u2b50/yr \u00b7 2 months free" }
@@ -4723,7 +4727,11 @@ async function submitPremiumPurchase() {
     const res = await fetch(PREMIUM_INVOICE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegram_id: String(telegramUser.id), plan: plan.id, stars: plan.stars })
+      // init_data is Telegram's signed payload (tg.initData) -- the
+      // server verifies it and pulls the telegram_id out of that
+      // verified data, rather than trusting a bare id the client could
+      // set to anyone's account.
+      body: JSON.stringify({ init_data: tg.initData, plan: plan.id })
     });
     if (!res.ok) throw new Error("bot request failed");
     const { invoice_link } = await res.json();
