@@ -3497,7 +3497,7 @@ async function ensurePostLoaded(postId) {
     if (!userPostState[post.id]) {
       userPostState[post.id] = {
         liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
-        comments: [], showComments: false, textExpanded: false, draftImage: null,
+        comments: [], commentsLoaded: false, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
         pollVoted: post.type === "poll" ? null : undefined
       };
     }
@@ -3560,7 +3560,7 @@ function profilePostCardHTML(post, isPinned) {
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply" onclick="event.stopPropagation(); openPostDetail('${post.id}')">
-            ${replyIcon()}<span>${s.comments.length || ""}</span>
+            ${replyIcon()}<span>${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
@@ -3587,9 +3587,10 @@ function openPostDetail(id) {
   const post = findUserPostById(id);
   if (!post || !userPostState[post.id]) return;
   currentPostDetailId = id;
-  renderPostDetail();
   document.getElementById("postDetailPage").classList.add("open");
   syncBackButton();
+  renderPostDetail();
+  loadPostComments(id);
 }
 
 function closePostDetail() {
@@ -3614,9 +3615,13 @@ function postDetailCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const newestFirst = [...s.comments].sort((a, b) => b.createdAtMillis - a.createdAtMillis);
-  const commentsHtml = newestFirst.length
-    ? interleaveCommentVideo(newestFirst.map(c => commentHTML(post.id, c))).join("")
-    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+  const commentsHtml = s.commentsLoading
+    ? `<div class="comment-empty">Loading comments…</div>`
+    : s.commentsError
+      ? `<div class="comment-empty">Couldn’t load comments. Go back and try again.</div>`
+      : newestFirst.length
+        ? interleaveCommentVideo(newestFirst.map(c => commentHTML(post.id, c))).join("")
+        : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post post-detail-article">
@@ -3636,7 +3641,7 @@ function postDetailCardHTML(post) {
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply">
-            ${replyIcon()}<span>${s.comments.length || ""}</span>
+            ${replyIcon()}<span>${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
@@ -3695,6 +3700,62 @@ function updatePostDetailCommentCount(id) {
   } else {
     counter.textContent = "";
   }
+}
+
+const commentLoadPromises = new Map();
+
+async function loadPostComments(postId) {
+  const state = userPostState[postId];
+  if (!state || state.commentsLoaded || commentLoadPromises.has(postId) || !sb) return;
+
+  state.commentsLoading = true;
+  state.commentsError = null;
+  if (currentPostDetailId === postId) renderPostDetail();
+
+  const request = (async () => {
+    try {
+      const { data, error } = await sb.from("comments")
+        .select("*")
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+
+      const comments = [];
+      (data || []).forEach(row => {
+        const comment = mapCommentRow(row);
+        ensureTelegramCommentProfile(comment);
+        comments.push(comment);
+      });
+
+      const commentIds = comments.map(comment => comment.id);
+      if (commentIds.length) {
+        const { data: reactionRows } = await sb.from("comment_reactions")
+          .select("comment_id, reaction")
+          .eq("telegram_id", String(telegramUser.id))
+          .in("comment_id", commentIds);
+        const reactionByComment = {};
+        (reactionRows || []).forEach(row => { reactionByComment[row.comment_id] = row.reaction; });
+        comments.forEach(comment => { comment.myReaction = reactionByComment[comment.id] || null; });
+      }
+
+      // Keep a reply the user just posted while this request was in flight.
+      const optimisticComments = state.comments.filter(comment => String(comment.id).startsWith("local-"));
+      state.comments = optimisticComments.concat(comments);
+      state.commentCount = state.comments.length;
+      state.commentsLoaded = true;
+    } catch (error) {
+      console.warn("Could not load post comments", postId, error);
+      state.commentsError = true;
+    } finally {
+      state.commentsLoading = false;
+      commentLoadPromises.delete(postId);
+      if (currentPostDetailId === postId) renderPostDetail();
+      patchVisiblePostCounts([postId]);
+    }
+  })();
+
+  commentLoadPromises.set(postId, request);
+  await request;
 }
 
 async function submitPostDetailComment(id) {
@@ -4170,7 +4231,8 @@ function inlineVerifiedBadge(id) {
 // mid-scroll or watching a video. Already-visible posts still get their
 // like/comment counts refreshed in place, since that doesn't move or
 // insert anything.
-const FEED_CACHE_KEY = "feedCache:v1";
+const FEED_CACHE_KEY = "feedCache:v2";
+const FEED_PAGE_SIZE = 50;
 const FEED_CACHE_TTL_MS = 10 * 60 * 1000;   // cached feed is only trusted for instant paint up to this old
 const FEED_POLL_INTERVAL_MS = 45 * 1000;    // how often to quietly check for new posts in the background
 
@@ -4220,7 +4282,7 @@ function paintCachedFeedImmediately() {
   USER_POSTS.forEach(post => {
     userPostState[post.id] = {
       liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
-      comments: [], showComments: false, textExpanded: false, draftImage: null,
+      comments: [], commentsLoaded: false, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
       pollVoted: null
     };
   });
@@ -4450,18 +4512,23 @@ document.addEventListener("touchcancel", () => {
 
 async function loadUserPosts(options = {}) {
   const manual = options.manual === true;
-  await loadMyStarredIds();
+
+  // Stars are only needed for the Stars tab; never delay the normal feed for them.
+  if (activeFeedTab === "stars") await loadMyStarredIds();
 
   let freshPosts = [];
   try {
     if (sb) {
-      const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
+      const { data, error } = await sb.from("posts")
+        .select("id,type,text,image,question,options,poll_ends_at,name,username,telegram_id,photo_url,initials,color,like_count,link_url,link_title,link_description,link_image,link_site,quest_id,quest_title,quest_tier,quest_reward,quest_winner_count,quest_ends_at,created_at")
+        .order("created_at", { ascending: false })
+        .limit(FEED_PAGE_SIZE);
       if (error) throw error;
       freshPosts = (data || []).map(mapPostRow);
       freshPosts.forEach(ensureTelegramPostProfile);
     }
-  } catch (e) {
-    console.error("loadUserPosts failed:", e);
+  } catch (error) {
+    console.error("loadUserPosts failed:", error);
   }
 
   if (!freshPosts.length) {
@@ -4470,70 +4537,70 @@ async function loadUserPosts(options = {}) {
     return;
   }
 
-  const ids = freshPosts.map(p => p.id);
-  let likedIds = new Set();
-  let bookmarkedIds = new Set();
-  let commentsByPost = {};
-  let votesByPost = {};
-
-  try {
-    if (sb) {
-      const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
-        sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
-        sb.from("bookmarks").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
-        sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
-        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
-      ]);
-      (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
-      (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
-      (commentsRes.data || []).forEach(r => {
-        if (!commentsByPost[r.post_id]) commentsByPost[r.post_id] = [];
-        const comment = mapCommentRow(r);
-        ensureTelegramCommentProfile(comment);
-        commentsByPost[r.post_id].push(comment);
-      });
-      (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
-
-      const commentIds = Object.values(commentsByPost).flat().map(c => c.id);
-      if (commentIds.length) {
-        try {
-          const { data: reactionRows } = await sb.from("comment_reactions")
-            .select("comment_id, reaction")
-            .eq("telegram_id", String(telegramUser.id))
-            .in("comment_id", commentIds);
-          const myReactionByComment = {};
-          (reactionRows || []).forEach(r => { myReactionByComment[r.comment_id] = r.reaction; });
-          Object.values(commentsByPost).flat().forEach(c => {
-            c.myReaction = myReactionByComment[c.id] || null;
-          });
-        } catch (e) {}
-      }
-    }
-  } catch (e) {}
-
+  // Paint posts immediately. Comments are loaded only for the post the reader opens.
   const freshState = {};
   for (const post of freshPosts) {
+    const previous = userPostState[post.id];
+    const commentsLoaded = Boolean(previous && previous.commentsLoaded);
     freshState[post.id] = {
-      liked: likedIds.has(post.id),
+      liked: previous ? Boolean(previous.liked) : false,
       likeCount: post.likeCount || 0,
-      bookmarked: bookmarkedIds.has(post.id),
-      gifted: false,
-      comments: commentsByPost[post.id] || [],
+      bookmarked: previous ? Boolean(previous.bookmarked) : false,
+      gifted: previous ? Boolean(previous.gifted) : false,
+      comments: commentsLoaded ? previous.comments : [],
+      commentsLoaded,
+      commentsLoading: false,
+      commentsError: null,
+      commentCount: commentsLoaded ? previous.comments.length : (previous && previous.commentCount) || 0,
       showComments: false,
-      textExpanded: false,
-      draftImage: null,
-      pollVoted: post.type === "poll" ? (votesByPost[post.id] ?? null) : null
+      textExpanded: previous ? Boolean(previous.textExpanded) : false,
+      draftImage: previous ? previous.draftImage : null,
+      pollVoted: previous && post.type === "poll" ? previous.pollVoted : null
     };
   }
 
+  // A manual pull always applies the newest list instead of hiding it behind the banner.
   applyFreshFeedData(freshPosts, freshState, manual);
   saveFeedCache(freshPosts);
+  hydratePremiumBadges(freshPosts.map(post => post.userId));
 
-  const idsToCheck = freshPosts.map(p => p.userId)
-    .concat(Object.values(commentsByPost).flat().map(c => c.userId));
-  hydratePremiumBadges(idsToCheck);
-
+  // Engagement refreshes after the first paint and never blocks the feed or comments.
+  loadFeedEngagement(freshPosts);
   scheduleFeedPoll();
+}
+
+async function loadFeedEngagement(posts) {
+  if (!sb || !posts.length) return;
+  const ids = posts.map(post => post.id);
+  const telegramId = String(telegramUser.id);
+
+  try {
+    const [likesRes, bookmarksRes, votesRes] = await Promise.all([
+      sb.from("likes").select("post_id").eq("telegram_id", telegramId).in("post_id", ids),
+      sb.from("bookmarks").select("post_id").eq("telegram_id", telegramId).in("post_id", ids),
+      sb.from("votes").select("post_id, option_index").eq("telegram_id", telegramId).in("post_id", ids)
+    ]);
+    if (likesRes.error) throw likesRes.error;
+    if (bookmarksRes.error) throw bookmarksRes.error;
+    if (votesRes.error) throw votesRes.error;
+
+    const likedIds = new Set((likesRes.data || []).map(row => row.post_id));
+    const bookmarkedIds = new Set((bookmarksRes.data || []).map(row => row.post_id));
+    const votesByPost = {};
+    (votesRes.data || []).forEach(row => { votesByPost[row.post_id] = row.option_index; });
+
+    posts.forEach(post => {
+      const state = userPostState[post.id] || (pendingNewPosts.get(post.id) && pendingNewPosts.get(post.id).state);
+      if (!state) return;
+      state.liked = likedIds.has(post.id);
+      state.bookmarked = bookmarkedIds.has(post.id);
+      state.pollVoted = post.type === "poll" ? (votesByPost[post.id] ?? null) : null;
+    });
+    patchVisiblePostCounts(ids);
+    if (currentPostDetailId) renderPostDetail();
+  } catch (error) {
+    console.warn("Could not refresh feed engagement", error);
+  }
 }
 
 function toggleUserPostLike(id) {
@@ -5353,7 +5420,7 @@ async function submitQuestCreate() {
       newPost.profileId = "you";
       newPost.questTitle = title;
       USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
       render();
     } catch (postErr) {
       console.error("Quest published, but feed announcement failed:", postErr);
@@ -5839,7 +5906,7 @@ function userPostCardHTML(post) {
         <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}</div>
         <div class="stat-row">
           <button class="stat reply" onclick="openPostDetail('${post.id}')">
-            ${replyIcon()}<span class="stat-reply-count">${s.comments.length || ""}</span>
+            ${replyIcon()}<span class="stat-reply-count">${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span class="stat-like-count">${fmt(s.likeCount)}</span>
@@ -6498,7 +6565,7 @@ async function submitCompose() {
       const newPost = mapPostRow(data);
       newPost.profileId = "you";
       USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
       render();
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
@@ -6540,7 +6607,7 @@ async function submitCompose() {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
     render();
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
@@ -7304,7 +7371,7 @@ async function runCreatePostForAI(input) {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
     render();
     haptic("medium");
     return { success: true, post_id: newPost.id, truncated, max_post_length: max, posted_text: text };
@@ -7343,7 +7410,7 @@ async function runCreatePollForAI(input) {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
     render();
     haptic("medium");
     return { success: true, post_id: newPost.id };
@@ -8480,7 +8547,7 @@ async function renderBookmarksPage() {
         if (!userPostState[post.id]) {
           userPostState[post.id] = {
             liked: false, likeCount: post.likeCount || 0, bookmarked: true, gifted: false,
-            comments: [], showComments: false, textExpanded: false, draftImage: null,
+            comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
             pollVoted: post.type === "poll" ? null : null
           };
         }
@@ -8603,7 +8670,7 @@ function trendingProfilesToday(limit = 3) {
   USER_POSTS.forEach(post => {
     const s = userPostState[post.id];
     if (!s || !post.profileId || (post.createdAtMillis || 0) < todayStart) return;
-    const score = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 3;
+    const score = (s.likeCount || 0) + ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * 3;
     scoreByProfile[post.profileId] = (scoreByProfile[post.profileId] || 0) + score;
   });
 
@@ -8626,7 +8693,7 @@ function trendingPostsNow(limit = 5) {
       const s = userPostState[post.id];
       const ageHours = Math.max(0, (now - (post.createdAtMillis || now)) / 3600000);
       const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
-      const engagement = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 4;
+      const engagement = (s.likeCount || 0) + ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * 4;
       return { post, score: engagement * timeDecay };
     })
     .filter(x => x.score > 0)
@@ -9015,7 +9082,7 @@ function postEngagementScore(post) {
 
   const engagement =
     (s.likeCount || 0) * POST_SCORE_LIKE_WEIGHT +
-    (s.comments ? s.comments.length : 0) * POST_SCORE_COMMENT_WEIGHT +
+    ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * POST_SCORE_COMMENT_WEIGHT +
     (s.bookmarked ? 1 : 0) * POST_SCORE_BOOKMARK_WEIGHT +
     (s.gifted ? 1 : 0) * POST_SCORE_GIFT_WEIGHT;
 
@@ -9052,7 +9119,7 @@ function patchVisiblePostCounts(changedIds) {
     if (!post || !s) return;
 
     const replyCount = card.querySelector(".stat-reply-count");
-    if (replyCount) replyCount.textContent = s.comments.length || "";
+    if (replyCount) replyCount.textContent = ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "");
 
     const likeBtn = card.querySelector(".stat.like");
     if (likeBtn) {
