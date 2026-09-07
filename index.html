@@ -133,7 +133,6 @@
     color: var(--ink);
   }
 
-  /* ---------- side menu ---------- */
   .menu-overlay {
     position: fixed;
     inset: 0;
@@ -271,7 +270,6 @@
     margin-left: 4px;
   }
 
-  /* ---------- search page ---------- */
   .search-page {
     position: fixed;
     inset: 0;
@@ -366,7 +364,6 @@
     line-height: 1.6;
   }
 
-  /* ---------- bookmarks page ---------- */
   .bookmarks-page {
     position: fixed;
     inset: 0;
@@ -381,8 +378,6 @@
   }
   .bookmarks-page.open { transform: translateX(0); }
 
-  /* Opened from inside the profile page (z-index 45), so it needs to sit
-     above it or it renders invisibly underneath until the profile closes. */
   #starrersPage { z-index: 46; }
 
   .bookmarks-header {
@@ -422,7 +417,6 @@
   }
   .bookmark-remove:hover { background: var(--accent-soft); }
 
-  /* ---------- gift wallet-suggestion sheet ---------- */
   .gift-suggest-intro { font-size: 13.5px; color: var(--ink-soft); line-height: 1.4; padding: 0 2px 14px; }
   .gift-suggest-row {
     display: flex;
@@ -460,7 +454,6 @@
     margin-bottom: 4px;
   }
 
-  /* ---------- video zone ---------- */
   .videozone-page {
     position: fixed;
     inset: 0;
@@ -545,7 +538,6 @@
 
   .videozone-body { flex: 1; overflow-y: auto; padding: 0 0 30px; }
 
-  /* hero banner */
   .videozone-hero {
     position: relative;
     width: 100%;
@@ -755,7 +747,6 @@
   .videozone-player-frame-wrap { width: 100%; aspect-ratio: 16/9; background: #000; flex-shrink: 0; }
   .videozone-player-frame-wrap iframe { width: 100%; height: 100%; border: none; }
 
-  /* ---------- form sheets (edit profile) ---------- */
   .form-sheet-overlay {
     position: fixed;
     inset: 0;
@@ -927,7 +918,6 @@
   }
   @keyframes gift-spin { to { transform: rotate(360deg); } }
 
-  /* ---------- premium popup ---------- */
   .premium-overlay {
     position: fixed;
     inset: 0;
@@ -1146,7 +1136,6 @@
   .quest-post-card .quest-card-meta { margin-bottom: 10px; }
   .gift-icon-btn { color: var(--accent); display: flex; align-items: center; }
 
-  /* ---------- compose page ---------- */
   .compose-page {
     position: fixed;
     inset: 0;
@@ -1329,7 +1318,6 @@
     flex-shrink: 0;
   }
 
-  /* ---------- invite friends modal ---------- */
   .invite-overlay {
     position: fixed;
     inset: 0;
@@ -1420,7 +1408,6 @@
   }
   .invite-close:hover { color: var(--ink); }
 
-  /* ---------- profile page ---------- */
   .profile-page {
     position: fixed;
     inset: 0;
@@ -1470,9 +1457,6 @@
   .new-posts-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
   .new-posts-banner svg { flex-shrink: 0; }
 
-  /* Custom pull-to-refresh indicator. Height is driven by JS while the
-     user drags (no transition -- must track the finger 1:1), and animates
-     back with a transition on release/reset. */
   .pull-refresh {
     height: 0;
     overflow: hidden;
@@ -1611,7 +1595,6 @@
   .post-preview { cursor: pointer; }
   .post-preview:active { background: rgba(255,255,255,0.03); }
 
-  /* ---------- post detail page ---------- */
   .post-detail-page {
     position: fixed;
     inset: 0;
@@ -1806,7 +1789,6 @@
   .draft-delete { color: var(--ink-faint); flex-shrink: 0; display: flex; }
   .draft-delete:hover { color: #e0555a; }
 
-  /* ---------- settings / snooze topics sheet ---------- */
   .sheet-overlay {
     position: fixed;
     inset: 0;
@@ -2049,7 +2031,7 @@
   .video-embed {
     position: relative;
     width: 100%;
-    padding-top: 56.25%; /* 16:9 */
+    padding-top: 56.25%;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid var(--line);
@@ -2239,7 +2221,6 @@
   .nav-btn-ai:hover { filter: brightness(1.05); }
   .nav-btn-ai.active { color: #0d1116; }
 
-  /* ---------- AI agent page ---------- */
   .ai-page {
     position: fixed;
     inset: 0;
@@ -2403,7 +2384,6 @@
   }
   .ai-send-btn:disabled { opacity: 0.5; }
 
-  /* ---------- authentication ---------- */
   .auth-gate {
     min-height: 100vh;
     display: flex;
@@ -3320,7 +3300,6 @@ function renderProfileMeta(id) {
   document.getElementById("profileMeta").innerHTML = meta.join("");
 }
 
-// Formats a Postgres timestamp into "June 2026" for the "Joined ..." line.
 function formatJoinedDate(isoString) {
   if (!isoString) return null;
   const d = new Date(isoString);
@@ -3328,9 +3307,6 @@ function formatJoinedDate(isoString) {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-// Pulls the real bio and join date for someone else's profile the first
-// time it's opened, replacing the generic "No bio yet." / "Recently"
-// placeholders that ensureTelegramPostProfile() seeds a stub with.
 async function fetchOtherProfileDetails(id) {
   const p = PROFILES[id];
   if (!p || id === "you" || !sb || p.telegramId === null || p.telegramId === undefined) return;
@@ -3358,7 +3334,7 @@ async function fetchOtherProfileDetails(id) {
 }
 
 const DEFAULT_PROFILE_BANNER_URL = "https://i.ibb.co/FkYZrgsX/file-000000005e2c82119401492496b4e07d-copy-991x396.png";
-let defaultBannerLoadStatus = null; // null = unknown, true = loaded, false = failed
+let defaultBannerLoadStatus = null;
 
 function setProfileBanner(p) {
   const banner = document.getElementById("profileBanner");
@@ -3394,11 +3370,6 @@ function openProfile(id) {
   const p = PROFILES[id];
   if (!p) return;
 
-  // post-detail-page sits above profile-page in z-order. If it's open
-  // (e.g. opening a profile from a comment or the OP's name inside a
-  // post's detail view), close it first so the profile is visible
-  // immediately instead of only appearing once the detail page is
-  // later dismissed.
   const postDetailPage = document.getElementById("postDetailPage");
   if (postDetailPage.classList.contains("open")) {
     postDetailPage.classList.remove("open");
@@ -3420,11 +3391,6 @@ function openProfile(id) {
   if (id === "you") {
     starBtn.style.display = "none";
     editBtn.style.display = "inline-flex";
-    // While Premium is active, the button is hidden entirely rather than
-    // showing an active/renew state -- this keeps renewal impossible
-    // before expiry, which means the webhook never has to reason about
-    // stacking on top of remaining time. It reappears once premium_until
-    // passes.
     if (isPremiumUser()) {
       premiumBtn.style.display = "none";
     } else {
@@ -3482,9 +3448,6 @@ function closeProfile() {
   syncBackButton();
 }
 
-// Fetches a post by id and registers it into USER_POSTS/userPostState if
-// it isn't already loaded (e.g. a pinned post that's aged out of the
-// feed cache, or belongs to someone whose posts we haven't loaded).
 async function ensurePostLoaded(postId) {
   if (findUserPostById(postId)) return true;
   if (!sb) return false;
@@ -3497,7 +3460,7 @@ async function ensurePostLoaded(postId) {
     if (!userPostState[post.id]) {
       userPostState[post.id] = {
         liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
-        comments: [], commentsLoaded: false, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
+        comments: [], showComments: false, textExpanded: false, draftImage: null,
         pollVoted: post.type === "poll" ? null : undefined
       };
     }
@@ -3515,8 +3478,6 @@ function renderProfilePosts() {
 
   const pinnedId = isPinDisplayed(currentProfileId) ? PROFILES[currentProfileId].pinnedPostId : null;
   if (pinnedId && !findUserPostById(pinnedId)) {
-    // Pinned post isn't in the loaded cache -- fetch it once, then
-    // re-render. Avoids doing this fetch on every single render call.
     ensurePostLoaded(pinnedId).then(ok => { if (ok && currentProfileId) renderProfilePosts(); });
   }
 
@@ -3560,7 +3521,7 @@ function profilePostCardHTML(post, isPinned) {
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply" onclick="event.stopPropagation(); openPostDetail('${post.id}')">
-            ${replyIcon()}<span>${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
+            ${replyIcon()}<span>${s.comments.length || ""}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
@@ -3587,10 +3548,9 @@ function openPostDetail(id) {
   const post = findUserPostById(id);
   if (!post || !userPostState[post.id]) return;
   currentPostDetailId = id;
+  renderPostDetail();
   document.getElementById("postDetailPage").classList.add("open");
   syncBackButton();
-  renderPostDetail();
-  loadPostComments(id);
 }
 
 function closePostDetail() {
@@ -3615,13 +3575,9 @@ function postDetailCardHTML(post) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   const newestFirst = [...s.comments].sort((a, b) => b.createdAtMillis - a.createdAtMillis);
-  const commentsHtml = s.commentsLoading
-    ? `<div class="comment-empty">Loading comments…</div>`
-    : s.commentsError
-      ? `<div class="comment-empty">Couldn’t load comments. Go back and try again.</div>`
-      : newestFirst.length
-        ? interleaveCommentVideo(newestFirst.map(c => commentHTML(post.id, c))).join("")
-        : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
+  const commentsHtml = newestFirst.length
+    ? interleaveCommentVideo(newestFirst.map(c => commentHTML(post.id, c))).join("")
+    : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
     <article class="post post-detail-article">
@@ -3641,7 +3597,7 @@ function postDetailCardHTML(post) {
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply">
-            ${replyIcon()}<span>${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
+            ${replyIcon()}<span>${s.comments.length || ""}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span>${fmt(s.likeCount)}</span>
@@ -3702,62 +3658,6 @@ function updatePostDetailCommentCount(id) {
   }
 }
 
-const commentLoadPromises = new Map();
-
-async function loadPostComments(postId) {
-  const state = userPostState[postId];
-  if (!state || state.commentsLoaded || commentLoadPromises.has(postId) || !sb) return;
-
-  state.commentsLoading = true;
-  state.commentsError = null;
-  if (currentPostDetailId === postId) renderPostDetail();
-
-  const request = (async () => {
-    try {
-      const { data, error } = await sb.from("comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-
-      const comments = [];
-      (data || []).forEach(row => {
-        const comment = mapCommentRow(row);
-        ensureTelegramCommentProfile(comment);
-        comments.push(comment);
-      });
-
-      const commentIds = comments.map(comment => comment.id);
-      if (commentIds.length) {
-        const { data: reactionRows } = await sb.from("comment_reactions")
-          .select("comment_id, reaction")
-          .eq("telegram_id", String(telegramUser.id))
-          .in("comment_id", commentIds);
-        const reactionByComment = {};
-        (reactionRows || []).forEach(row => { reactionByComment[row.comment_id] = row.reaction; });
-        comments.forEach(comment => { comment.myReaction = reactionByComment[comment.id] || null; });
-      }
-
-      // Keep a reply the user just posted while this request was in flight.
-      const optimisticComments = state.comments.filter(comment => String(comment.id).startsWith("local-"));
-      state.comments = optimisticComments.concat(comments);
-      state.commentCount = state.comments.length;
-      state.commentsLoaded = true;
-    } catch (error) {
-      console.warn("Could not load post comments", postId, error);
-      state.commentsError = true;
-    } finally {
-      state.commentsLoading = false;
-      commentLoadPromises.delete(postId);
-      if (currentPostDetailId === postId) renderPostDetail();
-      patchVisiblePostCounts([postId]);
-    }
-  })();
-
-  commentLoadPromises.set(postId, request);
-  await request;
-}
-
 async function submitPostDetailComment(id) {
   if (!requireTelegramSession()) return;
   if (!requireIdentitySetup()) return;
@@ -3804,10 +3704,9 @@ async function submitPostDetailComment(id) {
   } catch (e) {}
 }
 
-// ---------- Stars (lightweight "follow" signal on a profile) ----------
-let starState = {}; // profileId -> { starred: bool, count: number }
+let starState = {};
 let starrersProfileId = null;
-let starrersActiveTab = "stars"; // "stars" (incoming) or "starred" (outgoing)
+let starrersActiveTab = "stars";
 
 function renderStarButton(id) {
   if (currentProfileId !== id) return;
@@ -3903,9 +3802,6 @@ function closeStarrersPage() {
   syncBackButton();
 }
 
-// Renders whichever tab is currently active for starrersProfileId:
-// "stars" = people who starred this profile (stars.to_telegram_id = them),
-// "starred" = people this profile has starred (stars.from_telegram_id = them).
 async function renderStarrersPage() {
   const id = starrersProfileId;
   const tab = starrersActiveTab;
@@ -3926,8 +3822,6 @@ async function renderStarrersPage() {
       .eq(matchColumn, String(p.telegramId))
       .order("created_at", { ascending: false });
 
-    // The person may have switched tabs or closed the page while this was
-    // in flight -- don't paint a stale result over whatever they're on now.
     if (starrersProfileId !== id || starrersActiveTab !== tab) return;
 
     if (!starRows || !starRows.length) {
@@ -4027,8 +3921,6 @@ async function loadMyStarredIds() {
     myStarredIds = new Set((data || []).map(row => String(row.to_telegram_id)));
   } catch (e) {
     console.error("Could not load starred profiles", e);
-    // Keep whatever we last loaded successfully instead of wiping it —
-    // a transient network error shouldn't make real starred posts vanish.
   }
 }
 
@@ -4181,10 +4073,6 @@ function mapCommentRow(row) {
   };
 }
 
-// Badge visibility for other users (feed authors, commenters) works
-// differently from "you": PROFILES entries for other people are built
-// straight from post-row fields and never carry premium_until, so we
-// batch-check it here instead of querying once per post/comment.
 const premiumCheckedIds = new Set();
 const premiumVerifiedIds = new Set();
 
@@ -4222,22 +4110,12 @@ function inlineVerifiedBadge(id) {
   return isPremiumTelegramId(id) ? `<span class="post-verified">${verifiedBadge()}</span>` : "";
 }
 
-// ---- Feed cache (instant paint) + "new posts" banner --------------
-// On boot we paint whatever's in localStorage right away (if it's not
-// too old to trust), then always fetch fresh data underneath. If the
-// fresh fetch turns up posts that aren't already on screen, they're
-// held behind a tappable banner instead of being spliced into the feed
-// — so the feed never jumps or reflows out from under someone who's
-// mid-scroll or watching a video. Already-visible posts still get their
-// like/comment counts refreshed in place, since that doesn't move or
-// insert anything.
-const FEED_CACHE_KEY = "feedCache:v2";
-const FEED_PAGE_SIZE = 50;
-const FEED_CACHE_TTL_MS = 10 * 60 * 1000;   // cached feed is only trusted for instant paint up to this old
-const FEED_POLL_INTERVAL_MS = 45 * 1000;    // how often to quietly check for new posts in the background
+const FEED_CACHE_KEY = "feedCache:v1";
+const FEED_CACHE_TTL_MS = 10 * 60 * 1000;
+const FEED_POLL_INTERVAL_MS = 45 * 1000;
 
 let feedRenderedIds = new Set();
-let pendingNewPosts = new Map(); // id -> { post, state }
+let pendingNewPosts = new Map();
 let feedPollTimer = null;
 
 function loadFeedCache() {
@@ -4246,7 +4124,7 @@ function loadFeedCache() {
     if (!raw) return null;
     const cache = JSON.parse(raw);
     if (!cache || !Array.isArray(cache.posts) || !cache.ts) return null;
-    if (Date.now() - cache.ts > FEED_CACHE_TTL_MS) return null; // too old to trust -- treat as no cache
+    if (Date.now() - cache.ts > FEED_CACHE_TTL_MS) return null;
     return cache;
   } catch (e) {
     return null;
@@ -4255,8 +4133,6 @@ function loadFeedCache() {
 
 function saveFeedCache(posts) {
   try {
-    // Only cache the public post fields. Likes/bookmarks/comments are
-    // per-viewer state and always refetched fresh, never cached.
     const slim = posts.map(p => ({
       id: p.id, type: p.type, text: p.text, image: p.image, question: p.question,
       options: p.options, name: p.name, username: p.username, userId: p.userId,
@@ -4267,11 +4143,6 @@ function saveFeedCache(posts) {
   } catch (e) {}
 }
 
-// Paints cached posts immediately, before any network call resolves.
-// Uses placeholder engagement state (no likes/comments yet) purely so
-// there's something on screen instantly; the real fetch right behind it
-// fills in accurate state within the same "first load" pass, so the
-// placeholder is never visibly stale for more than a moment.
 function paintCachedFeedImmediately() {
   const cache = loadFeedCache();
   if (!cache || !cache.posts.length) return false;
@@ -4282,7 +4153,7 @@ function paintCachedFeedImmediately() {
   USER_POSTS.forEach(post => {
     userPostState[post.id] = {
       liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
-      comments: [], commentsLoaded: false, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
+      comments: [], showComments: false, textExpanded: false, draftImage: null,
       pollVoted: null
     };
   });
@@ -4313,10 +4184,6 @@ function hideNewPostsBanner() {
   if (banner) banner.classList.remove("show");
 }
 
-// Merges a freshly-fetched feed into what's on screen. First load ever
-// this session shows everything immediately (nothing to protect the
-// user from yet). After that, only in-place updates to already-visible
-// posts are applied automatically; anything new waits for a banner tap.
 function applyFreshFeedData(freshPosts, freshState, forceApply) {
   const freshIds = new Set(freshPosts.map(p => p.id));
 
@@ -4327,6 +4194,7 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
     pendingNewPosts.clear();
     hideNewPostsBanner();
     render();
+    saveFeedCache(USER_POSTS);
     return;
   }
 
@@ -4338,7 +4206,7 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
       if (freshCopy) Object.assign(post, freshCopy);
     }
   });
-  USER_POSTS = USER_POSTS.filter(p => freshIds.has(p.id)); // drop anything deleted server-side
+  USER_POSTS = USER_POSTS.filter(p => freshIds.has(p.id));
   feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
 
   pendingNewPosts.clear();
@@ -4348,11 +4216,6 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
     }
   });
 
-  // Quiet background update: patch counts in place instead of a full
-  // render(), so video embeds already on screen don't get torn down and
-  // restarted. The feed doesn't reorder or gain cards here — that still
-  // happens on the next full render (banner tap, tab switch, etc). Posts
-  // deleted server-side are removed directly, same reasoning.
   patchVisiblePostCounts(Object.keys(freshState));
   removeVisiblePostCards(deletedIds);
   if (pendingNewPosts.size) {
@@ -4362,7 +4225,6 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
   }
 }
 
-// Called when the user taps the "N new posts" banner.
 function applyPendingNewPosts() {
   if (!pendingNewPosts.size) return;
   const newOnes = Array.from(pendingNewPosts.values());
@@ -4383,13 +4245,6 @@ function scheduleFeedPoll() {
   feedPollTimer = setTimeout(() => { loadUserPosts(); }, FEED_POLL_INTERVAL_MS);
 }
 
-// ---- Custom pull-to-refresh -----------------------------------------
-// Replaces the browser's native pull-to-refresh with the WB brand mark.
-// Tracks the finger 1:1 (rubber-banded) while dragging; once released
-// past the threshold it locks in place and the two letters blink-swap
-// colors (W/B -> B/W) every 300ms until the fetch resolves. A manual
-// pull always shows whatever comes back immediately -- no "new posts"
-// banner -- since the user explicitly asked for the latest.
 const PULL_REFRESH_THRESHOLD = 70;
 const PULL_REFRESH_MAX = 100;
 const PULL_REFRESH_LOCK_HEIGHT = 56;
@@ -4512,23 +4367,18 @@ document.addEventListener("touchcancel", () => {
 
 async function loadUserPosts(options = {}) {
   const manual = options.manual === true;
-
-  // Stars are only needed for the Stars tab; never delay the normal feed for them.
-  if (activeFeedTab === "stars") await loadMyStarredIds();
+  await loadMyStarredIds();
 
   let freshPosts = [];
   try {
     if (sb) {
-      const { data, error } = await sb.from("posts")
-        .select("id,type,text,image,question,options,poll_ends_at,name,username,telegram_id,photo_url,initials,color,like_count,link_url,link_title,link_description,link_image,link_site,quest_id,quest_title,quest_tier,quest_reward,quest_winner_count,quest_ends_at,created_at")
-        .order("created_at", { ascending: false })
-        .limit(FEED_PAGE_SIZE);
+      const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       freshPosts = (data || []).map(mapPostRow);
       freshPosts.forEach(ensureTelegramPostProfile);
     }
-  } catch (error) {
-    console.error("loadUserPosts failed:", error);
+  } catch (e) {
+    console.error("loadUserPosts failed:", e);
   }
 
   if (!freshPosts.length) {
@@ -4537,70 +4387,176 @@ async function loadUserPosts(options = {}) {
     return;
   }
 
-  // Paint posts immediately. Comments are loaded only for the post the reader opens.
+  const ids = freshPosts.map(p => p.id);
+  let likedIds = new Set();
+  let bookmarkedIds = new Set();
+  let commentsByPost = {};
+  let votesByPost = {};
+
+  try {
+    if (sb) {
+      const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
+        sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+        sb.from("bookmarks").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+        sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
+        sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
+      ]);
+      (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
+      (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
+      (commentsRes.data || []).forEach(r => {
+        if (!commentsByPost[r.post_id]) commentsByPost[r.post_id] = [];
+        const comment = mapCommentRow(r);
+        ensureTelegramCommentProfile(comment);
+        commentsByPost[r.post_id].push(comment);
+      });
+      (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
+
+      const commentIds = Object.values(commentsByPost).flat().map(c => c.id);
+      if (commentIds.length) {
+        try {
+          const { data: reactionRows } = await sb.from("comment_reactions")
+            .select("comment_id, reaction")
+            .eq("telegram_id", String(telegramUser.id))
+            .in("comment_id", commentIds);
+          const myReactionByComment = {};
+          (reactionRows || []).forEach(r => { myReactionByComment[r.comment_id] = r.reaction; });
+          Object.values(commentsByPost).flat().forEach(c => {
+            c.myReaction = myReactionByComment[c.id] || null;
+          });
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
   const freshState = {};
   for (const post of freshPosts) {
-    const previous = userPostState[post.id];
-    const commentsLoaded = Boolean(previous && previous.commentsLoaded);
     freshState[post.id] = {
-      liked: previous ? Boolean(previous.liked) : false,
+      liked: likedIds.has(post.id),
       likeCount: post.likeCount || 0,
-      bookmarked: previous ? Boolean(previous.bookmarked) : false,
-      gifted: previous ? Boolean(previous.gifted) : false,
-      comments: commentsLoaded ? previous.comments : [],
-      commentsLoaded,
-      commentsLoading: false,
-      commentsError: null,
-      commentCount: commentsLoaded ? previous.comments.length : (previous && previous.commentCount) || 0,
+      bookmarked: bookmarkedIds.has(post.id),
+      gifted: false,
+      comments: commentsByPost[post.id] || [],
       showComments: false,
-      textExpanded: previous ? Boolean(previous.textExpanded) : false,
-      draftImage: previous ? previous.draftImage : null,
-      pollVoted: previous && post.type === "poll" ? previous.pollVoted : null
+      textExpanded: false,
+      draftImage: null,
+      pollVoted: post.type === "poll" ? (votesByPost[post.id] ?? null) : null
     };
   }
 
-  // A manual pull always applies the newest list instead of hiding it behind the banner.
-  applyFreshFeedData(freshPosts, freshState, manual);
-  saveFeedCache(freshPosts);
-  hydratePremiumBadges(freshPosts.map(post => post.userId));
+  if (manual) {
+    USER_POSTS = freshPosts;
+    userPostState = freshState;
+    feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+    pendingNewPosts.clear();
+    hideNewPostsBanner();
+    render();
+    saveFeedCache(USER_POSTS);
+    const idsToCheck = freshPosts.map(p => p.userId)
+      .concat(Object.values(commentsByPost).flat().map(c => c.userId));
+    hydratePremiumBadges(idsToCheck);
+    scheduleFeedPoll();
+    return;
+  }
 
-  // Engagement refreshes after the first paint and never blocks the feed or comments.
-  loadFeedEngagement(freshPosts);
+  const freshIds = new Set(freshPosts.map(p => p.id));
+
+  if (feedRenderedIds.size === 0) {
+    USER_POSTS = freshPosts;
+    userPostState = freshState;
+    feedRenderedIds = freshIds;
+    pendingNewPosts.clear();
+    hideNewPostsBanner();
+    render();
+    saveFeedCache(USER_POSTS);
+    const idsToCheck = freshPosts.map(p => p.userId)
+      .concat(Object.values(commentsByPost).flat().map(c => c.userId));
+    hydratePremiumBadges(idsToCheck);
+    scheduleFeedPoll();
+    return;
+  }
+
+  USER_POSTS.forEach(post => {
+    if (freshState[post.id]) {
+      const freshCopy = freshPosts.find(p => p.id === post.id);
+      if (freshCopy) Object.assign(post, freshCopy);
+      const freshS = freshState[post.id];
+      if (freshS) {
+        userPostState[post.id] = {
+          ...userPostState[post.id],
+          liked: freshS.liked,
+          likeCount: freshS.likeCount,
+          bookmarked: freshS.bookmarked,
+          comments: freshS.comments,
+          pollVoted: freshS.pollVoted
+        };
+      }
+    }
+  });
+
+  USER_POSTS = USER_POSTS.filter(p => freshIds.has(p.id));
+  feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+
+  pendingNewPosts.clear();
+  freshPosts.forEach(post => {
+    if (!feedRenderedIds.has(post.id)) {
+      pendingNewPosts.set(post.id, { post, state: freshState[post.id] });
+    }
+  });
+
+  patchVisiblePostCounts(Object.keys(freshState));
+  removeVisiblePostCards(USER_POSTS.filter(p => !freshIds.has(p.id)).map(p => p.id));
+  
+  if (pendingNewPosts.size) {
+    showNewPostsBanner(pendingNewPosts.size);
+  } else {
+    hideNewPostsBanner();
+  }
+
+  saveFeedCache(USER_POSTS);
+  const idsToCheck = freshPosts.map(p => p.userId)
+    .concat(Object.values(commentsByPost).flat().map(c => c.userId));
+  hydratePremiumBadges(idsToCheck);
   scheduleFeedPoll();
 }
 
-async function loadFeedEngagement(posts) {
-  if (!sb || !posts.length) return;
-  const ids = posts.map(post => post.id);
-  const telegramId = String(telegramUser.id);
+function patchVisiblePostCounts(changedIds) {
+  const feedEl = document.getElementById("feed");
+  if (!feedEl) return;
+  changedIds.forEach(id => {
+    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
+    if (!card) return;
+    const post = USER_POSTS.find(p => p.id === id);
+    const s = userPostState[id];
+    if (!post || !s) return;
 
-  try {
-    const [likesRes, bookmarksRes, votesRes] = await Promise.all([
-      sb.from("likes").select("post_id").eq("telegram_id", telegramId).in("post_id", ids),
-      sb.from("bookmarks").select("post_id").eq("telegram_id", telegramId).in("post_id", ids),
-      sb.from("votes").select("post_id, option_index").eq("telegram_id", telegramId).in("post_id", ids)
-    ]);
-    if (likesRes.error) throw likesRes.error;
-    if (bookmarksRes.error) throw bookmarksRes.error;
-    if (votesRes.error) throw votesRes.error;
+    const replyCount = card.querySelector(".stat-reply-count");
+    if (replyCount) replyCount.textContent = s.comments.length || "";
 
-    const likedIds = new Set((likesRes.data || []).map(row => row.post_id));
-    const bookmarkedIds = new Set((bookmarksRes.data || []).map(row => row.post_id));
-    const votesByPost = {};
-    (votesRes.data || []).forEach(row => { votesByPost[row.post_id] = row.option_index; });
+    const likeBtn = card.querySelector(".stat.like");
+    if (likeBtn) {
+      likeBtn.classList.toggle("active", Boolean(s.liked));
+      const likeCount = likeBtn.querySelector(".stat-like-count");
+      if (likeCount) likeCount.textContent = fmt(s.likeCount);
+    }
 
-    posts.forEach(post => {
-      const state = userPostState[post.id] || (pendingNewPosts.get(post.id) && pendingNewPosts.get(post.id).state);
-      if (!state) return;
-      state.liked = likedIds.has(post.id);
-      state.bookmarked = bookmarkedIds.has(post.id);
-      state.pollVoted = post.type === "poll" ? (votesByPost[post.id] ?? null) : null;
-    });
-    patchVisiblePostCounts(ids);
-    if (currentPostDetailId) renderPostDetail();
-  } catch (error) {
-    console.warn("Could not refresh feed engagement", error);
-  }
+    const bookmarkBtn = card.querySelector(".stat.bookmark");
+    if (bookmarkBtn) bookmarkBtn.classList.toggle("active", Boolean(s.bookmarked));
+
+    if (post.type === "poll") {
+      const slot = card.querySelector(".post-embed-slot");
+      if (slot) slot.innerHTML = renderPollPost(post, s);
+    }
+  });
+}
+
+function removeVisiblePostCards(deletedIds) {
+  if (!deletedIds.length) return;
+  const feedEl = document.getElementById("feed");
+  if (!feedEl) return;
+  deletedIds.forEach(id => {
+    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
+    if (card) card.remove();
+  });
 }
 
 function toggleUserPostLike(id) {
@@ -4634,11 +4590,6 @@ function toggleUserPostBookmark(id) {
   if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
 }
 
-// ---------- Creator support (TON Connect gifts) ----------
-// Phase 1 ships native TON only. Jetton entries (USDT-TON, etc.) are wired
-// into the token list but left disabled until their real jetton-master
-// contract addresses are verified on-chain \u2014 sending to a wrong/guessed
-// master address would misdirect real funds, so we don't ship a guess.
 const GIFT_TOKENS = [
   { symbol: "TON", label: "TON", decimals: 9, enabled: true },
   { symbol: "USDT", label: "USDT", decimals: 6, enabled: false, jettonMaster: null },
@@ -4647,7 +4598,7 @@ const GIFT_TOKENS = [
 
 const TONCONNECT_MANIFEST_URL = "https://whyblog.yongsocial.com/tonconnect-manifest.json";
 let tonConnectUI = null;
-let giftModalState = null; // { postId, token }
+let giftModalState = null;
 
 function getTonConnectUI() {
   if (!tonConnectUI && window.TON_CONNECT_UI) {
@@ -4666,9 +4617,6 @@ async function openGiftModal(id) {
   const profile = PROFILES[post.profileId];
   if (!profile) return;
 
-  // PROFILES entries for other users are built from fields already on the
-  // post row (name/initials/photo) and never include ton_wallet -- that's
-  // only ever loaded for "you". Fetch it lazily here, once, and cache it.
   if (!profile.tonWallet && profile.telegramId && sb) {
     try {
       const { data } = await sb.from("profiles")
@@ -4676,9 +4624,7 @@ async function openGiftModal(id) {
         .eq("telegram_id", String(profile.telegramId))
         .maybeSingle();
       if (data && data.ton_wallet) profile.tonWallet = data.ton_wallet;
-    } catch (e) {
-      console.error("Could not load creator's wallet", e);
-    }
+    } catch (e) {}
   }
 
   if (!profile.tonWallet) {
@@ -4712,11 +4658,6 @@ function closeGiftModal() {
   giftModalState = null;
 }
 
-// ---------- Gift wallet-suggestion sheet ----------
-// Shown when someone taps the gift icon on a creator who hasn't set a
-// TON wallet yet. Rather than a dead-end alert, offer a clear alternative:
-// support WhyBlog's own research/development wallet instead, so gift
-// intent doesn't just evaporate into an error message.
 const WHYBLOG_RESEARCH_WALLET = "UQDagEMfrAHlTRwlGnBeWJGqkfPtjKRaPSqNg3DzGkT0IfiN";
 const WHYBLOG_RESEARCH_MEMO = "WhyBlog research support";
 
@@ -4750,11 +4691,6 @@ function closeGiftSuggestSheet() {
   document.getElementById("giftSuggestSheet").classList.remove("open");
 }
 
-// Opens the standard gift sheet, but pointed at WhyBlog's fixed research
-// wallet instead of a post author -- no post/profile involved, so this
-// bypasses the post-lookup path entirely and skips the "gifts" table
-// insert (which is keyed to a post_id). The on-chain send and its
-// confirmation polling still run the same as any other gift.
 function openWhyBlogResearchGiftModal() {
   closeGiftSuggestSheet();
   giftModalState = { postId: null, token: "TON", fixedRecipient: { wallet: WHYBLOG_RESEARCH_WALLET, name: "WhyBlog Research", memo: WHYBLOG_RESEARCH_MEMO } };
@@ -4821,7 +4757,7 @@ function setGiftStatus(text, kind) {
 function buildCommentPayload(text) {
   if (!window.TonWeb) return undefined;
   const cell = new TonWeb.boc.Cell();
-  cell.bits.writeUint(0, 32); // op 0 = plain-text comment
+  cell.bits.writeUint(0, 32);
   cell.bits.writeBytes(TonWeb.utils.stringToBytes(text));
   return TonWeb.utils.bytesToBase64(cell.toBoc());
 }
@@ -4839,9 +4775,6 @@ function extractBocHash(bocBase64) {
 async function submitGift() {
   if (!giftModalState) return;
 
-  // Fixed-recipient gifts (e.g. WhyBlog Research) have no post/author --
-  // send directly and skip the "gifts" table insert, which is keyed to a
-  // post_id that doesn't exist for this case.
   if (giftModalState.fixedRecipient) {
     const recipient = giftModalState.fixedRecipient;
     const amount = parseFloat(document.getElementById("giftAmountInput").value);
@@ -4911,11 +4844,8 @@ async function submitGift() {
   }
 }
 
-// Generic on-chain confirmation poller, reused by both creator-gifts and
-// quest-reward payouts. Calls onConfirmed()/onTimeout() -- caller decides
-// what row/table to update.
 function pollTonConfirmation(recipientAddress, txHash, memo, onConfirmed, onTimeout) {
-  const maxAttempts = 20; // ~60s at 3s intervals, well within TonCenter's free tier
+  const maxAttempts = 20;
   let attempts = 0;
 
   const tick = async () => {
@@ -4933,9 +4863,7 @@ function pollTonConfirmation(recipientAddress, txHash, memo, onConfirmed, onTime
         if (onConfirmed) onConfirmed();
         return;
       }
-    } catch (e) {
-      // transient network/API error \u2014 keep polling until maxAttempts
-    }
+    } catch (e) {}
     if (attempts < maxAttempts) {
       setTimeout(tick, 3000);
     } else if (onTimeout) {
@@ -4954,9 +4882,6 @@ function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
   );
 }
 
-// Shared connect-and-send step: opens TON Connect (prompting wallet
-// selection/approval if not already connected), builds a plain TON
-// transfer with a text-comment payload, and returns the tx hash.
 async function tonConnectSendPayment(recipientAddress, amount, memo) {
   const ui = getTonConnectUI();
   if (!ui) throw new Error("TON Connect failed to load. Check your connection and try again.");
@@ -4972,15 +4897,9 @@ async function tonConnectSendPayment(recipientAddress, amount, memo) {
   return extractBocHash(result.boc);
 }
 
-// ---------- Quests (Premium perk) ----------
-// Admins (quest_admins table) create bounties with a fixed TON reward
-// pool and a winner count. Premium users submit a link once per quest.
-// Admins mark winners (and, for 'diversify', rank them), then send each
-// winner's computed share via the same TON Connect flow as gifts, with
-// a dedicated memo.
 let isQuestAdmin = false;
 let questsCache = [];
-let mySubmissionsCache = {}; // quest_id -> submission row (mine)
+let mySubmissionsCache = {};
 let currentQuestReviewId = null;
 let questsActiveTier = "silver";
 
@@ -4993,16 +4912,10 @@ function formatPremiumUntil(isoString) {
   if (!isoString) return "";
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return "";
-  if (d.getFullYear() > 3000) return "forever"; // lifetime/admin grants
+  if (d.getFullYear() > 3000) return "forever";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// ---------- Premium (Telegram Stars) ----------
-// Invoice creation + payment confirmation both live in Supabase Edge
-// Functions (see premium-create-invoice.ts / premium-webhook.ts) since
-// they need the bot token and service-role key, which must stay
-// server-side. Replace <project-ref> once deployed:
-//   supabase functions deploy premium-create-invoice
 const PREMIUM_INVOICE_ENDPOINT = "https://xrunlxchksrycauujkgy.supabase.co/functions/v1/Premium-create-invoice";
 const PREMIUM_PLANS = [
   { id: "monthly", label: "Monthly", stars: 100, period: "/mo", sub: "Billed every month" },
@@ -5065,10 +4978,6 @@ async function submitPremiumPurchase() {
     const res = await fetch(PREMIUM_INVOICE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // init_data is Telegram's signed payload (tg.initData) -- the
-      // server verifies it and pulls the telegram_id out of that
-      // verified data, rather than trusting a bare id the client could
-      // set to anyone's account.
       body: JSON.stringify({ init_data: tg.initData, plan: plan.id })
     });
     if (!res.ok) throw new Error("bot request failed");
@@ -5078,8 +4987,6 @@ async function submitPremiumPurchase() {
     tg.openInvoice(invoice_link, async (status) => {
       if (status === "paid") {
         setPremiumStatus("Payment received \u2014 activating Premium\u2026");
-        // The source of truth is your bot's successful_payment webhook,
-        // which writes profiles.premium_until. Poll briefly for it to land.
         for (let i = 0; i < 6; i++) {
           await new Promise(r => setTimeout(r, 1500));
           await loadMyProfile();
@@ -5272,7 +5179,6 @@ async function submitQuestEntry() {
   }
 }
 
-// ---- Admin: create quest ----
 let questCreateImage = null;
 
 function openQuestCreateModal() {
@@ -5393,8 +5299,6 @@ async function submitQuestCreate() {
     }).select().single();
     if (error) throw error;
 
-    // Also publish an announcement post in the main feed, so everyone
-    // sees the quest without needing to open the Quests tab directly.
     try {
       const { data: postRow, error: postError } = await sb.from("posts").insert({
         type: "quest",
@@ -5420,7 +5324,7 @@ async function submitQuestCreate() {
       newPost.profileId = "you";
       newPost.questTitle = title;
       USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
       render();
     } catch (postErr) {
       console.error("Quest published, but feed announcement failed:", postErr);
@@ -5436,7 +5340,6 @@ async function submitQuestCreate() {
   }
 }
 
-// Compact quest summary shown inside the feed announcement post.
 function renderQuestPostCard(post) {
   const tier = post.questTier || "silver";
   const deadline = formatQuestDeadline(post.questEndsAt);
@@ -5469,7 +5372,6 @@ async function viewQuestFromPost(questId) {
   if (quest) openQuestSubmitModal(questId);
 }
 
-// ---- Admin: review submissions ----
 async function openQuestReview(questId) {
   currentQuestReviewId = questId;
   document.getElementById("questReviewPage").classList.add("open");
@@ -5502,8 +5404,6 @@ async function renderQuestReview() {
       return;
     }
 
-    // Resolve each submitter's display info + wallet (lazily, like the
-    // gift modal does) since PROFILES may not have them cached.
     const rows = await Promise.all(subs.map(async s => {
       let profile = Object.values(PROFILES).find(p => String(p.telegramId) === String(s.telegram_id));
       if (!profile) {
@@ -5571,8 +5471,6 @@ function renderQuestSubmissionRow(quest, s, profile) {
   `;
 }
 
-// Marking a submission winner/rejected. When the quest hits its full
-// winner_count, computes and stores each winner's reward_amount.
 async function markQuestSubmission(submissionId, status) {
   try {
     const { error } = await sb.from("quest_submissions").update({ status }).eq("id", submissionId);
@@ -5587,10 +5485,6 @@ async function markQuestSubmission(submissionId, status) {
   }
 }
 
-// Linear rank weighting for 'diversify': weight_i = (winnerCount - rank_i + 1).
-// 'equalize' just splits evenly. Ranks are assigned in submission order
-// among current winners as a simple default -- admins can be given a
-// re-rank control later if needed.
 async function maybeFinalizeQuestPayouts(questId) {
   const quest = questsCache.find(q => q.id === questId);
   if (!quest) return;
@@ -5601,12 +5495,12 @@ async function maybeFinalizeQuestPayouts(questId) {
     .eq("status", "winner")
     .order("created_at", { ascending: true });
 
-  if (!winners || winners.length < quest.winner_count) return; // not full yet
+  if (!winners || winners.length < quest.winner_count) return;
 
   const n = winners.length;
   let shares;
   if (quest.distribution === "diversify") {
-    const weights = winners.map((_, i) => n - i); // 1st marked = highest weight
+    const weights = winners.map((_, i) => n - i);
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     shares = weights.map(w => (w / totalWeight) * quest.total_reward);
   } else {
@@ -5692,10 +5586,6 @@ function linkifyHashtags(escapedText) {
   );
 }
 
-// ---------- Link previews ----------
-// Detect a URL in post text, fetch title/description/image for it via
-// a CORS-friendly unfurling service, and stash the result on the post
-// row so it only ever needs to be fetched once per post.
 const URL_REGEX = /\bhttps?:\/\/[^\s<]+[^\s<.,:;!?)'"]/i;
 
 function extractFirstUrl(text) {
@@ -5714,9 +5604,6 @@ function safeExternalUrl(url) {
   }
 }
 
-// Escapes a value for safe use inside an HTML attribute (escapeHtml
-// alone doesn't reliably escape quote characters, which matters here
-// since link title/description/image come from a third-party site).
 function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -5756,9 +5643,6 @@ async function fetchLinkPreview(url) {
   }
 }
 
-// Fetches (or clears) a post's link preview based on its current text,
-// then patches both the in-memory post and the DB row. Fire-and-forget
-// from the caller's point of view -- never blocks posting/editing.
 async function syncLinkPreviewForPost(post) {
   if (!post) return;
   const url = extractFirstUrl(post.text || "");
@@ -5772,7 +5656,7 @@ async function syncLinkPreviewForPost(post) {
     }
     return;
   }
-  if (url === post.linkUrl) return; // already have a preview for this exact link
+  if (url === post.linkUrl) return;
 
   const preview = await fetchLinkPreview(url);
   if (!preview) return;
@@ -5906,7 +5790,7 @@ function userPostCardHTML(post) {
         <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}</div>
         <div class="stat-row">
           <button class="stat reply" onclick="openPostDetail('${post.id}')">
-            ${replyIcon()}<span class="stat-reply-count">${((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "")}</span>
+            ${replyIcon()}<span class="stat-reply-count">${s.comments.length || ""}</span>
           </button>
           <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span class="stat-like-count">${fmt(s.likeCount)}</span>
@@ -6303,8 +6187,6 @@ function openPostOptions(postId) {
   editBtn.onclick = () => { closePostOptions(); editUserPost(postId); };
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserPost(postId); };
 
-  // Pinning is a Premium perk, and only ever applies to your own posts
-  // (this sheet is only opened for posts you own in the first place).
   const pinBtn = document.getElementById("postOptionsPinBtn");
   if (isPremiumUser()) {
     pinBtn.style.display = "";
@@ -6320,7 +6202,6 @@ function openPostOptions(postId) {
 }
 
 function openCommentOptions(postId, commentId) {
-  // Comments can only be deleted, never edited or pinned.
   document.getElementById("postOptionsEditBtn").style.display = "none";
   document.getElementById("postOptionsPinBtn").style.display = "none";
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
@@ -6333,14 +6214,9 @@ function closePostOptions() {
   document.getElementById("postOptionsSheet").classList.remove("open");
 }
 
-// Pinning is a Premium perk. We don't clear pinned_post_id when Premium
-// lapses -- same pattern as the verified badge, which is computed live
-// from premium_until rather than manually cleaned up. Display logic
-// (isPinDisplayed) simply stops showing it as pinned once Premium is no
-// longer active, and it silently reactivates if they resubscribe.
 async function togglePinPost(postId) {
   if (!sb || !telegramUser) return;
-  PROFILES.you.pinnedPostId = postId; // optimistic
+  PROFILES.you.pinnedPostId = postId;
   if (currentProfileId === "you") renderProfilePosts();
   try {
     await sb.from("profiles").update({ pinned_post_id: postId }).eq("telegram_id", String(telegramUser.id));
@@ -6349,9 +6225,6 @@ async function togglePinPost(postId) {
   }
 }
 
-// Whether profileId's pinned post should currently be shown as pinned --
-// requires both a pinned_post_id being set AND that profile's Premium
-// still being active right now (not just at the time they pinned it).
 function isPinDisplayed(profileId) {
   const p = PROFILES[profileId];
   if (!p || !p.pinnedPostId) return false;
@@ -6435,7 +6308,7 @@ async function submitPostEdit() {
     const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
     if (error) throw error;
     showPostedSuccessToast();
-    if (post.type !== "poll") syncLinkPreviewForPost(post); // fire-and-forget
+    if (post.type !== "poll") syncLinkPreviewForPost(post);
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
   }
@@ -6565,7 +6438,7 @@ async function submitCompose() {
       const newPost = mapPostRow(data);
       newPost.profileId = "you";
       USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
+      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
       render();
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
@@ -6586,7 +6459,6 @@ async function submitCompose() {
   const pendingImage = composeImage;
   const pendingDraftId = currentDraftId;
 
-  // Close the composer immediately and show posting progress.
   resetComposeUI();
   showPostingProgressToast();
 
@@ -6607,12 +6479,12 @@ async function submitCompose() {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
     render();
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
     showPostedSuccessToast();
-    syncLinkPreviewForPost(newPost); // fire-and-forget; doesn't block posting
+    syncLinkPreviewForPost(newPost);
   } catch (e) {
     console.error("submitCompose (post) failed:", e);
     haptic("medium");
@@ -6662,7 +6534,6 @@ function infoIcon() {
   return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg>`;
 }
 
-// ---------- Telegram Mini App integration ----------
 const tg = window.Telegram && window.Telegram.WebApp;
 const telegramRawUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user
   ? tg.initDataUnsafe.user
@@ -6729,12 +6600,6 @@ function avatarMarkup(user, className, fallbackColor) {
 }
 
 function initTelegramIdentity() {
-  // Seeds PROFILES.you with placeholders so the UI has something to show
-  // before loadMyProfile() finishes. This is NOT the app identity -- it's
-  // overwritten by the user's saved WhyBlog name/username/photo as soon as
-  // loadMyProfile() resolves (or replaced by an onboarding prompt if the
-  // user hasn't set one yet). Telegram's name/username/photo are only ever
-  // used as first-run *suggestions*, never synced in afterward.
   const profile = PROFILES.you;
   profile.name = telegramUser.name;
   profile.initials = telegramUser.initials;
@@ -6760,22 +6625,15 @@ function requireTelegramSession() {
   return false;
 }
 
-// Posts/comments need a username to be written -- if the person dismissed
-// setup somehow (or it hasn't loaded yet), re-open it instead of posting
-// with a blank handle.
 function requireIdentitySetup() {
   if (PROFILES.you.username) return true;
   openEditProfile({ setupRequired: true });
   return false;
 }
 
-// ---------- Supabase email/password authentication ----------
 const SUPABASE_URL = "https://xrunlxchksrycauujkgy.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhydW5seGNoa3NyeWNhdXVqa2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzODg4NDAsImV4cCI6MjEwMzk2NDg0MH0.e0I0U3dt5DS40h7LurLLizgr4O4t8DQ7IHx0Rf1cvf8";
 
-// Where Supabase should send people back to after clicking a confirmation
-// or password-reset email link — must also be added to this project's
-// Authentication → URL Configuration → Redirect URLs allow list.
 const AUTH_REDIRECT_URL = window.location.origin + window.location.pathname;
 
 let sb = null;
@@ -6870,12 +6728,6 @@ function showAuthenticatedApp(user) {
   loadQuestAdminStatus();
 }
 
-// Keep the saved Telegram snapshot (telegram_links) from going permanently
-// stale after the initial account link. Telegram doesn't always hand the
-// Mini App a fresh username/photo_url on every open, so this only overwrites
-// fields we actually got a non-empty value for this session — it never
-// blanks out a previously-saved value just because this session's data was
-// missing it.
 async function refreshTelegramLinkSnapshot() {
   if (!sb || !currentSupabaseUser || !isTelegramSession) return;
   const updates = {};
@@ -6907,18 +6759,8 @@ async function refreshTelegramLinkSnapshot() {
     console.error("Telegram link refresh failed:", e);
     return;
   }
-
-  // Note: we deliberately do NOT push Telegram identity changes into posts/
-  // comments here anymore. Name/username/photo on WhyBlog are user-owned --
-  // see pushIdentityToOwnContent(), called from saveEditProfile() instead.
 }
 
-// Posts and comments store a denormalized copy of the author's name/username/
-// photo/initials at the time they were created (for fast feed rendering
-// without a join). When the user changes their WhyBlog name, username, or
-// photo in Edit Profile, we push it onto their existing posts/comments here
-// so old content reflects the update too, instead of staying frozen with
-// whatever was true when each post was made.
 async function pushIdentityToOwnContent() {
   if (!sb) return;
   const telegramId = String(telegramUser.id);
@@ -6944,8 +6786,6 @@ async function pushIdentityToOwnContent() {
     return;
   }
 
-  // Patch whatever's already loaded in this session so the UI updates
-  // immediately, without waiting for the next fetch from the DB.
   USER_POSTS.forEach(p => {
     if (String(p.userId) === telegramId) {
       p.name = PROFILES.you.name;
@@ -6985,14 +6825,12 @@ async function linkTelegramIdentity(user) {
     sb.from("telegram_links").select("telegram_id, user_id").eq("user_id", user.id).maybeSingle()
   ]);
 
-  // This Telegram ID is already claimed by a different account.
   if (linkRow && linkRow.user_id !== user.id) {
     const error = new Error("This Telegram account is already linked to another email.");
     error.code = "telegram/already-linked";
     throw error;
   }
 
-  // This account is already permanently bound to a different Telegram ID.
   if (ownRow && ownRow.telegram_id && ownRow.telegram_id !== telegramId) {
     const error = new Error("This email is already linked to a different Telegram account.");
     error.code = "telegram/wrong-telegram";
@@ -7047,9 +6885,6 @@ async function submitAuth(event) {
         options: { emailRedirectTo: AUTH_REDIRECT_URL }
       });
       if (error) throw error;
-      // If email confirmation is required, Supabase returns a user but no
-      // session — onAuthStateChange never fires, so we must resolve the
-      // "please wait" state here ourselves instead of waiting forever.
       if (!data.session) {
         setAuthBusy(false);
         setAuthMessage("Account created! Check your email to confirm it, then log in here.");
@@ -7132,16 +6967,7 @@ function haptic(style) {
   if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style || "light");
 }
 
-// ================== AI agent ("Why") ==================
-// aiMessages: raw Anthropic-format conversation sent to the ai-agent
-// edge function on every turn. aiDisplayItems: what's actually shown
-// in the chat UI (kept separate since tool_result blocks aren't
-// meant to be displayed as chat bubbles).
 const WHY_APP_ICON_URL = "https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png";
-// Max characters allowed in a single message to Why. Enforced here via
-// maxlength + this check, AND again server-side in the ai-agent edge
-// function -- never trust the client alone, since the function can be
-// invoked directly.
 const AI_INPUT_MAX_LEN = 200;
 let aiMessages = [];
 let aiDisplayItems = [];
@@ -7371,7 +7197,7 @@ async function runCreatePostForAI(input) {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
     render();
     haptic("medium");
     return { success: true, post_id: newPost.id, truncated, max_post_length: max, posted_text: text };
@@ -7410,7 +7236,7 @@ async function runCreatePollForAI(input) {
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
     render();
     haptic("medium");
     return { success: true, post_id: newPost.id };
@@ -7419,10 +7245,6 @@ async function runCreatePollForAI(input) {
   }
 }
 
-// Executes (or, for post/poll, proposes) one tool call. Returns either
-// { pending: false, result } to feed straight back to Claude, or
-// { pending: true } when it needs the user to tap Confirm/Cancel —
-// confirmAIAction/cancelAIAction supply the tool_result later.
 function runAITool(name, input, toolUseId) {
   if (name === "get_my_stats") {
     return { pending: false, result: getMyAIStats() };
@@ -7517,9 +7339,6 @@ function cancelAIAction(actionId) {
 
 const AI_FREE_DAILY_LIMIT = 5;
 
-// Remaining free messages for today. Premium users are unlimited.
-// Non-premium: 5/day, tracked server-side on profiles.ai_messages_used_today
-// (see loadMyProfile for the day-rollover handling).
 function aiMessagesRemainingToday() {
   if (isPremiumUser()) return Infinity;
   return Math.max(0, AI_FREE_DAILY_LIMIT - (PROFILES.you.aiMessagesUsedToday || 0));
@@ -7540,11 +7359,6 @@ function renderAIUsageBanner() {
   el.classList.toggle("ai-usage-empty", remaining === 0);
 }
 
-// Updates the local display count only, for instant UI feedback (the
-// banner/remaining count). Does NOT write to the DB -- checkAndConsumeAIQuota
-// in the ai-agent function is the single source of truth for the actual
-// persisted count, so writing here too would double-count every message
-// (client +1, then server +1 independently on top of it).
 function recordAIMessageSentLocally() {
   if (isPremiumUser()) return;
   PROFILES.you.aiMessagesUsedToday = (PROFILES.you.aiMessagesUsedToday || 0) + 1;
@@ -7624,7 +7438,6 @@ async function runAITurn() {
     await runAITurn();
   }
 }
-// ================== end AI agent ==================
 
 function anyOverlayOpen() {
   return document.getElementById("menuPanel").classList.contains("open")
@@ -7837,11 +7650,6 @@ function toggleMenu(open) {
 
 const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"];
 
-// WhyBlog identity (display name, username, photo) is owned by the user and
-// set in-app -- it is never pulled live from Telegram. Telegram only supplies
-// the account link (telegram_id) plus first-run suggestions. See
-// openEditProfile()/saveEditProfile() for where it's actually set, and
-// pushIdentityToOwnContent() for how a change propagates to past posts.
 async function loadMyProfile() {
   if (!sb) return;
   let hasUsername = false;
@@ -7857,9 +7665,6 @@ async function loadMyProfile() {
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       PROFILES.you.premiumUntil = data.premium_until || null;
       PROFILES.you.pinnedPostId = data.pinned_post_id || null;
-      // If the stored reset date isn't today (server-side UTC date), the
-      // count on record is stale from a previous day -- treat it as 0
-      // until the next actual send re-syncs it server-side.
       const todayUTC = new Date().toISOString().slice(0, 10);
       PROFILES.you.aiMessagesUsedToday = (data.ai_messages_reset_date === todayUTC) ? (data.ai_messages_used_today || 0) : 0;
       PROFILES.you.verified = isPremiumUser();
@@ -7867,8 +7672,6 @@ async function loadMyProfile() {
       const joined = formatJoinedDate(data.created_at);
       if (joined) PROFILES.you.joined = joined;
 
-      // Custom identity, saved once by the user, takes over from here --
-      // it does not get overwritten by Telegram on future opens.
       if (data.username) {
         PROFILES.you.username = data.username;
         hasUsername = true;
@@ -7895,9 +7698,6 @@ async function loadMyProfile() {
   } catch (e) {}
 
   if (!hasUsername && isTelegramSession) {
-    // First run (or an account created before usernames existed): the user
-    // hasn't chosen a name/username/photo yet, so prompt for it now instead
-    // of silently defaulting to Telegram's.
     openEditProfile({ setupRequired: true });
   }
 }
@@ -7941,10 +7741,10 @@ function updateEditBioCount() {
 }
 
 let identitySetupRequired = false;
-let pendingAvatarUrl = null; // set once a new avatar upload finishes; null = no change
+let pendingAvatarUrl = null;
 let usernameCheckTimer = null;
 let usernameCheckToken = 0;
-let usernameAvailable = null; // true / false / null (unknown / unchecked)
+let usernameAvailable = null;
 
 function validateUsernameFormat(value) {
   return /^[a-z0-9_]{3,20}$/.test(value);
@@ -7952,7 +7752,6 @@ function validateUsernameFormat(value) {
 
 function handleUsernameInput() {
   const input = document.getElementById("editUsernameInput");
-  // Keep it simple to type: force lowercase, strip anything outside a-z0-9_.
   const cleaned = input.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
   if (cleaned !== input.value) input.value = cleaned;
 
@@ -7990,7 +7789,7 @@ function handleUsernameInput() {
         .eq("username", cleaned)
         .maybeSingle();
       if (error) throw error;
-      if (token !== usernameCheckToken) return; // a newer keystroke superseded this check
+      if (token !== usernameCheckToken) return;
       const taken = Boolean(data) && String(data.telegram_id) !== String(telegramUser.id);
       usernameAvailable = !taken;
       status.textContent = taken ? "That username is taken." : "Available.";
@@ -8051,8 +7850,6 @@ async function handleAvatarFileSelect(input) {
   }
 }
 
-// Downscales/compresses client-side before upload so we're not pushing full
-// camera-resolution photos through Supabase Storage for a small avatar.
 function resizeImageFile(file, maxDim) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -8088,8 +7885,6 @@ function openEditProfile(options) {
   const closeBtn = document.getElementById("editProfileCloseBtn");
   const usernameStatus = document.getElementById("editUsernameStatus");
 
-  // Pre-fill name/username with the saved value, or -- for first-time setup
-  // only -- a suggestion pulled from Telegram that the user can freely change.
   nameInput.value = p.username ? p.name : (p.name || telegramUser.name || "");
   usernameInput.value = p.username || (telegramUser.username ? telegramUser.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20) : "");
   usernameStatus.textContent = "3-20 characters: lowercase letters, numbers, underscores.";
@@ -8153,7 +7948,7 @@ function openEditProfile(options) {
 }
 
 function closeEditProfile() {
-  if (identitySetupRequired) return; // must finish setup (Save) first
+  if (identitySetupRequired) return;
   document.getElementById("editProfileOverlay").classList.remove("open");
   document.getElementById("editProfileSheet").classList.remove("open");
   syncBackButton();
@@ -8223,10 +8018,6 @@ async function saveEditProfile() {
     if (!sb) throw new Error("Not connected");
     const telegramId = String(telegramUser.id);
 
-    // Don't rely on ON CONFLICT / a unique constraint existing on
-    // telegram_id -- check for an existing row ourselves and do a
-    // plain update or insert. This works regardless of whether the
-    // DB-side unique constraint has been added yet.
     const { data: existingRow, error: lookupError } = await sb
       .from("profiles")
       .select("telegram_id")
@@ -8244,8 +8035,6 @@ async function saveEditProfile() {
     btn.style.pointerEvents = "auto";
     btn.style.opacity = "1";
     const detail = e && (e.message || e.hint || e.code) ? ` (${e.message || e.hint || e.code})` : "";
-    // A unique-constraint violation on username shows up here if two people
-    // raced for the same handle between the availability check and saving.
     if (e && (e.code === "23505" || /duplicate|unique/i.test(e.message || ""))) {
       alert("That username was just taken. Please pick another.");
     } else {
@@ -8289,14 +8078,6 @@ async function saveEditProfile() {
   setTimeout(() => closeEditProfile(), 1000);
 }
 
-/* =========================================================================
-   VIDEO ZONE
-   -------------------------------------------------------------------------
-   Each entry is a full YouTube playlist, embedded via the public
-   videoseries embed URL -- no API key needed, fully playable in-app.
-   Add more playlists here as they come in; genres group automatically.
-   ========================================================================= */
-
 const VIDEO_PLAYLISTS = [
   { id: "PLd1uCEOlp2tQ", title: "YONG SOCIAL WATCH", genre: "Featured", count: 25, color: "#4a5b8c" }
 ];
@@ -8304,9 +8085,6 @@ const VIDEO_PLAYLISTS = [
 let videoZoneActiveGenre = "All";
 let videoZoneSearchQuery = "";
 
-// Cache of playlist id -> thumbnail URL (or null if unavailable). Populated
-// lazily via YouTube's public oEmbed endpoint, which needs no API key and
-// works directly from the browser.
 const videoThumbCache = {};
 
 async function fetchPlaylistThumbnail(playlistId) {
@@ -8530,9 +8308,6 @@ async function renderBookmarksPage() {
     return;
   }
 
-  // Prefer posts already loaded in memory; fetch any that aren't (e.g. a
-  // bookmarked post from a profile outside the current feed) directly so
-  // the full post can still be shown here.
   const postsById = {};
   USER_POSTS.forEach(p => { postsById[p.id] = p; });
   const missingIds = bookmarkRows.map(r => r.post_id).filter(id => !postsById[id]);
@@ -8547,7 +8322,7 @@ async function renderBookmarksPage() {
         if (!userPostState[post.id]) {
           userPostState[post.id] = {
             liked: false, likeCount: post.likeCount || 0, bookmarked: true, gifted: false,
-            comments: [], commentsLoaded: true, commentsLoading: false, commentsError: null, commentCount: 0, showComments: false, textExpanded: false, draftImage: null,
+            comments: [], showComments: false, textExpanded: false, draftImage: null,
             pollVoted: post.type === "poll" ? null : null
           };
         }
@@ -8562,7 +8337,6 @@ async function renderBookmarksPage() {
   body.innerHTML = bookmarkRows.map(row => {
     const post = postsById[row.post_id];
 
-    // The author already deleted this post \u2014 nothing left to show.
     if (!post) {
       return `
         <div class="bookmark-item bookmark-item-deleted">
@@ -8636,9 +8410,6 @@ function clearSearch() {
   runSearch("");
 }
 
-// Counts every hashtag currently in use across loaded posts. This is a
-// plain frequency count for now — no recency weighting or decay yet;
-// that ranking logic comes later, same as the video category scoring.
 function trendingHashtags(limit = 10) {
   const counts = {};
   USER_POSTS.forEach(p => {
@@ -8660,9 +8431,6 @@ function startOfTodayMillis() {
   return d.getTime();
 }
 
-// Trending profiles: top N by engagement received today only (likes +
-// comments, weighted, on posts created since midnight). Global signal,
-// not personalized — separate from the "For You" post ranking.
 function trendingProfilesToday(limit = 3) {
   const todayStart = startOfTodayMillis();
   const scoreByProfile = {};
@@ -8670,7 +8438,7 @@ function trendingProfilesToday(limit = 3) {
   USER_POSTS.forEach(post => {
     const s = userPostState[post.id];
     if (!s || !post.profileId || (post.createdAtMillis || 0) < todayStart) return;
-    const score = (s.likeCount || 0) + ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * 3;
+    const score = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 3;
     scoreByProfile[post.profileId] = (scoreByProfile[post.profileId] || 0) + score;
   });
 
@@ -8682,9 +8450,6 @@ function trendingProfilesToday(limit = 3) {
     .filter(Boolean);
 }
 
-// Trending posts: top N by raw aggregate engagement (likes + comments),
-// with a time-decay so currently-hot posts outrank old viral ones.
-// Uses global counts everyone can see, not the viewer's personal state.
 function trendingPostsNow(limit = 5) {
   const now = Date.now();
   return USER_POSTS
@@ -8693,7 +8458,7 @@ function trendingPostsNow(limit = 5) {
       const s = userPostState[post.id];
       const ageHours = Math.max(0, (now - (post.createdAtMillis || now)) / 3600000);
       const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
-      const engagement = (s.likeCount || 0) + ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * 4;
+      const engagement = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 4;
       return { post, score: engagement * timeDecay };
     })
     .filter(x => x.score > 0)
@@ -8742,8 +8507,6 @@ function setSearchQuery(q) {
   runSearch(q);
 }
 
-// Every profile seen this session (from posts and comments), deduped
-// by profileId, used for the People results section.
 function searchableProfiles() {
   return Object.entries(PROFILES)
     .filter(([id]) => id !== "you")
@@ -8858,8 +8621,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Featured video shown after the 1st post, then again after every 5th
-// post following that (positions 1, 6, 11, 16, ...).
 const FEATURED_VIDEO_PLAYLISTS = [
   { id: "politics", playlistId: "PLadFF3L73w94" },
   { id: "sports", playlistId: "PLKTsFeLPgTLI" },
@@ -8873,23 +8634,16 @@ const FEATURED_VIDEO_PLAYLISTS = [
 const FEATURED_VIDEO_FIRST_AT = 1;
 const FEATURED_VIDEO_REPEAT_EVERY = 5;
 
-// Same video shown inside comment lists, after the 4th comment, then
-// again after every 9th comment following that (positions 4, 13, 22, 31, ...).
 const COMMENT_VIDEO_FIRST_AT = 4;
 const COMMENT_VIDEO_REPEAT_EVERY = 9;
 
-// ---- Category interest scoring -------------------------------------
-// Each video's category is picked with a softmax over a per-user
-// interest score, instead of a uniform random pick. Scores build up
-// from dwell time (seconds a video is visible on screen) and decay
-// gradually over days so stale interest fades out.
 const CATEGORY_INTEREST_STORAGE_KEY = "categoryInterestScores";
 const CATEGORY_DECAY_TS_STORAGE_KEY = "categoryInterestLastDecayTs";
-const CATEGORY_DECAY_PER_DAY = 0.98;        // multiplicative decay applied per elapsed day
-const CATEGORY_SOFTMAX_TEMPERATURE = 1.5;   // lower = more biased to top categories
-const CATEGORY_WATCH_SCORE_PER_SEC = 0.1;   // score gained per second visible
-const CATEGORY_WATCH_SCORE_CAP_PER_VIEW = 3; // max score a single view can contribute
-const CATEGORY_VISIBILITY_THRESHOLD = 0.5;  // must be >=50% on screen to count as "watching"
+const CATEGORY_DECAY_PER_DAY = 0.98;
+const CATEGORY_SOFTMAX_TEMPERATURE = 1.5;
+const CATEGORY_WATCH_SCORE_PER_SEC = 0.1;
+const CATEGORY_WATCH_SCORE_CAP_PER_VIEW = 3;
+const CATEGORY_VISIBILITY_THRESHOLD = 0.5;
 
 function loadCategoryInterestScores() {
   let scores;
@@ -8919,8 +8673,6 @@ function saveCategoryInterestScores() {
   } catch (e) {}
 }
 
-// Softmax-weighted pick over current interest scores. All-zero scores
-// (a fresh user) fall back to a uniform random pick across categories.
 function weightedRandomCategory() {
   const exps = FEATURED_VIDEO_PLAYLISTS.map(c =>
     Math.exp((categoryInterestScores[c.id] || 0) / CATEGORY_SOFTMAX_TEMPERATURE)
@@ -8945,8 +8697,6 @@ function recordCategoryWatchSeconds(categoryId, seconds) {
 let videoDwellCounter = 0;
 const observedVideoDwellIds = new Set();
 
-// Watches a single video card's on-screen time and periodically banks
-// the watched seconds into that category's interest score.
 function attachVideoDwellTracking(container, categoryId) {
   let visibleSince = null;
   let bankedMs = 0;
@@ -8989,9 +8739,6 @@ function attachVideoDwellTracking(container, categoryId) {
   }, 3000);
 }
 
-// Finds any newly-rendered video cards in the DOM and starts tracking
-// them. Safe to call after any render pass; already-tracked cards are
-// skipped via observedVideoDwellIds.
 function attachVideoDwellTrackingToNewCards() {
   document.querySelectorAll("[data-video-dwell-id]").forEach(el => {
     const dwellId = el.getAttribute("data-video-dwell-id");
@@ -9060,18 +8807,13 @@ function interleaveCommentVideo(items) {
   return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
-// ---- User posts feed ranking (For You tab) --------------------------
-// The "For You" tab is scored/ranked rather than shown in pure
-// chronological order. "Stars" tab (people you've starred, i.e. your
-// "following" list) stays pure reverse-chronological, same as X's
-// "Following" tab vs its algorithmic "For You" tab.
-const POST_SCORE_DECAY_LAMBDA = 0.02;       // higher = faster drop-off with age (per hour)
+const POST_SCORE_DECAY_LAMBDA = 0.02;
 const POST_SCORE_LIKE_WEIGHT = 1;
-const POST_SCORE_COMMENT_WEIGHT = 4;        // comments signal deeper engagement than likes
+const POST_SCORE_COMMENT_WEIGHT = 4;
 const POST_SCORE_BOOKMARK_WEIGHT = 6;
-const POST_SCORE_GIFT_WEIGHT = 10;          // gifting is the strongest signal available
-const POST_SCORE_STARRED_AUTHOR_BOOST = 8;  // "in-network": you've starred this author
-const POST_SCORE_BASE = 1;                  // keeps brand-new, zero-engagement posts from scoring 0
+const POST_SCORE_GIFT_WEIGHT = 10;
+const POST_SCORE_STARRED_AUTHOR_BOOST = 8;
+const POST_SCORE_BASE = 1;
 
 function postEngagementScore(post) {
   const s = userPostState[post.id];
@@ -9082,7 +8824,7 @@ function postEngagementScore(post) {
 
   const engagement =
     (s.likeCount || 0) * POST_SCORE_LIKE_WEIGHT +
-    ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0))) * POST_SCORE_COMMENT_WEIGHT +
+    (s.comments ? s.comments.length : 0) * POST_SCORE_COMMENT_WEIGHT +
     (s.bookmarked ? 1 : 0) * POST_SCORE_BOOKMARK_WEIGHT +
     (s.gifted ? 1 : 0) * POST_SCORE_GIFT_WEIGHT;
 
@@ -9091,64 +8833,11 @@ function postEngagementScore(post) {
   return (engagement + authorBoost + POST_SCORE_BASE) * timeDecay;
 }
 
-// Ranks posts by score, highest first. Ties (e.g. two brand-new posts
-// with no engagement yet) fall back to newest-first since USER_POSTS
-// is already loaded in that order.
 function rankForYouFeed(posts) {
   return posts
     .map((post, index) => ({ post, index, score: postEngagementScore(post) }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map(x => x.post);
-}
-
-// Patches like/comment-count/bookmark state for posts already on screen
-// in the main feed, without touching the feed's DOM tree. Used for
-// background poll updates specifically so video iframes (YouTube embeds
-// interleaved into the feed) never get torn down and restarted just
-// because someone's like count ticked up somewhere on the page.
-// Does NOT reorder the feed or add/remove cards — that still waits for
-// a full render() (tab switch, manual pull-to-refresh, banner tap, etc).
-function patchVisiblePostCounts(changedIds) {
-  const feedEl = document.getElementById("feed");
-  if (!feedEl) return;
-  changedIds.forEach(id => {
-    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
-    if (!card) return; // not currently rendered (e.g. off in a pending-new-posts state) — nothing to patch
-    const post = USER_POSTS.find(p => p.id === id);
-    const s = userPostState[id];
-    if (!post || !s) return;
-
-    const replyCount = card.querySelector(".stat-reply-count");
-    if (replyCount) replyCount.textContent = ((s.commentsLoaded ? s.comments.length : (s.commentCount || 0)) || "");
-
-    const likeBtn = card.querySelector(".stat.like");
-    if (likeBtn) {
-      likeBtn.classList.toggle("active", Boolean(s.liked));
-      const likeCount = likeBtn.querySelector(".stat-like-count");
-      if (likeCount) likeCount.textContent = fmt(s.likeCount);
-    }
-
-    const bookmarkBtn = card.querySelector(".stat.bookmark");
-    if (bookmarkBtn) bookmarkBtn.classList.toggle("active", Boolean(s.bookmarked));
-
-    // Polls have no video/iframe, so it's safe to just re-render their
-    // embed slot wholesale to pick up new vote counts.
-    if (post.type === "poll") {
-      const slot = card.querySelector(".post-embed-slot");
-      if (slot) slot.innerHTML = renderPollPost(post, s);
-    }
-  });
-}
-
-// Removes cards for posts deleted server-side, without a full render().
-function removeVisiblePostCards(deletedIds) {
-  if (!deletedIds.length) return;
-  const feedEl = document.getElementById("feed");
-  if (!feedEl) return;
-  deletedIds.forEach(id => {
-    const card = feedEl.querySelector(`[data-post-id="${id}"]`);
-    if (card) card.remove();
-  });
 }
 
 function render() {
@@ -9199,8 +8888,6 @@ function refreshRelativeTimes() {
     const ts = Number(el.dataset.ts);
     if (!Number.isNaN(ts)) el.textContent = formatRelativeTime(ts);
   });
-  // Re-render if any visible poll just crossed its close time, so the
-  // "Voting closes ..." line flips to "Voting closed" without a manual refresh.
   const feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
   const justClosed = feedPosts.some(p => p.type === "poll" && p.pollEndsAt &&
     Date.now() - new Date(p.pollEndsAt).getTime() >= 0 &&
