@@ -1708,12 +1708,16 @@
     font-size: 13.5px;
     font-weight: 600;
     padding: 10px 18px;
-    border-radius: 999px;
+    border-radius: 18px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     z-index: 95;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease;
+    max-width: min(92vw, 420px);
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -4609,6 +4613,12 @@ function removeVisiblePostCards(deletedIds) {
 const likeRequestChains = new Map();
 const bookmarkRequestChains = new Map();
 
+function describeSupabaseError(e) {
+  if (!e) return "Unknown error";
+  const parts = [e.message, e.details, e.hint, e.code].filter(Boolean);
+  return parts.length ? parts.join(" — ") : String(e);
+}
+
 function toggleUserPostLike(id) {
   const s = userPostState[id];
   if (!s) return;
@@ -4648,7 +4658,7 @@ function toggleUserPostLike(id) {
         current.liked = wasLiked;
         current.likeCount = prevCount;
         render();
-        showToast("Couldn't update like. Check your connection.");
+        showToast("Like failed: " + describeSupabaseError(e), { duration: 6000 });
       }
     }
   });
@@ -4686,7 +4696,7 @@ function toggleUserPostBookmark(id) {
         current.bookmarked = wasBookmarked;
         render();
         if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
-        showToast("Couldn't update bookmark. Check your connection.");
+        showToast("Bookmark failed: " + describeSupabaseError(e), { duration: 6000 });
       }
     }
   });
