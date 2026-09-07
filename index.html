@@ -2190,6 +2190,7 @@
     border-top: 1px solid var(--line);
     flex-shrink: 0;
   }
+  .ai-input-wrap { flex: 1; display: flex; flex-direction: column; }
   .ai-input {
     flex: 1;
     background: var(--paper);
@@ -2203,6 +2204,14 @@
     max-height: 110px;
   }
   .ai-input:focus { outline: none; border-color: var(--accent); }
+  .ai-input-count {
+    align-self: flex-end;
+    font-size: 11px;
+    color: var(--ink-faint);
+    padding: 3px 10px 0;
+  }
+  .ai-input-count.warn { color: #e0a83f; }
+  .ai-input-count.limit { color: #e05f5f; font-weight: 700; }
   .ai-send-btn {
     width: 38px; height: 38px; border-radius: 50%;
     background: var(--accent); color: #0d1116;
@@ -2644,7 +2653,10 @@
     </div>
     <div class="ai-body" id="aiBody"></div>
     <div class="ai-input-bar">
-      <textarea class="ai-input" id="aiInput" rows="1" placeholder="Ask Why anything…" oninput="autoGrowAIInput(this)" onkeydown="handleAIInputKeydown(event)"></textarea>
+      <div class="ai-input-wrap">
+        <textarea class="ai-input" id="aiInput" rows="1" maxlength="200" placeholder="Ask Why anything…" oninput="handleAIInputInput(this)" onkeydown="handleAIInputKeydown(event)"></textarea>
+        <div class="ai-input-count" id="aiInputCount">0/200</div>
+      </div>
       <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()" aria-label="Send">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
       </button>
@@ -6736,6 +6748,11 @@ function haptic(style) {
 // in the chat UI (kept separate since tool_result blocks aren't
 // meant to be displayed as chat bubbles).
 const WHY_APP_ICON_URL = "https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png";
+// Max characters allowed in a single message to Why. Enforced here via
+// maxlength + this check, AND again server-side in the ai-agent edge
+// function -- never trust the client alone, since the function can be
+// invoked directly.
+const AI_INPUT_MAX_LEN = 200;
 let aiMessages = [];
 let aiDisplayItems = [];
 let aiSending = false;
@@ -6769,6 +6786,20 @@ function autoGrowAIInput(el) {
   el.style.height = Math.min(el.scrollHeight, 110) + "px";
 }
 
+function handleAIInputInput(el) {
+  autoGrowAIInput(el);
+  updateAIInputCount(el);
+}
+
+function updateAIInputCount(el) {
+  const counter = document.getElementById("aiInputCount");
+  if (!counter) return;
+  const len = el.value.length;
+  counter.textContent = `${len}/${AI_INPUT_MAX_LEN}`;
+  counter.classList.toggle("limit", len >= AI_INPUT_MAX_LEN);
+  counter.classList.toggle("warn", len >= AI_INPUT_MAX_LEN * 0.85 && len < AI_INPUT_MAX_LEN);
+}
+
 function handleAIInputKeydown(e) {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -6778,7 +6809,8 @@ function handleAIInputKeydown(e) {
 
 function askAI(text) {
   const input = document.getElementById("aiInput");
-  input.value = text;
+  input.value = text.slice(0, AI_INPUT_MAX_LEN);
+  updateAIInputCount(input);
   sendAIMessage();
 }
 
@@ -7095,10 +7127,11 @@ function cancelAIAction(actionId) {
 async function sendAIMessage() {
   if (aiSending) return;
   const input = document.getElementById("aiInput");
-  const text = input.value.trim();
+  const text = input.value.trim().slice(0, AI_INPUT_MAX_LEN);
   if (!text) return;
   input.value = "";
   autoGrowAIInput(input);
+  updateAIInputCount(input);
   aiDisplayItems.push({ kind: "user", text });
   aiMessages.push({ role: "user", content: text });
   renderAIBody();
