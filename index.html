@@ -4632,15 +4632,14 @@ function toggleUserPostLike(id) {
   const prevChain = likeRequestChains.get(id) || Promise.resolve();
   const chain = prevChain.catch(() => {}).then(async () => {
     try {
+      // The RPC owns the likes row (insert/delete) as well as the atomic count
+      // update, so we only call it here — no separate client-side write to
+      // the likes table, which previously caused a duplicate-key error once
+      // the likes_post_telegram_unique constraint was added.
       const { error: rpcError } = await sb.rpc("increment_like_count", {
         p_post_id: id, p_telegram_id: telegramId, p_delta: delta
       });
       if (rpcError) throw rpcError;
-
-      const writeResult = nextLiked
-        ? await sb.from("likes").insert({ post_id: id, telegram_id: telegramId })
-        : await sb.from("likes").delete().eq("post_id", id).eq("telegram_id", telegramId);
-      if (writeResult.error) throw writeResult.error;
     } catch (e) {
       console.error("Like update failed, rolling back", e);
       const current = userPostState[id];
