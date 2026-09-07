@@ -4159,6 +4159,7 @@ const FEED_POLL_INTERVAL_MS = 45 * 1000;
 let feedRenderedIds = new Set();
 let pendingNewPosts = new Map();
 let feedPollTimer = null;
+let isColdAppLoad = true;
 
 const FEED_PAGE_SIZE = 20;
 let feedVisibleCount = FEED_PAGE_SIZE;
@@ -4430,6 +4431,13 @@ document.addEventListener("touchcancel", () => {
 
 async function loadUserPosts(options = {}) {
   const manual = options.manual === true;
+  // Closing and reopening the app counts as a fresh "app open": the very
+  // first loadUserPosts() call of a session should always fully replace
+  // and re-randomize the feed, never sit behind the "new posts" banner —
+  // even if a locally cached feed got painted first (see
+  // paintCachedFeedImmediately) and made feedRenderedIds non-empty.
+  const forceFreshApply = manual || isColdAppLoad;
+  isColdAppLoad = false;
   await loadMyStarredIds();
 
   let freshPosts = [];
@@ -4506,7 +4514,7 @@ async function loadUserPosts(options = {}) {
     };
   }
 
-  if (manual) {
+  if (forceFreshApply) {
     resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
