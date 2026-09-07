@@ -2359,6 +2359,8 @@
   .ai-action-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-faint); margin-bottom: 6px; }
   .ai-action-body { color: var(--ink); line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; }
   .ai-action-meta { font-size: 11.5px; color: var(--ink-faint); margin: -6px 0 10px; }
+  .ai-action-field { margin-bottom: 10px; }
+  .ai-action-field .form-note { display: block; margin-bottom: 6px; }
   .ai-action-row { display: flex; gap: 8px; }
   .ai-action-btn {
     flex: 1;
@@ -7228,11 +7230,17 @@ function renderAIItem(item) {
           <div class="ai-action-status">${escapeHtml(item.statusText || item.label)}</div>
         </div>`;
     }
+    const pollEndsField = item.needsPollEnds ? `
+        <div class="ai-action-field">
+          <label class="form-note" for="aiPollEnds-${item.actionId}">When should this poll close?</label>
+          <input class="form-input" type="datetime-local" id="aiPollEnds-${item.actionId}" value="${item.prefillEndsAt || ""}" min="${toLocalDatetimeInputValue(new Date(Date.now() + 60000))}" />
+        </div>` : "";
     return `
       <div class="ai-action-card">
         <div class="ai-action-label">${escapeHtml(item.label)}</div>
         <div class="ai-action-body">${escapeHtml(item.body)}</div>
         ${item.meta ? `<div class="ai-action-meta">${escapeHtml(item.meta)}</div>` : ""}
+        ${pollEndsField}
         <div class="ai-action-row">
           <button class="ai-action-btn confirm" onclick="confirmAIAction('${item.actionId}')">Confirm</button>
           <button class="ai-action-btn cancel" onclick="cancelAIAction('${item.actionId}')">Cancel</button>
@@ -7374,6 +7382,27 @@ async function runCreatePostForAI(input) {
   }
 }
 
+const AI_POLL_MAX_DURATION_DAYS = 30;
+
+function toLocalDatetimeInputValue(date) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// No default, ever. The AI can suggest a close time (used only to prefill the
+// picker), but the actual value that gets saved must come from the user
+// explicitly setting it on the calendar/clock widget. If it's missing, empty,
+// or in the past, this returns null and the caller must refuse to post —
+// never fall back to "no expiry".
+function validateAIPollEndsAt(rawValue) {
+  if (!rawValue) return null;
+  const now = Date.now();
+  const parsed = new Date(rawValue).getTime();
+  if (isNaN(parsed) || parsed <= now) return null;
+  const maxMs = now + AI_POLL_MAX_DURATION_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(Math.min(parsed, maxMs)).toISOString();
+}
+
 async function runCreatePollForAI(input) {
   if (!requireTelegramSession()) return { success: false, error: "not_signed_in" };
   if (!requireIdentitySetup()) return { success: false, error: "needs_profile_setup" };
@@ -7386,12 +7415,14 @@ async function runCreatePollForAI(input) {
     question = truncateToWeightedLimit(question, POLL_QUESTION_MAX).trim();
   }
   options = options.map(o => computeWeightedLength(o) > POLL_OPTION_MAX ? truncateToWeightedLimit(o, POLL_OPTION_MAX).trim() : o);
+  const pollEndsAt = validateAIPollEndsAt(input && (input.ends_at || input.poll_ends_at));
+  if (!pollEndsAt) return { success: false, error: "missing_expiry" };
   try {
     const { data, error } = await sb.from("posts").insert({
       type: "poll",
       question,
       options: options.map(text => ({ text, votes: 0 })),
-      poll_ends_at: null,
+      poll_ends_at: pollEndsAt,
       name: PROFILES.you.name,
       username: PROFILES.you.username,
       telegram_id: String(telegramUser.id),
@@ -7405,7 +7436,7 @@ async function runCreatePollForAI(input) {
     newPost.profileId = "you";
     queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null });
     haptic("medium");
-    return { success: true, post_id: newPost.id };
+    return { success: true, post_id: newPost.id, poll_ends_at: pollEndsAt };
   } catch (e) {
     return { success: false, error: "insert_failed" };
   }
@@ -7460,11 +7491,14 @@ function runAITool(name, input, toolUseId) {
   }
   if (name === "create_poll") {
     const actionId = `act-${++aiActionSeq}`;
+    const suggested = validateAIPollEndsAt(input && (input.ends_at || input.poll_ends_at));
     aiPendingActions[actionId] = { toolUseId, name, input };
     aiDisplayItems.push({
       kind: "action",
       actionId,
       resolved: false,
+      needsPollEnds: true,
+      prefillEndsAt: suggested ? toLocalDatetimeInputValue(new Date(suggested)) : "",
       label: "New poll",
       body: `${(input && input.question) || ""}\n${((input && input.options) || []).map(o => "• " + o).join("\n")}`
     });
@@ -7476,6 +7510,16 @@ function runAITool(name, input, toolUseId) {
 async function confirmAIAction(actionId) {
   const action = aiPendingActions[actionId];
   if (!action) return;
+  if (action.name === "create_poll") {
+    const pickerEl = document.getElementById(`aiPollEnds-${actionId}`);
+    const rawValue = pickerEl ? pickerEl.value : "";
+    const isoValue = validateAIPollEndsAt(rawValue);
+    if (!isoValue) {
+      showToast(rawValue ? "Pick a close time in the future." : "Set when this poll closes first.");
+      return;
+    }
+    action.input = { ...action.input, ends_at: isoValue };
+  }
   delete aiPendingActions[actionId];
   haptic("light");
   const result = action.name === "create_post"
