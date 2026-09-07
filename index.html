@@ -450,6 +450,16 @@
   .gift-suggest-btn:hover { background: rgba(245, 166, 35, 0.12); }
   .gift-suggest-empty { padding: 18px 2px; font-size: 13.5px; color: var(--ink-faint); text-align: center; }
 
+  .post-pinned-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
   /* ---------- video zone ---------- */
   .videozone-page {
     position: fixed;
@@ -2104,6 +2114,16 @@
   .ai-topbar-clear { font-size: 13px; color: var(--ink-faint); font-weight: 600; }
   .ai-topbar-clear:hover { color: var(--ink); }
 
+  .ai-usage-banner {
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    text-align: center;
+    display: none;
+  }
+  .ai-usage-banner.ai-usage-empty { color: #f5a623; }
+  .ai-usage-upgrade { color: var(--accent); font-weight: 700; cursor: pointer; }
+
   .ai-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 
   .ai-intro { text-align: center; padding: 30px 20px; color: var(--ink-soft); }
@@ -2652,6 +2672,7 @@
       <button class="ai-topbar-clear" onclick="clearAIChat()">Clear</button>
     </div>
     <div class="ai-body" id="aiBody"></div>
+    <div class="ai-usage-banner" id="aiUsageBanner"></div>
     <div class="ai-input-bar">
       <div class="ai-input-wrap">
         <textarea class="ai-input" id="aiInput" rows="1" maxlength="200" placeholder="Ask Why anything…" oninput="handleAIInputInput(this)" onkeydown="handleAIInputKeydown(event)"></textarea>
@@ -3046,6 +3067,7 @@
 
   <div class="post-options-overlay" id="postOptionsOverlay" onclick="closePostOptions()"></div>
   <div class="post-options-sheet" id="postOptionsSheet">
+    <button class="post-options-btn" id="postOptionsPinBtn">Pin to profile</button>
     <button class="post-options-btn" id="postOptionsEditBtn">Edit</button>
     <button class="post-options-btn post-options-delete" id="postOptionsDeleteBtn">Delete</button>
     <button class="post-options-btn post-options-cancel" onclick="closePostOptions()">Cancel</button>
@@ -3112,10 +3134,10 @@ function formatJoinedDate(isoString) {
 async function fetchOtherProfileDetails(id) {
   const p = PROFILES[id];
   if (!p || id === "you" || !sb || p.telegramId === null || p.telegramId === undefined) return;
-  hydratePremiumBadges([p.telegramId]);
+  await hydratePremiumBadges([p.telegramId]);
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, created_at")
+      .select("bio, created_at, pinned_post_id")
       .eq("telegram_id", String(p.telegramId))
       .maybeSingle();
     if (!data) return;
@@ -3123,9 +3145,14 @@ async function fetchOtherProfileDetails(id) {
     if (data.bio) { p.bio = data.bio; changed = true; }
     const joined = formatJoinedDate(data.created_at);
     if (joined) { p.joined = joined; changed = true; }
+    if ((data.pinned_post_id || null) !== (p.pinnedPostId || null)) {
+      p.pinnedPostId = data.pinned_post_id || null;
+      changed = true;
+    }
     if (changed && currentProfileId === id) {
       document.getElementById("profileBio").textContent = p.bio;
       renderProfileMeta(id);
+      renderProfilePosts();
     }
   } catch (e) {}
 }
@@ -3255,11 +3282,45 @@ function closeProfile() {
   syncBackButton();
 }
 
+// Fetches a post by id and registers it into USER_POSTS/userPostState if
+// it isn't already loaded (e.g. a pinned post that's aged out of the
+// feed cache, or belongs to someone whose posts we haven't loaded).
+async function ensurePostLoaded(postId) {
+  if (findUserPostById(postId)) return true;
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.from("posts").select("*").eq("id", postId).maybeSingle();
+    if (error || !data) return false;
+    const post = mapPostRow(data);
+    ensureTelegramPostProfile(post);
+    USER_POSTS.push(post);
+    if (!userPostState[post.id]) {
+      userPostState[post.id] = {
+        liked: false, likeCount: post.likeCount || 0, bookmarked: false, gifted: false,
+        comments: [], showComments: false, textExpanded: false, draftImage: null,
+        pollVoted: post.type === "poll" ? null : undefined
+      };
+    }
+    return true;
+  } catch (e) {
+    console.error("Could not load post", postId, e);
+    return false;
+  }
+}
+
 function renderProfilePosts() {
   const container = document.getElementById("profilePosts");
   if (!container || !currentProfileId) return;
   const posts = USER_POSTS.filter(p => p.profileId === currentProfileId && userPostState[p.id]);
-  if (!posts.length) {
+
+  const pinnedId = isPinDisplayed(currentProfileId) ? PROFILES[currentProfileId].pinnedPostId : null;
+  if (pinnedId && !findUserPostById(pinnedId)) {
+    // Pinned post isn't in the loaded cache -- fetch it once, then
+    // re-render. Avoids doing this fetch on every single render call.
+    ensurePostLoaded(pinnedId).then(ok => { if (ok && currentProfileId) renderProfilePosts(); });
+  }
+
+  if (!posts.length && !pinnedId) {
     container.innerHTML = `
       <div class="feed-empty">
         <div class="feed-empty-title">No posts yet</div>
@@ -3268,10 +3329,15 @@ function renderProfilePosts() {
     `;
     return;
   }
-  container.innerHTML = posts.map(profilePostCardHTML).join("");
+
+  const pinnedPost = pinnedId ? findUserPostById(pinnedId) : null;
+  const rest = posts.filter(p => !pinnedPost || p.id !== pinnedPost.id);
+  const ordered = pinnedPost ? [pinnedPost, ...rest] : rest;
+
+  container.innerHTML = ordered.map(p => profilePostCardHTML(p, p === pinnedPost)).join("");
 }
 
-function profilePostCardHTML(post) {
+function profilePostCardHTML(post, isPinned) {
   const s = userPostState[post.id];
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
@@ -3279,6 +3345,7 @@ function profilePostCardHTML(post) {
     <article class="post post-preview" onclick="openPostDetail('${post.id}')">
       <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
+        ${isPinned ? `<div class="post-pinned-label">${pinIcon()} Pinned</div>` : ""}
         <div class="post-meta">
           <span class="post-source" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
@@ -3290,7 +3357,7 @@ function profilePostCardHTML(post) {
         </div>
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
         <div class="stat-row">
           <button class="stat reply" onclick="event.stopPropagation(); openPostDetail('${post.id}')">
             ${replyIcon()}<span>${s.comments.length || ""}</span>
@@ -4748,6 +4815,7 @@ async function submitPremiumPurchase() {
           if (isPremiumUser()) {
             setPremiumStatus("You're Premium!", "success");
             renderProfileMeta("you");
+            renderAIUsageBanner();
             setTimeout(closePremiumModal, 900);
             return;
           }
@@ -5963,13 +6031,27 @@ function openPostOptions(postId) {
   editBtn.style.display = "";
   editBtn.onclick = () => { closePostOptions(); editUserPost(postId); };
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserPost(postId); };
+
+  // Pinning is a Premium perk, and only ever applies to your own posts
+  // (this sheet is only opened for posts you own in the first place).
+  const pinBtn = document.getElementById("postOptionsPinBtn");
+  if (isPremiumUser()) {
+    pinBtn.style.display = "";
+    const isPinned = String(PROFILES.you.pinnedPostId || "") === String(postId);
+    pinBtn.textContent = isPinned ? "Unpin from profile" : "Pin to profile";
+    pinBtn.onclick = () => { closePostOptions(); togglePinPost(isPinned ? null : postId); };
+  } else {
+    pinBtn.style.display = "none";
+  }
+
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
 }
 
 function openCommentOptions(postId, commentId) {
-  // Comments can only be deleted, never edited.
+  // Comments can only be deleted, never edited or pinned.
   document.getElementById("postOptionsEditBtn").style.display = "none";
+  document.getElementById("postOptionsPinBtn").style.display = "none";
   document.getElementById("postOptionsDeleteBtn").onclick = () => { closePostOptions(); deleteUserComment(postId, commentId); };
   document.getElementById("postOptionsOverlay").classList.add("open");
   document.getElementById("postOptionsSheet").classList.add("open");
@@ -5978,6 +6060,32 @@ function openCommentOptions(postId, commentId) {
 function closePostOptions() {
   document.getElementById("postOptionsOverlay").classList.remove("open");
   document.getElementById("postOptionsSheet").classList.remove("open");
+}
+
+// Pinning is a Premium perk. We don't clear pinned_post_id when Premium
+// lapses -- same pattern as the verified badge, which is computed live
+// from premium_until rather than manually cleaned up. Display logic
+// (isPinDisplayed) simply stops showing it as pinned once Premium is no
+// longer active, and it silently reactivates if they resubscribe.
+async function togglePinPost(postId) {
+  if (!sb || !telegramUser) return;
+  PROFILES.you.pinnedPostId = postId; // optimistic
+  if (currentProfileId === "you") renderProfilePosts();
+  try {
+    await sb.from("profiles").update({ pinned_post_id: postId }).eq("telegram_id", String(telegramUser.id));
+  } catch (e) {
+    console.error("Could not update pinned post", e);
+  }
+}
+
+// Whether profileId's pinned post should currently be shown as pinned --
+// requires both a pinned_post_id being set AND that profile's Premium
+// still being active right now (not just at the time they pinned it).
+function isPinDisplayed(profileId) {
+  const p = PROFILES[profileId];
+  if (!p || !p.pinnedPostId) return false;
+  const isPremium = profileId === "you" ? isPremiumUser() : isPremiumTelegramId(p.telegramId);
+  return isPremium;
 }
 
 function editUserPost(postId) {
@@ -6268,6 +6376,9 @@ function imageIcon() {
 }
 function moreIcon() {
   return `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
+}
+function pinIcon() {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 3l5 5-4 2-1 6-3-3-5 5-1-1 5-5-3-3 6-1 2-4z"/></svg>`;
 }
 function thumbUpIcon(filled) {
   return `<svg width="14" height="14" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9 1 1 .6 5.6H19a2 2 0 011.96 2.4l-1.6 8A2 2 0 0117.4 20H7z"/><path d="M7 11H3v11h4"/></svg>`;
@@ -6771,6 +6882,7 @@ function openAI() {
   document.getElementById("aiPage").classList.add("open");
   syncBackButton();
   renderAIBody();
+  renderAIUsageBanner();
   setTimeout(() => {
     const input = document.getElementById("aiInput");
     if (input) input.focus();
@@ -7132,8 +7244,53 @@ function cancelAIAction(actionId) {
   runAITurn();
 }
 
+const AI_FREE_DAILY_LIMIT = 5;
+
+// Remaining free messages for today. Premium users are unlimited.
+// Non-premium: 5/day, tracked server-side on profiles.ai_messages_used_today
+// (see loadMyProfile for the day-rollover handling).
+function aiMessagesRemainingToday() {
+  if (isPremiumUser()) return Infinity;
+  return Math.max(0, AI_FREE_DAILY_LIMIT - (PROFILES.you.aiMessagesUsedToday || 0));
+}
+
+function renderAIUsageBanner() {
+  const el = document.getElementById("aiUsageBanner");
+  if (!el) return;
+  if (isPremiumUser()) {
+    el.style.display = "none";
+    return;
+  }
+  const remaining = aiMessagesRemainingToday();
+  el.style.display = "";
+  el.innerHTML = remaining > 0
+    ? `${remaining} of ${AI_FREE_DAILY_LIMIT} free messages left today`
+    : `You've used today's ${AI_FREE_DAILY_LIMIT} free messages. <span class="ai-usage-upgrade" onclick="openPremiumModal()">Go Premium</span> for unlimited.`;
+  el.classList.toggle("ai-usage-empty", remaining === 0);
+}
+
+async function recordAIMessageSent() {
+  if (isPremiumUser() || !sb || !telegramUser) return;
+  PROFILES.you.aiMessagesUsedToday = (PROFILES.you.aiMessagesUsedToday || 0) + 1;
+  renderAIUsageBanner();
+  const todayUTC = new Date().toISOString().slice(0, 10);
+  try {
+    await sb.from("profiles").update({
+      ai_messages_used_today: PROFILES.you.aiMessagesUsedToday,
+      ai_messages_reset_date: todayUTC
+    }).eq("telegram_id", String(telegramUser.id));
+  } catch (e) {
+    console.error("Could not record AI usage", e);
+  }
+}
+
 async function sendAIMessage() {
   if (aiSending) return;
+  if (aiMessagesRemainingToday() <= 0) {
+    aiDisplayItems.push({ kind: "text", text: `You've used today's ${AI_FREE_DAILY_LIMIT} free messages. Go Premium for unlimited access to Why.` });
+    renderAIBody();
+    return;
+  }
   const input = document.getElementById("aiInput");
   const text = input.value.trim().slice(0, AI_INPUT_MAX_LEN);
   if (!text) return;
@@ -7144,6 +7301,7 @@ async function sendAIMessage() {
   aiMessages.push({ role: "user", content: text });
   renderAIBody();
   haptic("light");
+  await recordAIMessageSent();
   await runAITurn();
 }
 
@@ -7422,7 +7580,7 @@ async function loadMyProfile() {
   let hasUsername = false;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at, premium_until")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at, premium_until, pinned_post_id, ai_messages_used_today, ai_messages_reset_date")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -7431,6 +7589,12 @@ async function loadMyProfile() {
       if (data.bio_updated_at) PROFILES.you.bioUpdatedAt = data.bio_updated_at;
       if (data.ton_wallet) PROFILES.you.tonWallet = data.ton_wallet;
       PROFILES.you.premiumUntil = data.premium_until || null;
+      PROFILES.you.pinnedPostId = data.pinned_post_id || null;
+      // If the stored reset date isn't today (server-side UTC date), the
+      // count on record is stale from a previous day -- treat it as 0
+      // until the next actual send re-syncs it server-side.
+      const todayUTC = new Date().toISOString().slice(0, 10);
+      PROFILES.you.aiMessagesUsedToday = (data.ai_messages_reset_date === todayUTC) ? (data.ai_messages_used_today || 0) : 0;
       PROFILES.you.verified = isPremiumUser();
       if (Array.isArray(data.edit_log)) PROFILES.you.editLog = data.edit_log;
       const joined = formatJoinedDate(data.created_at);
