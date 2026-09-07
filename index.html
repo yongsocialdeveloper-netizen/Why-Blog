@@ -8457,7 +8457,7 @@ function trendingPostsNow(limit = 5) {
     .map(post => {
       const s = userPostState[post.id];
       const ageHours = Math.max(0, (now - (post.createdAtMillis || now)) / 3600000);
-      const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
+      const timeDecay = Math.pow(0.5, ageHours / 24);
       const engagement = (s.likeCount || 0) + (s.comments ? s.comments.length : 0) * 4;
       return { post, score: engagement * timeDecay };
     })
@@ -8820,7 +8820,8 @@ function postEngagementScore(post) {
   if (!s) return 0;
 
   const ageHours = Math.max(0, (Date.now() - (post.createdAtMillis || Date.now())) / 3600000);
-  const timeDecay = 1 / (1 + POST_SCORE_DECAY_LAMBDA * ageHours);
+  // 24-hour half-life decay: score drops by 50% every 24 hours
+  const timeDecay = Math.pow(0.5, ageHours / 24);
 
   const engagement =
     (s.likeCount || 0) * POST_SCORE_LIKE_WEIGHT +
