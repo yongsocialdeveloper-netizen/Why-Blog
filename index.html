@@ -1434,6 +1434,43 @@
   .feed-empty-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px; }
   .feed-empty-sub { font-size: 13.5px; color: var(--ink-soft); }
 
+  .feed-sentinel { height: 1px; }
+
+  .feed-loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 22px 0 34px;
+    color: var(--ink-faint);
+    font-size: 12.5px;
+  }
+  .feed-loading-spinner {
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    animation: gift-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .feed-end {
+    padding: 26px 24px 40px;
+    text-align: center;
+  }
+  .feed-end-check {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+  }
+  .feed-end-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .feed-end-sub { font-size: 12.5px; color: var(--ink-faint); }
+
   .new-posts-banner {
     position: fixed;
     left: 50%;
@@ -3901,6 +3938,7 @@ async function setFeedTab(tab) {
   document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
   document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
   haptic("light");
+  feedVisibleCount = FEED_PAGE_SIZE;
   render();
   if (tab === "stars") {
     await loadMyStarredIds();
@@ -4118,6 +4156,12 @@ let feedRenderedIds = new Set();
 let pendingNewPosts = new Map();
 let feedPollTimer = null;
 
+const FEED_PAGE_SIZE = 20;
+let feedVisibleCount = FEED_PAGE_SIZE;
+let feedIsLoadingMore = false;
+let feedInfiniteObserver = null;
+let currentRankedFeedPosts = [];
+
 function loadFeedCache() {
   try {
     const raw = localStorage.getItem(FEED_CACHE_KEY);
@@ -4158,6 +4202,7 @@ function paintCachedFeedImmediately() {
     };
   });
   feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+  feedVisibleCount = FEED_PAGE_SIZE;
   render();
   return true;
 }
@@ -4193,6 +4238,7 @@ function applyFreshFeedData(freshPosts, freshState, forceApply) {
     feedRenderedIds = freshIds;
     pendingNewPosts.clear();
     hideNewPostsBanner();
+    feedVisibleCount = FEED_PAGE_SIZE;
     render();
     saveFeedCache(USER_POSTS);
     return;
@@ -4231,6 +4277,7 @@ function applyPendingNewPosts() {
   newOnes.forEach(({ post, state }) => { userPostState[post.id] = state; });
   USER_POSTS = newOnes.map(x => x.post).concat(USER_POSTS);
   feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
+  feedVisibleCount += newOnes.length;
   pendingNewPosts.clear();
   hideNewPostsBanner();
   render();
@@ -4559,35 +4606,92 @@ function removeVisiblePostCards(deletedIds) {
   });
 }
 
+const likeRequestChains = new Map();
+const bookmarkRequestChains = new Map();
+
 function toggleUserPostLike(id) {
   const s = userPostState[id];
-  s.liked = !s.liked;
-  s.likeCount += s.liked ? 1 : -1;
+  if (!s) return;
+
+  const wasLiked = Boolean(s.liked);
+  const prevCount = s.likeCount || 0;
+  const nextLiked = !wasLiked;
+
+  // Optimistic update
+  s.liked = nextLiked;
+  s.likeCount = Math.max(0, prevCount + (nextLiked ? 1 : -1));
   haptic("light");
   render();
-  if (!sb) return;
-  const delta = s.liked ? 1 : -1;
+
+  if (!sb || !telegramUser || telegramUser.id === null || telegramUser.id === undefined) return;
+
   const telegramId = String(telegramUser.id);
-  sb.rpc("increment_like_count", { p_post_id: id, p_telegram_id: telegramId, p_delta: delta }).then(() => {});
-  if (s.liked) {
-    sb.from("likes").insert({ post_id: id, telegram_id: telegramId }).then(() => {});
-  } else {
-    sb.from("likes").delete().eq("post_id", id).eq("telegram_id", telegramId).then(() => {});
-  }
+  const delta = nextLiked ? 1 : -1;
+
+  // Chain requests per post so rapid double-taps don't race each other server-side
+  const prevChain = likeRequestChains.get(id) || Promise.resolve();
+  const chain = prevChain.catch(() => {}).then(async () => {
+    try {
+      const { error: rpcError } = await sb.rpc("increment_like_count", {
+        p_post_id: id, p_telegram_id: telegramId, p_delta: delta
+      });
+      if (rpcError) throw rpcError;
+
+      const writeResult = nextLiked
+        ? await sb.from("likes").insert({ post_id: id, telegram_id: telegramId })
+        : await sb.from("likes").delete().eq("post_id", id).eq("telegram_id", telegramId);
+      if (writeResult.error) throw writeResult.error;
+    } catch (e) {
+      console.error("Like update failed, rolling back", e);
+      const current = userPostState[id];
+      // Only roll back if nothing newer has since changed this post's like state
+      if (current && current.liked === nextLiked) {
+        current.liked = wasLiked;
+        current.likeCount = prevCount;
+        render();
+        showToast("Couldn't update like. Check your connection.");
+      }
+    }
+  });
+  likeRequestChains.set(id, chain);
 }
 
 function toggleUserPostBookmark(id) {
   const s = userPostState[id];
-  s.bookmarked = !s.bookmarked;
+  if (!s) return;
+
+  const wasBookmarked = Boolean(s.bookmarked);
+  const nextBookmarked = !wasBookmarked;
+
+  // Optimistic update
+  s.bookmarked = nextBookmarked;
   haptic("light");
   render();
-  if (!sb) return;
-  if (s.bookmarked) {
-    sb.from("bookmarks").insert({ telegram_id: String(telegramUser.id), post_id: id }).then(() => {});
-  } else {
-    sb.from("bookmarks").delete().eq("telegram_id", String(telegramUser.id)).eq("post_id", id).then(() => {});
-  }
   if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
+
+  if (!sb || !telegramUser || telegramUser.id === null || telegramUser.id === undefined) return;
+
+  const telegramId = String(telegramUser.id);
+
+  const prevChain = bookmarkRequestChains.get(id) || Promise.resolve();
+  const chain = prevChain.catch(() => {}).then(async () => {
+    try {
+      const writeResult = nextBookmarked
+        ? await sb.from("bookmarks").insert({ telegram_id: telegramId, post_id: id })
+        : await sb.from("bookmarks").delete().eq("telegram_id", telegramId).eq("post_id", id);
+      if (writeResult.error) throw writeResult.error;
+    } catch (e) {
+      console.error("Bookmark update failed, rolling back", e);
+      const current = userPostState[id];
+      if (current && current.bookmarked === nextBookmarked) {
+        current.bookmarked = wasBookmarked;
+        render();
+        if (document.getElementById("bookmarksPage").classList.contains("open")) renderBookmarksPage();
+        showToast("Couldn't update bookmark. Check your connection.");
+      }
+    }
+  });
+  bookmarkRequestChains.set(id, chain);
 }
 
 const GIFT_TOKENS = [
@@ -8785,12 +8889,14 @@ function commentVideoHTML() {
   `;
 }
 
-function interleaveAtInterval(items, buildInsertHTML, firstAt, repeatEvery) {
+function interleaveAtInterval(items, buildInsertHTML, firstAt, repeatEvery, startCount) {
   const out = [];
+  const base = startCount || 0;
   let nextAt = firstAt;
+  while (nextAt <= base) nextAt += repeatEvery;
   items.forEach((html, i) => {
     out.push(html);
-    const position = i + 1;
+    const position = base + i + 1;
     if (position === nextAt) {
       out.push(buildInsertHTML());
       nextAt += repeatEvery;
@@ -8799,8 +8905,8 @@ function interleaveAtInterval(items, buildInsertHTML, firstAt, repeatEvery) {
   return out;
 }
 
-function interleaveFeaturedVideo(items) {
-  return interleaveAtInterval(items, featuredVideoHTML, FEATURED_VIDEO_FIRST_AT, FEATURED_VIDEO_REPEAT_EVERY);
+function interleaveFeaturedVideo(items, startCount) {
+  return interleaveAtInterval(items, featuredVideoHTML, FEATURED_VIDEO_FIRST_AT, FEATURED_VIDEO_REPEAT_EVERY, startCount);
 }
 
 function interleaveCommentVideo(items) {
@@ -8841,21 +8947,110 @@ function rankForYouFeed(posts) {
     .map(x => x.post);
 }
 
-function render() {
-  const feed = document.getElementById("feed");
+function computeRankedFeedPosts() {
   const isStarsFeed = activeFeedTab === "stars";
-
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
   if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
   } else {
     feedPosts = rankForYouFeed(feedPosts);
   }
+  return feedPosts;
+}
 
-  const allPostParts = feedPosts.map(userPostCardHTML);
-  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
+function feedEndHTML() {
+  return `
+    <div class="feed-end" id="feedEnd">
+      <div class="feed-end-check">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="feed-end-title">You're all caught up</div>
+      <div class="feed-end-sub">Come back later for new posts.</div>
+    </div>
+  `;
+}
+
+function feedLoadingMoreHTML() {
+  return `
+    <div class="feed-loading-more" id="feedLoadingMore">
+      <span class="feed-loading-spinner"></span>
+      <span>Loading more…</span>
+    </div>
+  `;
+}
+
+function feedSentinelHTML() {
+  return `<div class="feed-sentinel" id="feedSentinel" aria-hidden="true"></div>`;
+}
+
+function feedTailHTML(totalCount) {
+  return feedVisibleCount >= totalCount ? feedEndHTML() : feedSentinelHTML();
+}
+
+function teardownFeedInfiniteScroll() {
+  if (feedInfiniteObserver) {
+    feedInfiniteObserver.disconnect();
+    feedInfiniteObserver = null;
+  }
+}
+
+function setupFeedInfiniteScroll() {
+  teardownFeedInfiniteScroll();
+  const sentinel = document.getElementById("feedSentinel");
+  if (!sentinel) return;
+  feedInfiniteObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) loadMoreFeedPosts();
+    });
+  }, { rootMargin: "600px 0px" });
+  feedInfiniteObserver.observe(sentinel);
+}
+
+function loadMoreFeedPosts() {
+  if (feedIsLoadingMore) return;
+  const totalCount = currentRankedFeedPosts.length;
+  if (feedVisibleCount >= totalCount) return;
+
+  feedIsLoadingMore = true;
+  teardownFeedInfiniteScroll();
+  const sentinel = document.getElementById("feedSentinel");
+  if (sentinel) sentinel.outerHTML = feedLoadingMoreHTML();
+
+  // Small delay so the loading state is perceptible rather than an instant flash
+  setTimeout(() => {
+    const startIndex = feedVisibleCount;
+    const endIndex = Math.min(startIndex + FEED_PAGE_SIZE, totalCount);
+    const nextSlice = currentRankedFeedPosts.slice(startIndex, endIndex);
+    const nextParts = nextSlice.map(userPostCardHTML);
+    const nextHtml = interleaveFeaturedVideo(nextParts, startIndex).join("");
+
+    feedVisibleCount = endIndex;
+
+    const loadingEl = document.getElementById("feedLoadingMore");
+    const tailHtml = feedTailHTML(totalCount);
+    if (loadingEl) {
+      loadingEl.outerHTML = nextHtml + tailHtml;
+    } else {
+      const feed = document.getElementById("feed");
+      if (feed) feed.insertAdjacentHTML("beforeend", nextHtml + tailHtml);
+    }
+
+    attachVideoDwellTrackingToNewCards();
+    setupFeedInfiniteScroll();
+    feedIsLoadingMore = false;
+  }, 300);
+}
+
+function render() {
+  const feed = document.getElementById("feed");
+  const isStarsFeed = activeFeedTab === "stars";
+
+  const feedPosts = computeRankedFeedPosts();
+  currentRankedFeedPosts = feedPosts;
 
   if (!feedPosts.length) {
+    teardownFeedInfiniteScroll();
+    feedIsLoadingMore = false;
     feed.innerHTML = isStarsFeed ? `
       <div class="feed-empty">
         <div class="feed-empty-title">No starred posts yet</div>
@@ -8867,10 +9062,28 @@ function render() {
         <div class="feed-empty-sub">Be the first to share something.</div>
       </div>
     `;
+    if (document.getElementById("profilePage").classList.contains("open")) {
+      renderProfilePosts();
+      if (currentProfileId) renderProfileStats(currentProfileId);
+    }
+    if (document.getElementById("postDetailPage").classList.contains("open")) {
+      renderPostDetail();
+    }
     return;
   }
 
-  feed.innerHTML = feedHtml;
+  if (feedVisibleCount <= 0) feedVisibleCount = Math.min(FEED_PAGE_SIZE, feedPosts.length);
+  if (feedVisibleCount > feedPosts.length) feedVisibleCount = feedPosts.length;
+
+  const visiblePosts = feedPosts.slice(0, feedVisibleCount);
+  const allPostParts = visiblePosts.map(userPostCardHTML);
+  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
+
+  feedIsLoadingMore = false;
+  feed.innerHTML = feedHtml + feedTailHTML(feedPosts.length);
+
+  attachVideoDwellTrackingToNewCards();
+  setupFeedInfiniteScroll();
 
   if (document.getElementById("profilePage").classList.contains("open")) {
     renderProfilePosts();
@@ -8879,7 +9092,6 @@ function render() {
   if (document.getElementById("postDetailPage").classList.contains("open")) {
     renderPostDetail();
   }
-  attachVideoDwellTrackingToNewCards();
 }
 
 startSupabaseAuth();
