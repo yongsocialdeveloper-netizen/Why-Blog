@@ -927,6 +927,162 @@
   }
   @keyframes gift-spin { to { transform: rotate(360deg); } }
 
+  /* ---------- premium popup ---------- */
+  .premium-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6,10,14,0.72);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    z-index: 52;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .premium-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .premium-card {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #1c2733 0%, #182029 100%);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    transform: scale(0.94) translateY(8px);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .premium-overlay.open .premium-card { transform: scale(1) translateY(0); opacity: 1; }
+
+  .premium-card-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .premium-card-close:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
+
+  .premium-hero {
+    position: relative;
+    text-align: center;
+    padding: 30px 24px 6px;
+  }
+  .premium-crown {
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 12px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #22e0d0, #2f7dff);
+    color: #0d1116;
+  }
+  .premium-title { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .premium-subtitle { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; padding: 0 6px; }
+
+  .premium-benefits { padding: 20px 22px 4px; display: flex; flex-direction: column; gap: 15px; }
+  .premium-benefit { display: flex; align-items: flex-start; gap: 12px; }
+  .premium-benefit-icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .premium-benefit-text { padding-top: 1px; }
+  .premium-benefit-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 1px; }
+  .premium-benefit-desc { font-size: 12px; color: var(--ink-faint); line-height: 1.4; }
+
+  .premium-plans { display: flex; gap: 10px; padding: 22px 22px 4px; }
+  .premium-plan-card {
+    position: relative;
+    flex: 1;
+    text-align: left;
+    border: 1.5px solid var(--line);
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 13px 14px 14px;
+  }
+  .premium-plan-card.active { border-color: var(--accent); background: var(--accent-soft); }
+  .premium-plan-badge {
+    position: absolute;
+    top: -9px;
+    right: 10px;
+    background: var(--accent);
+    color: #0d1116;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.01em;
+  }
+  .premium-plan-radio {
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .premium-plan-card.active .premium-plan-radio {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: inset 0 0 0 3px var(--paper);
+  }
+  .premium-plan-label { display: block; font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
+  .premium-plan-price { display: flex; align-items: baseline; gap: 5px; font-size: 17px; font-weight: 800; color: var(--ink); }
+  .premium-plan-price-original { font-size: 12px; font-weight: 600; color: var(--ink-faint); text-decoration: line-through; }
+  .premium-plan-period { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+  .premium-plan-sub { display: block; font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
+
+  .premium-footer { padding: 18px 22px 22px; }
+  .premium-submit-btn {
+    width: 100%;
+    padding: 14px 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #22e0d0, #2f7dff);
+    color: #06121a;
+    font-weight: 800;
+    font-size: 15px;
+    text-align: center;
+  }
+  .premium-submit-btn:hover { filter: brightness(1.05); }
+  .premium-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .premium-terms { text-align: center; font-size: 11px; color: var(--ink-faint); margin-top: 14px; line-height: 1.5; }
+  .premium-terms a { color: var(--accent); text-decoration: underline; }
+  .premium-status-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-top: 12px;
+    min-height: 16px;
+    text-align: center;
+  }
+  .premium-status-line.error { color: var(--heart); }
+  .premium-status-line.success { color: var(--accent); }
+
   .quest-header-add { margin-left: auto; color: var(--ink-soft); }
   .quest-card {
     border: 1px solid var(--line);
@@ -2948,24 +3104,65 @@
     </div>
   </div>
 
-  <div class="form-sheet-overlay" id="premiumOverlay" onclick="closePremiumModal()"></div>
-  <div class="form-sheet" id="premiumSheet">
-    <div class="form-sheet-header">
-      <div class="form-sheet-title">Go Premium</div>
-      <button class="form-sheet-close" onclick="closePremiumModal()" aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+  <div class="premium-overlay" id="premiumOverlay" onclick="if(event.target===this)closePremiumModal()">
+    <div class="premium-card" id="premiumSheet">
+      <button class="premium-card-close" onclick="closePremiumModal()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>
-    </div>
-    <div class="form-sheet-body">
-      <div class="form-note">Verified badge, pin a post, 1000-character posts, and access to Quests.</div>
-      <div class="form-field">
-        <label class="form-label">Plan</label>
-        <div class="gift-token-row" id="premiumPlanRow" data-value="monthly"></div>
+
+      <div class="premium-hero">
+        <div class="premium-crown">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 8l3.6 2.6L12 4l5.4 6.6L21 8l-1.9 9.2H4.9L3 8z"/><rect x="5" y="18.4" width="14" height="2" rx="1"/></svg>
+        </div>
+        <div class="premium-title">Go further with WhyBlog</div>
+        <div class="premium-subtitle">Unlock more features, get more value, and make the most of your WhyBlog experience.</div>
       </div>
-      <div class="gift-status-line" id="premiumStatusLine"></div>
-    </div>
-    <div class="form-sheet-footer">
-      <button class="form-submit-btn" id="premiumBuyBtn" onclick="submitPremiumPurchase()">Pay with Stars</button>
+
+      <div class="premium-benefits">
+        <div class="premium-benefit">
+          <span class="premium-benefit-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l7 4v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <span class="premium-benefit-text">
+            <span class="premium-benefit-title">Verified tick</span>
+            <span class="premium-benefit-desc">Show that you're a real member.</span>
+          </span>
+        </div>
+        <div class="premium-benefit">
+          <span class="premium-benefit-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg></span>
+          <span class="premium-benefit-text">
+            <span class="premium-benefit-title">Enhanced Why AI access</span>
+            <span class="premium-benefit-desc">Get more from Why AI with premium features.</span>
+          </span>
+        </div>
+        <div class="premium-benefit">
+          <span class="premium-benefit-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span>
+          <span class="premium-benefit-text">
+            <span class="premium-benefit-title">Extended post character limit</span>
+            <span class="premium-benefit-desc">Write more, share more, say more.</span>
+          </span>
+        </div>
+        <div class="premium-benefit">
+          <span class="premium-benefit-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 4 4v2H6v-2l4-4z"/><path d="M12 16v6"/></svg></span>
+          <span class="premium-benefit-text">
+            <span class="premium-benefit-title">Pin a post to your profile</span>
+            <span class="premium-benefit-desc">Keep your best content at the top.</span>
+          </span>
+        </div>
+        <div class="premium-benefit">
+          <span class="premium-benefit-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.3 6.8.7-5.1 4.6 1.5 6.8L12 17.6l-6.1 3.3 1.5-6.8-5.1-4.6 6.8-.7z" stroke-linejoin="round"/></svg></span>
+          <span class="premium-benefit-text">
+            <span class="premium-benefit-title">Gold Quest access</span>
+            <span class="premium-benefit-desc">Unlock exclusive rewards and opportunities.</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="premium-plans" id="premiumPlanRow" data-value="monthly"></div>
+
+      <div class="premium-footer">
+        <button class="premium-submit-btn" id="premiumBuyBtn" onclick="submitPremiumPurchase()">Subscribe &amp; pay with Stars</button>
+        <div class="premium-status-line" id="premiumStatusLine"></div>
+        <div class="premium-terms">By subscribing, you agree to our <a href="https://whyblog.yongsocial.com/purchase-terms" target="_blank" rel="noopener">Purchase Terms</a>.</div>
+      </div>
     </div>
   </div>
 
@@ -4738,8 +4935,8 @@ function formatPremiumUntil(isoString) {
 //   supabase functions deploy premium-create-invoice
 const PREMIUM_INVOICE_ENDPOINT = "https://xrunlxchksrycauujkgy.supabase.co/functions/v1/Premium-create-invoice";
 const PREMIUM_PLANS = [
-  { id: "monthly", label: "Monthly", stars: 100, sub: "100 \u2b50/mo" },
-  { id: "annual", label: "Annual", stars: 1000, sub: "1000 \u2b50/yr \u00b7 2 months free" }
+  { id: "monthly", label: "Monthly", stars: 100, period: "/mo", sub: "Billed every month" },
+  { id: "annual", label: "Annual", stars: 1000, period: "/yr", original: 1200, badge: "16.7% OFF", sub: "2 months free" }
 ];
 
 function openPremiumModal() {
@@ -4747,20 +4944,24 @@ function openPremiumModal() {
   renderPremiumPlanRow();
   setPremiumStatus("");
   document.getElementById("premiumOverlay").classList.add("open");
-  document.getElementById("premiumSheet").classList.add("open");
+  document.body.style.overflow = "hidden";
 }
 
 function closePremiumModal() {
   document.getElementById("premiumOverlay").classList.remove("open");
-  document.getElementById("premiumSheet").classList.remove("open");
+  document.body.style.overflow = "";
 }
 
 function renderPremiumPlanRow() {
   const row = document.getElementById("premiumPlanRow");
   const active = row.dataset.value;
   row.innerHTML = PREMIUM_PLANS.map(p => `
-    <button type="button" class="gift-token-pill ${active === p.id ? "active" : ""}" onclick="selectPremiumPlan('${p.id}')">
-      ${p.label}<br /><span style="font-weight:500;font-size:11px;">${p.sub}</span>
+    <button type="button" class="premium-plan-card ${active === p.id ? "active" : ""}" onclick="selectPremiumPlan('${p.id}')">
+      ${p.badge ? `<span class="premium-plan-badge">${p.badge}</span>` : ""}
+      <span class="premium-plan-radio"></span>
+      <span class="premium-plan-label">${p.label}</span>
+      <span class="premium-plan-price">${p.original ? `<span class="premium-plan-price-original">\u2b50${p.original.toLocaleString()}</span>` : ""}\u2b50${p.stars.toLocaleString()}<span class="premium-plan-period">${p.period}</span></span>
+      <span class="premium-plan-sub">${p.sub}</span>
     </button>
   `).join("");
 }
@@ -4774,7 +4975,7 @@ function setPremiumStatus(text, kind) {
   const el = document.getElementById("premiumStatusLine");
   if (!el) return;
   el.textContent = text || "";
-  el.className = "gift-status-line" + (kind ? " " + kind : "");
+  el.className = "premium-status-line" + (kind ? " " + kind : "");
 }
 
 async function submitPremiumPurchase() {
@@ -7372,7 +7573,7 @@ function anyOverlayOpen() {
     || document.getElementById("questReviewPage").classList.contains("open")
     || document.getElementById("questSubmitSheet").classList.contains("open")
     || document.getElementById("questCreateSheet").classList.contains("open")
-    || document.getElementById("premiumSheet").classList.contains("open")
+    || document.getElementById("premiumOverlay").classList.contains("open")
     || document.getElementById("composePage").classList.contains("open")
     || document.getElementById("discardPopup").classList.contains("open")
     || document.getElementById("draftsSheet").classList.contains("open")
@@ -7409,7 +7610,7 @@ function closeTopOverlay() {
     closeGiftModal();
   } else if (document.getElementById("questCreateSheet").classList.contains("open")) {
     closeQuestCreateModal();
-  } else if (document.getElementById("premiumSheet").classList.contains("open")) {
+  } else if (document.getElementById("premiumOverlay").classList.contains("open")) {
     closePremiumModal();
   } else if (document.getElementById("questSubmitSheet").classList.contains("open")) {
     closeQuestSubmitModal();
