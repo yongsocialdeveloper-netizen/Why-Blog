@@ -4195,6 +4195,7 @@ function paintCachedFeedImmediately() {
   const cache = loadFeedCache();
   if (!cache || !cache.posts.length) return false;
 
+  resetFeedShuffle();
   USER_POSTS = cache.posts;
   USER_POSTS.forEach(ensureTelegramPostProfile);
   userPostState = {};
@@ -4233,10 +4234,20 @@ function hideNewPostsBanner() {
   if (banner) banner.classList.remove("show");
 }
 
+// Used when the current user publishes their own post: it should NOT jump
+// straight into the feed. It goes into the same pendingNewPosts queue as
+// posts from other people, and only appears (at the top) once the user
+// taps the "new posts" banner — same experience either way.
+function queueOwnPostAsPending(post, state) {
+  pendingNewPosts.set(post.id, { post, state });
+  showNewPostsBanner(pendingNewPosts.size);
+}
+
 function applyFreshFeedData(freshPosts, freshState, forceApply) {
   const freshIds = new Set(freshPosts.map(p => p.id));
 
   if (feedRenderedIds.size === 0 || forceApply) {
+    resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
     feedRenderedIds = freshIds;
@@ -4284,6 +4295,7 @@ function applyPendingNewPosts() {
   feedVisibleCount += newOnes.length;
   pendingNewPosts.clear();
   hideNewPostsBanner();
+  bumpFeedShuffleBatchForNewPosts();
   render();
   saveFeedCache(USER_POSTS);
   haptic("light");
@@ -4495,6 +4507,7 @@ async function loadUserPosts(options = {}) {
   }
 
   if (manual) {
+    resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
     feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
@@ -4512,6 +4525,7 @@ async function loadUserPosts(options = {}) {
   const freshIds = new Set(freshPosts.map(p => p.id));
 
   if (feedRenderedIds.size === 0) {
+    resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
     feedRenderedIds = freshIds;
@@ -5448,9 +5462,7 @@ async function submitQuestCreate() {
       const newPost = mapPostRow(postRow);
       newPost.profileId = "you";
       newPost.questTitle = title;
-      USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
-      render();
+      queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
     } catch (postErr) {
       console.error("Quest published, but feed announcement failed:", postErr);
     }
@@ -6562,9 +6574,7 @@ async function submitCompose() {
       if (error) throw error;
       const newPost = mapPostRow(data);
       newPost.profileId = "you";
-      USER_POSTS.unshift(newPost);
-      userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
-      render();
+      queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null });
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
       showPostedSuccessToast();
@@ -6603,9 +6613,7 @@ async function submitCompose() {
     if (error) throw error;
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
-    USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
-    render();
+    queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
     haptic("medium");
     if (pendingDraftId) removeDraft(pendingDraftId);
     showPostedSuccessToast();
@@ -7321,9 +7329,7 @@ async function runCreatePostForAI(input) {
     if (error) throw error;
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
-    USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
-    render();
+    queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
     haptic("medium");
     return { success: true, post_id: newPost.id, truncated, max_post_length: max, posted_text: text };
   } catch (e) {
@@ -7360,9 +7366,7 @@ async function runCreatePollForAI(input) {
     if (error) throw error;
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
-    USER_POSTS.unshift(newPost);
-    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
-    render();
+    queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null });
     haptic("medium");
     return { success: true, post_id: newPost.id };
   } catch (e) {
@@ -8934,37 +8938,40 @@ function interleaveCommentVideo(items) {
   return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
-const POST_SCORE_DECAY_LAMBDA = 0.02;
-const POST_SCORE_LIKE_WEIGHT = 1;
-const POST_SCORE_COMMENT_WEIGHT = 4;
-const POST_SCORE_BOOKMARK_WEIGHT = 6;
-const POST_SCORE_GIFT_WEIGHT = 10;
-const POST_SCORE_STARRED_AUTHOR_BOOST = 8;
-const POST_SCORE_BASE = 1;
+// "For You" ordering is a plain random shuffle, no engagement scoring.
+// Each post gets a random key the first time it's seen; the key is cached so
+// re-rendering (likes, comments, etc.) doesn't reshuffle the feed mid-scroll.
+// Posts are keyed into "batches": the initial load is batch 0 (shuffled
+// among itself); every time a round of new posts gets applied (via the
+// "new posts" banner) it's stamped with a lower batch number so it always
+// sorts above everything already on screen, without touching the old
+// posts' relative order. Call resetFeedShuffle() for a fully fresh random
+// order (app open / manual refresh).
+let feedShuffleKeys = new Map();
+let feedShuffleNextBatch = 0;
 
-function postEngagementScore(post) {
-  const s = userPostState[post.id];
-  if (!s) return 0;
+function resetFeedShuffle() {
+  feedShuffleKeys = new Map();
+  feedShuffleNextBatch = 0;
+}
 
-  const ageHours = Math.max(0, (Date.now() - (post.createdAtMillis || Date.now())) / 3600000);
-  // 24-hour half-life decay: score drops by 50% every 24 hours
-  const timeDecay = Math.pow(0.5, ageHours / 24);
+// Call right before a new round of posts (banner tap) enters the feed, so
+// that round gets its own batch above everything already keyed.
+function bumpFeedShuffleBatchForNewPosts() {
+  feedShuffleNextBatch -= 1;
+}
 
-  const engagement =
-    (s.likeCount || 0) * POST_SCORE_LIKE_WEIGHT +
-    (s.comments ? s.comments.length : 0) * POST_SCORE_COMMENT_WEIGHT +
-    (s.bookmarked ? 1 : 0) * POST_SCORE_BOOKMARK_WEIGHT +
-    (s.gifted ? 1 : 0) * POST_SCORE_GIFT_WEIGHT;
-
-  const authorBoost = myStarredIds.has(String(post.userId)) ? POST_SCORE_STARRED_AUTHOR_BOOST : 0;
-
-  return (engagement + authorBoost + POST_SCORE_BASE) * timeDecay;
+function shuffleKeyFor(postId) {
+  if (!feedShuffleKeys.has(postId)) {
+    feedShuffleKeys.set(postId, feedShuffleNextBatch + Math.random());
+  }
+  return feedShuffleKeys.get(postId);
 }
 
 function rankForYouFeed(posts) {
   return posts
-    .map((post, index) => ({ post, index, score: postEngagementScore(post) }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((post, index) => ({ post, index, key: shuffleKeyFor(post.id) }))
+    .sort((a, b) => a.key - b.key || a.index - b.index)
     .map(x => x.post);
 }
 
