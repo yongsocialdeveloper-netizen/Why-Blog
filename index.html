@@ -1184,19 +1184,6 @@
   }
   .compose-main { flex: 1; min-width: 0; }
 
-  .compose-audience {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    font-size: 13px;
-    font-weight: 700;
-    padding: 4px 10px 4px 12px;
-    border-radius: 999px;
-    margin-bottom: 10px;
-  }
-
   .compose-textarea {
     width: 100%;
     min-height: 90px;
@@ -2714,10 +2701,6 @@
     </a>
     <hr class="menu-divider" />
 
-    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); toggleSettingsSheet(true);">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
-       Settings and privacy
-    </a>
     <a class="menu-item" href="https://whyblog.yongsocial.com/help" target="_blank" rel="noopener">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2.5 3.5"/><path d="M12 17.5h.01"/></svg>
       Help Centre
@@ -3204,10 +3187,6 @@
       <div class="compose-row">
         <div class="compose-avatar" id="composeAvatar">Y</div>
         <div class="compose-main">
-          <span class="compose-audience">
-            Everyone
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-          </span>
           <textarea class="compose-textarea" id="composeTextarea" placeholder="What's happening?" oninput="updateComposeState()" rows="3"></textarea>
           <div class="compose-char-count" id="composeCharCount"></div>
           <div class="compose-image-preview" id="composeImagePreview" style="display:none">
@@ -4156,6 +4135,56 @@ const FEED_CACHE_KEY = "feedCache:v1";
 const FEED_CACHE_TTL_MS = 10 * 60 * 1000;
 const FEED_POLL_INTERVAL_MS = 45 * 1000;
 
+const FEED_SEEN_STORAGE_KEY = "feedSeenPosts:v1";
+const FEED_SEEN_MAX_ENTRIES = 2000;
+const FEED_SEEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Which posts this device has already had loaded into the feed, so a fresh
+// shuffle can put unseen posts first and only fall back to repeats once
+// everything's genuinely been seen. Persisted so it survives closing the
+// app. Old entries age out (and the list is capped) so it doesn't grow
+// forever and so posts eventually cycle back into "unseen" territory.
+let feedSeenPosts = loadFeedSeenPosts();
+
+function loadFeedSeenPosts() {
+  try {
+    const raw = localStorage.getItem(FEED_SEEN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === "object") ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveFeedSeenPosts() {
+  try {
+    localStorage.setItem(FEED_SEEN_STORAGE_KEY, JSON.stringify(feedSeenPosts));
+  } catch (e) {}
+}
+
+function pruneFeedSeenPosts() {
+  const now = Date.now();
+  let entries = Object.entries(feedSeenPosts).filter(([, ts]) => now - ts < FEED_SEEN_MAX_AGE_MS);
+  if (entries.length > FEED_SEEN_MAX_ENTRIES) {
+    entries.sort((a, b) => b[1] - a[1]);
+    entries = entries.slice(0, FEED_SEEN_MAX_ENTRIES);
+  }
+  feedSeenPosts = Object.fromEntries(entries);
+}
+
+function isPostSeen(postId) {
+  return Object.prototype.hasOwnProperty.call(feedSeenPosts, postId);
+}
+
+function markPostsSeen(posts) {
+  if (!posts || !posts.length) return;
+  const now = Date.now();
+  posts.forEach(post => { feedSeenPosts[post.id] = now; });
+  pruneFeedSeenPosts();
+  saveFeedSeenPosts();
+}
+
 let feedRenderedIds = new Set();
 let pendingNewPosts = new Map();
 let feedPollTimer = null;
@@ -4296,7 +4325,7 @@ function applyPendingNewPosts() {
   feedVisibleCount += newOnes.length;
   pendingNewPosts.clear();
   hideNewPostsBanner();
-  bumpFeedShuffleBatchForNewPosts();
+  bumpFeedShuffleBatchForNewPosts(newOnes.map(x => x.post));
   render();
   saveFeedCache(USER_POSTS);
   haptic("light");
@@ -8946,15 +8975,19 @@ function interleaveCommentVideo(items) {
   return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
-// "For You" ordering is a plain random shuffle, no engagement scoring.
-// Each post gets a random key the first time it's seen; the key is cached so
-// re-rendering (likes, comments, etc.) doesn't reshuffle the feed mid-scroll.
-// Posts are keyed into "batches": the initial load is batch 0 (shuffled
-// among itself); every time a round of new posts gets applied (via the
-// "new posts" banner) it's stamped with a lower batch number so it always
-// sorts above everything already on screen, without touching the old
-// posts' relative order. Call resetFeedShuffle() for a fully fresh random
-// order (app open / manual refresh).
+// "For You" ordering is a plain random shuffle, no engagement scoring —
+// but unseen posts are shuffled ahead of ones this device has already had
+// in its feed before (see feedSeenPosts above), so a reshuffle surfaces
+// fresh content first and only repeats once you've truly caught up.
+// Each post's key is cached the first time it's assigned, so re-rendering
+// for unrelated reasons (likes, comments, etc.) doesn't reshuffle the feed
+// mid-scroll. Batches, low to high: new arrivals via the "new posts"
+// banner (negative, always on top) < unseen posts (0) < already-seen
+// posts (1). Call resetFeedShuffle() for a fully fresh random order
+// (app open / manual refresh).
+const FEED_SHUFFLE_BATCH_UNSEEN = 0;
+const FEED_SHUFFLE_BATCH_SEEN = 1;
+
 let feedShuffleKeys = new Map();
 let feedShuffleNextBatch = 0;
 
@@ -8963,15 +8996,21 @@ function resetFeedShuffle() {
   feedShuffleNextBatch = 0;
 }
 
-// Call right before a new round of posts (banner tap) enters the feed, so
-// that round gets its own batch above everything already keyed.
-function bumpFeedShuffleBatchForNewPosts() {
+// Call right before a new round of posts (banner tap) enters the feed,
+// pre-assigning them keys in their own batch below zero so they always
+// land above everything already on screen, seen or not.
+function bumpFeedShuffleBatchForNewPosts(posts) {
   feedShuffleNextBatch -= 1;
+  const batch = feedShuffleNextBatch;
+  (posts || []).forEach(post => {
+    feedShuffleKeys.set(post.id, batch + Math.random());
+  });
 }
 
 function shuffleKeyFor(postId) {
   if (!feedShuffleKeys.has(postId)) {
-    feedShuffleKeys.set(postId, feedShuffleNextBatch + Math.random());
+    const batch = isPostSeen(postId) ? FEED_SHUFFLE_BATCH_SEEN : FEED_SHUFFLE_BATCH_UNSEEN;
+    feedShuffleKeys.set(postId, batch + Math.random());
   }
   return feedShuffleKeys.get(postId);
 }
@@ -9057,6 +9096,7 @@ function loadMoreFeedPosts() {
     const startIndex = feedVisibleCount;
     const endIndex = Math.min(startIndex + FEED_PAGE_SIZE, totalCount);
     const nextSlice = currentRankedFeedPosts.slice(startIndex, endIndex);
+    markPostsSeen(nextSlice);
     const nextParts = nextSlice.map(userPostCardHTML);
     const nextHtml = interleaveFeaturedVideo(nextParts, startIndex).join("");
 
@@ -9112,6 +9152,7 @@ function render() {
   if (feedVisibleCount > feedPosts.length) feedVisibleCount = feedPosts.length;
 
   const visiblePosts = feedPosts.slice(0, feedVisibleCount);
+  markPostsSeen(visiblePosts);
   const allPostParts = visiblePosts.map(userPostCardHTML);
   const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
 
