@@ -2045,6 +2045,157 @@
     50% { opacity: 0.6; box-shadow: 0 0 0 2px var(--card), 0 0 4px 1px rgba(47,163,147,0.6); }
   }
 
+  .nav-btn-ai {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22e0d0, #2f7dff);
+    color: #0d1116;
+    margin-top: -22px;
+    box-shadow: 0 6px 18px rgba(47,125,255,0.45);
+    flex-shrink: 0;
+  }
+  .nav-btn-ai:hover { filter: brightness(1.05); }
+  .nav-btn-ai.active { color: #0d1116; }
+
+  /* ---------- AI agent page ---------- */
+  .ai-page {
+    position: fixed;
+    inset: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--card);
+    z-index: 48;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+  .ai-page.open { transform: translateX(0); }
+  .ai-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background: rgba(28,39,51,0.9);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .ai-topbar-back { display: flex; color: #fff; flex-shrink: 0; }
+  .ai-topbar-title { font-size: 15.5px; font-weight: 700; color: #fff; flex: 1; }
+  .ai-topbar-clear { font-size: 13px; color: var(--ink-faint); font-weight: 600; }
+  .ai-topbar-clear:hover { color: var(--ink); }
+
+  .ai-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+  .ai-intro { text-align: center; padding: 30px 20px; color: var(--ink-soft); }
+  .ai-intro-badge {
+    width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 12px;
+    background: linear-gradient(135deg, #22e0d0, #2f7dff);
+  }
+  .ai-intro-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .ai-intro-sub { font-size: 13.5px; line-height: 1.5; }
+  .ai-suggestion-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+  .ai-suggestion-chip {
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+  .ai-suggestion-chip:hover { border-color: var(--accent); color: var(--ink); }
+
+  .ai-msg { display: flex; gap: 8px; max-width: 88%; }
+  .ai-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .ai-msg.assistant { align-self: flex-start; }
+  .ai-msg-avatar {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ai-msg.assistant .ai-msg-avatar { background: linear-gradient(135deg, #22e0d0, #2f7dff); }
+  .ai-msg.user .ai-msg-avatar { background: var(--accent); color: #0d1116; font-weight: 700; font-size: 11px; }
+  .ai-msg-bubble {
+    padding: 10px 13px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .ai-msg.assistant .ai-msg-bubble { background: var(--paper); border: 1px solid var(--line); border-top-left-radius: 4px; }
+  .ai-msg.user .ai-msg-bubble { background: var(--accent); color: #0d1116; border-top-right-radius: 4px; }
+
+  .ai-typing { display: flex; gap: 4px; padding: 4px 2px; }
+  .ai-typing span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint);
+    animation: aiTypingBounce 1s infinite ease-in-out;
+  }
+  .ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes aiTypingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  .ai-action-card {
+    align-self: flex-start;
+    max-width: 88%;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+  }
+  .ai-action-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-faint); margin-bottom: 6px; }
+  .ai-action-body { color: var(--ink); line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; }
+  .ai-action-meta { font-size: 11.5px; color: var(--ink-faint); margin: -6px 0 10px; }
+  .ai-action-row { display: flex; gap: 8px; }
+  .ai-action-btn {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .ai-action-btn.confirm { background: var(--accent); color: #0d1116; }
+  .ai-action-btn.cancel { background: transparent; border: 1px solid var(--line); color: var(--ink-soft); }
+  .ai-action-card.resolved .ai-action-row { display: none; }
+  .ai-action-card.resolved .ai-action-status { font-size: 12.5px; font-weight: 600; color: var(--ink-faint); }
+  .ai-action-card.resolved.done .ai-action-status { color: var(--accent); }
+
+  .ai-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .ai-input {
+    flex: 1;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 10px 16px;
+    color: var(--ink);
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    max-height: 110px;
+  }
+  .ai-input:focus { outline: none; border-color: var(--accent); }
+  .ai-send-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--accent); color: #0d1116;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ai-send-btn:disabled { opacity: 0.5; }
+
   /* ---------- authentication ---------- */
   .auth-gate {
     min-height: 100vh;
@@ -2298,6 +2449,9 @@
     <button class="nav-btn" onclick="openSearch()" aria-label="Search">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </button>
+    <button class="nav-btn nav-btn-ai" onclick="openAI()" aria-label="Ask Why">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/><path d="M19 15.5l0.8 2 2 0.8-2 0.8-0.8 2-0.8-2-2-0.8 2-0.8z"/></svg>
+    </button>
     <button class="nav-btn" onclick="openVideoZone()" aria-label="Video Zone">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="15" rx="2"/><path d="M9 2h6M12 19v3M8 22h8"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
     </button>
@@ -2462,6 +2616,23 @@
     </div>
     <div class="bookmarks-body" id="postDetailBody"></div>
     <div class="post-detail-reply-bar" id="postDetailReplyBar"></div>
+  </div>
+
+  <div class="ai-page" id="aiPage">
+    <div class="ai-topbar">
+      <button class="ai-topbar-back" onclick="closeAI()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="ai-topbar-title">Why</div>
+      <button class="ai-topbar-clear" onclick="clearAIChat()">Clear</button>
+    </div>
+    <div class="ai-body" id="aiBody"></div>
+    <div class="ai-input-bar">
+      <textarea class="ai-input" id="aiInput" rows="1" placeholder="Ask Why anything…" oninput="autoGrowAIInput(this)" onkeydown="handleAIInputKeydown(event)"></textarea>
+      <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()" aria-label="Send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </div>
   </div>
 
   <div class="bookmarks-page" id="starrersPage">
@@ -6543,8 +6714,438 @@ function haptic(style) {
   if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style || "light");
 }
 
+// ================== AI agent ("Why") ==================
+// aiMessages: raw Anthropic-format conversation sent to the ai-agent
+// edge function on every turn. aiDisplayItems: what's actually shown
+// in the chat UI (kept separate since tool_result blocks aren't
+// meant to be displayed as chat bubbles).
+let aiMessages = [];
+let aiDisplayItems = [];
+let aiSending = false;
+let aiActionSeq = 0;
+const aiPendingActions = {};
+
+function openAI() {
+  document.getElementById("aiPage").classList.add("open");
+  syncBackButton();
+  renderAIBody();
+  setTimeout(() => {
+    const input = document.getElementById("aiInput");
+    if (input) input.focus();
+  }, 260);
+}
+
+function closeAI() {
+  document.getElementById("aiPage").classList.remove("open");
+  syncBackButton();
+}
+
+function clearAIChat() {
+  aiMessages = [];
+  aiDisplayItems = [];
+  for (const key of Object.keys(aiPendingActions)) delete aiPendingActions[key];
+  renderAIBody();
+}
+
+function autoGrowAIInput(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 110) + "px";
+}
+
+function handleAIInputKeydown(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendAIMessage();
+  }
+}
+
+function askAI(text) {
+  const input = document.getElementById("aiInput");
+  input.value = text;
+  sendAIMessage();
+}
+
+function aiSparkIcon(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#0d1116" stroke-width="2.2"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/></svg>`;
+}
+
+function renderAIItem(item) {
+  if (item.kind === "user") {
+    return `
+      <div class="ai-msg user">
+        <div class="ai-msg-avatar">${escapeHtml(PROFILES.you.initials || "Y")}</div>
+        <div class="ai-msg-bubble">${escapeHtml(item.text)}</div>
+      </div>`;
+  }
+  if (item.kind === "text") {
+    return `
+      <div class="ai-msg assistant">
+        <div class="ai-msg-avatar">${aiSparkIcon(14)}</div>
+        <div class="ai-msg-bubble">${escapeHtml(item.text)}</div>
+      </div>`;
+  }
+  if (item.kind === "action") {
+    if (item.resolved) {
+      return `
+        <div class="ai-action-card resolved ${item.done ? "done" : ""}">
+          ${item.body ? `<div class="ai-action-label">${escapeHtml(item.label)}</div><div class="ai-action-body">${escapeHtml(item.body)}</div>` : ""}
+          <div class="ai-action-status">${escapeHtml(item.statusText || item.label)}</div>
+        </div>`;
+    }
+    return `
+      <div class="ai-action-card">
+        <div class="ai-action-label">${escapeHtml(item.label)}</div>
+        <div class="ai-action-body">${escapeHtml(item.body)}</div>
+        ${item.meta ? `<div class="ai-action-meta">${escapeHtml(item.meta)}</div>` : ""}
+        <div class="ai-action-row">
+          <button class="ai-action-btn confirm" onclick="confirmAIAction('${item.actionId}')">Confirm</button>
+          <button class="ai-action-btn cancel" onclick="cancelAIAction('${item.actionId}')">Cancel</button>
+        </div>
+      </div>`;
+  }
+  return "";
+}
+
+function renderAIBody(showTyping) {
+  const body = document.getElementById("aiBody");
+  if (!body) return;
+  if (!aiDisplayItems.length && !showTyping) {
+    body.innerHTML = `
+      <div class="ai-intro">
+        <div class="ai-intro-badge"></div>
+        <div class="ai-intro-title">Ask Why</div>
+        <div class="ai-intro-sub">I know how WhyBlog works, and can look a few things up or handle small actions for you.</div>
+        <div class="ai-suggestion-row">
+          <button class="ai-suggestion-chip" onclick="askAI('How do I make a poll?')">How do I make a poll?</button>
+          <button class="ai-suggestion-chip" onclick="askAI('How many posts have I made?')">My stats</button>
+          <button class="ai-suggestion-chip" onclick="askAI('What is Premium?')">What is Premium?</button>
+        </div>
+      </div>`;
+    return;
+  }
+  const typingHtml = showTyping ? `
+    <div class="ai-msg assistant">
+      <div class="ai-msg-avatar">${aiSparkIcon(14)}</div>
+      <div class="ai-msg-bubble"><div class="ai-typing"><span></span><span></span><span></span></div></div>
+    </div>` : "";
+  body.innerHTML = aiDisplayItems.map(renderAIItem).join("") + typingHtml;
+  body.scrollTop = body.scrollHeight;
+}
+
+function getMyAIStats() {
+  const postCount = USER_POSTS.filter(p => p.profileId === "you").length;
+  const bookmarkCount = USER_POSTS.filter(p => userPostState[p.id] && userPostState[p.id].bookmarked).length;
+  const starCount = (starState.you && starState.you.count) || 0;
+  const walletLinked = !!(PROFILES.you && PROFILES.you.tonWallet);
+  const username = (PROFILES.you && PROFILES.you.username) || null;
+  return { postCount, bookmarkCount, starCount, walletLinked, username };
+}
+
+function buildAIContext() {
+  const stats = getMyAIStats();
+  return {
+    display_name: PROFILES.you && PROFILES.you.name,
+    username: stats.username,
+    post_count: stats.postCount,
+    bookmark_count: stats.bookmarkCount,
+    star_count: stats.starCount,
+    wallet_linked: stats.walletLinked,
+    is_telegram_session: !!isTelegramSession,
+    is_premium: isPremiumUser(),
+    max_post_length: getComposeMax(),
+    max_poll_question_length: POLL_QUESTION_MAX,
+    max_poll_option_length: POLL_OPTION_MAX,
+    max_poll_options: POLL_MAX_OPTIONS
+  };
+}
+
+function searchFeedForAI(query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return { matches: [] };
+  const matches = USER_POSTS.filter(p => userPostState[p.id] && (
+    (p.text && p.text.toLowerCase().includes(q)) ||
+    (p.question && p.question.toLowerCase().includes(q)) ||
+    (p.name && p.name.toLowerCase().includes(q))
+  )).slice(0, 5).map(p => ({
+    id: p.id,
+    author: p.name,
+    snippet: (p.text || p.question || "").slice(0, 100)
+  }));
+  return { matches };
+}
+
+function searchProfilesForAI(query) {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return { matches: [] };
+  const matches = searchableProfiles().filter(p =>
+    (p.name && p.name.toLowerCase().includes(q)) || (p.username && p.username.toLowerCase().includes(q))
+  ).slice(0, 5).map(p => ({ id: p.id, name: p.name, username: p.username || null }));
+  return { matches };
+}
+
+function runOpenPageForAI(input) {
+  const target = input && input.target;
+  const supported = ["bookmarks", "quests", "video_zone", "settings", "wallet", "profile", "post"];
+  if (!supported.includes(target)) {
+    return { success: false, note: "That page isn't wired up yet in this build." };
+  }
+  closeAI();
+  setTimeout(() => {
+    if (target === "bookmarks") openBookmarksPage();
+    else if (target === "quests") openQuestsPage();
+    else if (target === "video_zone") openVideoZone();
+    else if (target === "settings") toggleSettingsSheet(true);
+    else if (target === "wallet") openEditProfile();
+    else if (target === "profile") openProfile(input.id || "you");
+    else if (target === "post") openPostDetail(input.id);
+  }, 260);
+  return { success: true };
+}
+
+async function runCreatePostForAI(input) {
+  if (!requireTelegramSession()) return { success: false, error: "not_signed_in" };
+  if (!requireIdentitySetup()) return { success: false, error: "needs_profile_setup" };
+  let text = ((input && input.text) || "").trim();
+  if (!text) return { success: false, error: "empty_text" };
+  if (!sb) return { success: false, error: "offline" };
+  const max = getComposeMax();
+  let truncated = false;
+  if (computeWeightedLength(text) > max) {
+    text = truncateToWeightedLimit(text, max).trim();
+    truncated = true;
+  }
+  try {
+    const { data, error } = await sb.from("posts").insert({
+      type: "text",
+      text,
+      image: null,
+      name: PROFILES.you.name,
+      username: PROFILES.you.username,
+      telegram_id: String(telegramUser.id),
+      photo_url: PROFILES.you.photoUrl,
+      initials: PROFILES.you.initials,
+      color: PROFILES.you.color,
+      like_count: 0
+    }).select().single();
+    if (error) throw error;
+    const newPost = mapPostRow(data);
+    newPost.profileId = "you";
+    USER_POSTS.unshift(newPost);
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null };
+    render();
+    haptic("medium");
+    return { success: true, post_id: newPost.id, truncated, max_post_length: max, posted_text: text };
+  } catch (e) {
+    return { success: false, error: "insert_failed" };
+  }
+}
+
+async function runCreatePollForAI(input) {
+  if (!requireTelegramSession()) return { success: false, error: "not_signed_in" };
+  if (!requireIdentitySetup()) return { success: false, error: "needs_profile_setup" };
+  let question = ((input && input.question) || "").trim();
+  let options = ((input && input.options) || []).map(o => (o || "").trim()).filter(Boolean);
+  if (!question || options.length < 2) return { success: false, error: "invalid_poll" };
+  if (!sb) return { success: false, error: "offline" };
+  if (options.length > POLL_MAX_OPTIONS) options = options.slice(0, POLL_MAX_OPTIONS);
+  if (computeWeightedLength(question) > POLL_QUESTION_MAX) {
+    question = truncateToWeightedLimit(question, POLL_QUESTION_MAX).trim();
+  }
+  options = options.map(o => computeWeightedLength(o) > POLL_OPTION_MAX ? truncateToWeightedLimit(o, POLL_OPTION_MAX).trim() : o);
+  try {
+    const { data, error } = await sb.from("posts").insert({
+      type: "poll",
+      question,
+      options: options.map(text => ({ text, votes: 0 })),
+      poll_ends_at: null,
+      name: PROFILES.you.name,
+      username: PROFILES.you.username,
+      telegram_id: String(telegramUser.id),
+      photo_url: PROFILES.you.photoUrl,
+      initials: PROFILES.you.initials,
+      color: PROFILES.you.color,
+      like_count: 0
+    }).select().single();
+    if (error) throw error;
+    const newPost = mapPostRow(data);
+    newPost.profileId = "you";
+    USER_POSTS.unshift(newPost);
+    userPostState[newPost.id] = { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null };
+    render();
+    haptic("medium");
+    return { success: true, post_id: newPost.id };
+  } catch (e) {
+    return { success: false, error: "insert_failed" };
+  }
+}
+
+// Executes (or, for post/poll, proposes) one tool call. Returns either
+// { pending: false, result } to feed straight back to Claude, or
+// { pending: true } when it needs the user to tap Confirm/Cancel —
+// confirmAIAction/cancelAIAction supply the tool_result later.
+function runAITool(name, input, toolUseId) {
+  if (name === "get_my_stats") {
+    return { pending: false, result: getMyAIStats() };
+  }
+  if (name === "search_my_feed") {
+    return { pending: false, result: searchFeedForAI(input && input.query) };
+  }
+  if (name === "search_profiles") {
+    return { pending: false, result: searchProfilesForAI(input && input.query) };
+  }
+  if (name === "toggle_bookmark") {
+    const postId = input && input.post_id;
+    const ok = !!(postId && userPostState[postId]);
+    if (ok) toggleUserPostBookmark(postId);
+    aiDisplayItems.push({ kind: "action", resolved: true, done: ok, label: ok ? "Bookmark updated" : "Couldn't find that post" });
+    return { pending: false, result: { success: ok } };
+  }
+  if (name === "toggle_star") {
+    const profileId = input && input.profile_id;
+    const ok = !!(profileId && PROFILES[profileId]);
+    if (ok) toggleStar(profileId);
+    aiDisplayItems.push({ kind: "action", resolved: true, done: ok, label: ok ? "Star updated" : "Couldn't find that profile" });
+    return { pending: false, result: { success: ok } };
+  }
+  if (name === "open_page") {
+    return { pending: false, result: runOpenPageForAI(input) };
+  }
+  if (name === "create_post") {
+    const actionId = `act-${++aiActionSeq}`;
+    const max = getComposeMax();
+    let text = ((input && input.text) || "").trim();
+    let truncated = false;
+    if (computeWeightedLength(text) > max) {
+      text = truncateToWeightedLimit(text, max).trim();
+      truncated = true;
+    }
+    aiPendingActions[actionId] = { toolUseId, name, input: { text } };
+    aiDisplayItems.push({
+      kind: "action",
+      actionId,
+      resolved: false,
+      label: "New post",
+      body: text,
+      meta: `${computeWeightedLength(text)}/${max} characters${truncated ? " — trimmed to fit the limit" : ""}`
+    });
+    return { pending: true };
+  }
+  if (name === "create_poll") {
+    const actionId = `act-${++aiActionSeq}`;
+    aiPendingActions[actionId] = { toolUseId, name, input };
+    aiDisplayItems.push({
+      kind: "action",
+      actionId,
+      resolved: false,
+      label: "New poll",
+      body: `${(input && input.question) || ""}\n${((input && input.options) || []).map(o => "• " + o).join("\n")}`
+    });
+    return { pending: true };
+  }
+  return { pending: false, result: { error: "unknown_tool" } };
+}
+
+async function confirmAIAction(actionId) {
+  const action = aiPendingActions[actionId];
+  if (!action) return;
+  delete aiPendingActions[actionId];
+  haptic("light");
+  const result = action.name === "create_post"
+    ? await runCreatePostForAI(action.input)
+    : await runCreatePollForAI(action.input);
+  const item = aiDisplayItems.find(it => it.actionId === actionId);
+  if (item) {
+    item.resolved = true;
+    item.done = !!(result && result.success);
+    item.statusText = result && result.success ? "Posted" : "Couldn't post — try again";
+  }
+  renderAIBody();
+  aiMessages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: action.toolUseId, content: JSON.stringify(result) }] });
+  await runAITurn();
+}
+
+function cancelAIAction(actionId) {
+  const action = aiPendingActions[actionId];
+  if (!action) return;
+  delete aiPendingActions[actionId];
+  const item = aiDisplayItems.find(it => it.actionId === actionId);
+  if (item) { item.resolved = true; item.done = false; item.statusText = "Cancelled"; }
+  renderAIBody();
+  aiMessages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: action.toolUseId, content: JSON.stringify({ success: false, cancelled: true }) }] });
+  runAITurn();
+}
+
+async function sendAIMessage() {
+  if (aiSending) return;
+  const input = document.getElementById("aiInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  autoGrowAIInput(input);
+  aiDisplayItems.push({ kind: "user", text });
+  aiMessages.push({ role: "user", content: text });
+  renderAIBody();
+  haptic("light");
+  await runAITurn();
+}
+
+async function runAITurn() {
+  if (!sb) {
+    aiDisplayItems.push({ kind: "text", text: "I can't connect right now — try again in a moment." });
+    renderAIBody();
+    return;
+  }
+  aiSending = true;
+  document.getElementById("aiSendBtn").disabled = true;
+  renderAIBody(true);
+
+  let data;
+  try {
+    const res = await sb.functions.invoke("ai-agent", { body: { messages: aiMessages, context: buildAIContext() } });
+    if (res.error) throw res.error;
+    data = res.data;
+  } catch (e) {
+    aiSending = false;
+    document.getElementById("aiSendBtn").disabled = false;
+    aiDisplayItems.push({ kind: "text", text: "Sorry, I couldn't reach Why just now. Please try again." });
+    renderAIBody();
+    return;
+  }
+
+  const content = (data && data.content) || [];
+  aiMessages.push({ role: "assistant", content });
+
+  const toolResults = [];
+  let hasPendingConfirm = false;
+
+  for (const block of content) {
+    if (block.type === "text" && block.text) {
+      aiDisplayItems.push({ kind: "text", text: block.text });
+    } else if (block.type === "tool_use") {
+      const outcome = runAITool(block.name, block.input, block.id);
+      if (outcome.pending) {
+        hasPendingConfirm = true;
+      } else {
+        toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(outcome.result) });
+      }
+    }
+  }
+
+  aiSending = false;
+  document.getElementById("aiSendBtn").disabled = false;
+  renderAIBody();
+
+  if (hasPendingConfirm) return;
+  if (toolResults.length) {
+    aiMessages.push({ role: "user", content: toolResults });
+    await runAITurn();
+  }
+}
+// ================== end AI agent ==================
+
 function anyOverlayOpen() {
   return document.getElementById("menuPanel").classList.contains("open")
+    || document.getElementById("aiPage").classList.contains("open")
     || document.getElementById("settingsSheet").classList.contains("open")
     || document.getElementById("searchPage").classList.contains("open")
     || document.getElementById("inviteModal").classList.contains("open")
@@ -6570,7 +7171,9 @@ function anyOverlayOpen() {
 }
 
 function closeTopOverlay() {
-  if (document.getElementById("videoZonePlayer").classList.contains("open")) {
+  if (document.getElementById("aiPage").classList.contains("open")) {
+    closeAI();
+  } else if (document.getElementById("videoZonePlayer").classList.contains("open")) {
     closeVideoPlayer();
   } else if (document.getElementById("videoZonePage").classList.contains("open")) {
     closeVideoZone();
