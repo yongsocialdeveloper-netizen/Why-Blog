@@ -7269,19 +7269,15 @@ function renderAIUsageBanner() {
   el.classList.toggle("ai-usage-empty", remaining === 0);
 }
 
-async function recordAIMessageSent() {
-  if (isPremiumUser() || !sb || !telegramUser) return;
+// Updates the local display count only, for instant UI feedback (the
+// banner/remaining count). Does NOT write to the DB -- checkAndConsumeAIQuota
+// in the ai-agent function is the single source of truth for the actual
+// persisted count, so writing here too would double-count every message
+// (client +1, then server +1 independently on top of it).
+function recordAIMessageSentLocally() {
+  if (isPremiumUser()) return;
   PROFILES.you.aiMessagesUsedToday = (PROFILES.you.aiMessagesUsedToday || 0) + 1;
   renderAIUsageBanner();
-  const todayUTC = new Date().toISOString().slice(0, 10);
-  try {
-    await sb.from("profiles").update({
-      ai_messages_used_today: PROFILES.you.aiMessagesUsedToday,
-      ai_messages_reset_date: todayUTC
-    }).eq("telegram_id", String(telegramUser.id));
-  } catch (e) {
-    console.error("Could not record AI usage", e);
-  }
 }
 
 async function sendAIMessage() {
@@ -7301,7 +7297,7 @@ async function sendAIMessage() {
   aiMessages.push({ role: "user", content: text });
   renderAIBody();
   haptic("light");
-  await recordAIMessageSent();
+  recordAIMessageSentLocally();
   await runAITurn();
 }
 
@@ -7317,7 +7313,7 @@ async function runAITurn() {
 
   let data;
   try {
-    const res = await sb.functions.invoke("ai-agent", { body: { messages: aiMessages, context: buildAIContext() } });
+    const res = await sb.functions.invoke("ai-agent", { body: { messages: aiMessages, context: buildAIContext(), init_data: tg && tg.initData } });
     if (res.error) throw res.error;
     data = res.data;
   } catch (e) {
