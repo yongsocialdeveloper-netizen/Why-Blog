@@ -8017,8 +8017,29 @@ const INTEREST_TOPICS = [
   { key: "Lifestyle", label: "Lifestyle", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 6.5 5.5 5.5 0 0121.5 12c-2.5 4.5-9.5 9-9.5 9z"/></svg>` }
 ];
 
-let interestState = {};
-INTEREST_TOPICS.forEach(t => interestState[t.key] = true);
+const INTEREST_STORAGE_KEY = "interestTopics:v1";
+
+function loadInterestState() {
+  const state = {};
+  INTEREST_TOPICS.forEach(t => state[t.key] = true);
+  try {
+    const saved = JSON.parse(localStorage.getItem(INTEREST_STORAGE_KEY));
+    if (saved && typeof saved === "object") {
+      INTEREST_TOPICS.forEach(t => {
+        if (typeof saved[t.key] === "boolean") state[t.key] = saved[t.key];
+      });
+    }
+  } catch (e) {}
+  return state;
+}
+
+function saveInterestState() {
+  try {
+    localStorage.setItem(INTEREST_STORAGE_KEY, JSON.stringify(interestState));
+  } catch (e) {}
+}
+
+let interestState = loadInterestState();
 
 function renderInterestList() {
   const list = document.getElementById("interestList");
@@ -8033,12 +8054,14 @@ function renderInterestList() {
 
 function toggleInterestTopic(key) {
   interestState[key] = !interestState[key];
+  saveInterestState();
   haptic("light");
   renderInterestList();
 }
 
 function resetInterestTopics() {
   INTEREST_TOPICS.forEach(t => interestState[t.key] = true);
+  saveInterestState();
   renderInterestList();
 }
 
@@ -9310,7 +9333,7 @@ let feedRelevanceScores = {};
 async function fetchFeedRelevanceScores() {
   if (!sb || !tg || !tg.initData) { feedRelevanceScores = {}; return; }
   try {
-    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData } });
+    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData, interests: interestState } });
     if (error) throw error;
     feedRelevanceScores = (data && data.scores) || {};
   } catch (e) {
