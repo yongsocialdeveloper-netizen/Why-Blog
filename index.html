@@ -1949,6 +1949,37 @@
   .post-more-btn { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; display: flex; padding: 2px; }
   .post-more-btn:hover { color: var(--ink); }
 
+  .post-category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 2px 0 6px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    line-height: 1.4;
+    width: fit-content;
+  }
+  .post-category-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .cat-politics { background: rgba(209,122,99,0.16); color: #d17a63; border: 1px solid rgba(209,122,99,0.32); }
+  .cat-sports { background: rgba(90,169,230,0.16); color: #5aa9e6; border: 1px solid rgba(90,169,230,0.32); }
+  .cat-business-finance { background: rgba(224,185,79,0.16); color: #e0b94f; border: 1px solid rgba(224,185,79,0.32); }
+  .cat-science-technology { background: rgba(79,195,201,0.16); color: #4fc3c9; border: 1px solid rgba(79,195,201,0.32); }
+  .cat-entertainment-arts { background: rgba(203,127,214,0.16); color: #cb7fd6; border: 1px solid rgba(203,127,214,0.32); }
+  .cat-artificial-intelligence { background: rgba(124,140,240,0.16); color: #7c8cf0; border: 1px solid rgba(124,140,240,0.32); }
+  .cat-gaming { background: rgba(111,207,125,0.16); color: #6fcf7d; border: 1px solid rgba(111,207,125,0.32); }
+  .cat-crypto { background: rgba(240,166,63,0.16); color: #f0a63f; border: 1px solid rgba(240,166,63,0.32); }
+  .cat-lifestyle { background: rgba(224,143,174,0.16); color: #e08fae; border: 1px solid rgba(224,143,174,0.32); }
+
   .comment { position: relative; }
   .comment-more {
     position: absolute; top: 2px; right: 0; color: var(--ink-faint);
@@ -3566,6 +3597,7 @@ function profilePostCardHTML(post, isPinned) {
             <button class="post-more-btn" onclick="event.stopPropagation(); openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
           ` : ""}
         </div>
+        ${categoryBadgeHTML(post)}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
@@ -3642,6 +3674,7 @@ function postDetailCardHTML(post) {
             <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
           ` : ""}
         </div>
+        ${categoryBadgeHTML(post)}
         ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
@@ -4104,6 +4137,7 @@ function mapPostRow(row) {
     questReward: row.quest_reward || null,
     questWinnerCount: row.quest_winner_count || null,
     questEndsAt: row.quest_ends_at || null,
+    category: row.category || null,
     createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
   };
 }
@@ -4159,6 +4193,27 @@ function isPremiumTelegramId(id) {
 
 function inlineVerifiedBadge(id) {
   return isPremiumTelegramId(id) ? `<span class="post-verified">${verifiedBadge()}</span>` : "";
+}
+
+// Maps the AI-assigned posts.category value (see categorize-post edge
+// function) to a CSS class for the colored pill badge shown on posts.
+// Keep this list in sync with the CATEGORIES array in categorize-post/index.ts.
+const CATEGORY_BADGE_CLASS = {
+  "Politics": "cat-politics",
+  "Sports": "cat-sports",
+  "Business & Finance": "cat-business-finance",
+  "Science & Technology": "cat-science-technology",
+  "Entertainment & Arts": "cat-entertainment-arts",
+  "Artificial Intelligence": "cat-artificial-intelligence",
+  "Gaming": "cat-gaming",
+  "Crypto": "cat-crypto",
+  "Lifestyle": "cat-lifestyle"
+};
+
+function categoryBadgeHTML(post) {
+  const cls = post.category && CATEGORY_BADGE_CLASS[post.category];
+  if (!cls) return "";
+  return `<div class="post-category-badge ${cls}">${escapeHtml(post.category)}</div>`;
 }
 
 const FEED_CACHE_KEY = "feedCache:v1";
@@ -6017,6 +6072,7 @@ function userPostCardHTML(post) {
             <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
           ` : ""}
         </div>
+        ${categoryBadgeHTML(post)}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}</div>
