@@ -3524,9 +3524,33 @@ function closeProfile() {
 // user-facing.
 function triggerPostCategorization(postId) {
   if (!sb || !postId) return;
-  sb.functions.invoke("categorize-post", { body: { post_id: postId } }).catch(e => {
-    console.error("categorize-post failed for", postId, e);
-  });
+  sb.functions.invoke("categorize-post", { body: { post_id: postId } })
+    .then(() => pollPostCategoryById(postId))
+    .catch(e => {
+      console.error("categorize-post failed for", postId, e);
+      pollPostCategoryById(postId);
+    });
+}
+
+async function pollPostCategoryById(postId) {
+  if (!sb || !postId) return;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const { data, error } = await sb.from("posts_public")
+        .select("id, category")
+        .eq("id", postId)
+        .maybeSingle();
+      if (error) throw error;
+      const post = USER_POSTS.find(item => item.id === postId);
+      if (post && data && data.category) {
+        post.category = data.category;
+        saveFeedCache(USER_POSTS);
+        render();
+        return;
+      }
+    } catch (e) {}
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
 }
 
 async function ensurePostLoaded(postId) {
@@ -4300,7 +4324,10 @@ function saveFeedCache(posts) {
       id: p.id, type: p.type, text: p.text, image: p.image, question: p.question,
       options: p.options, name: p.name, username: p.username, userId: p.userId,
       photoUrl: p.photoUrl, initials: p.initials, color: p.color,
-      likeCount: p.likeCount, createdAtMillis: p.createdAtMillis
+      likeCount: p.likeCount, category: p.category || null,
+      linkUrl: p.linkUrl || null, linkTitle: p.linkTitle || null,
+      linkDescription: p.linkDescription || null, linkImage: p.linkImage || null,
+      linkSite: p.linkSite || null, createdAtMillis: p.createdAtMillis
     }));
     localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ posts: slim, ts: Date.now() }));
   } catch (e) {}
@@ -4349,13 +4376,17 @@ function hideNewPostsBanner() {
   if (banner) banner.classList.remove("show");
 }
 
-// Used when the current user publishes their own post: it should NOT jump
-// straight into the feed. It goes into the same pendingNewPosts queue as
-// posts from other people, and only appears (at the top) once the user
-// taps the "new posts" banner — same experience either way.
+// New posts are inserted at the top immediately. The feed is chronological,
+// so the newest post always appears first without requiring a refresh or banner tap.
 function queueOwnPostAsPending(post, state) {
-  pendingNewPosts.set(post.id, { post, state });
-  showNewPostsBanner(pendingNewPosts.size);
+  userPostState[post.id] = state;
+  USER_POSTS = [post, ...USER_POSTS.filter(existing => existing.id !== post.id)];
+  feedRenderedIds = new Set(USER_POSTS.map(existing => existing.id));
+  pendingNewPosts.delete(post.id);
+  hideNewPostsBanner();
+  feedVisibleCount = Math.max(FEED_PAGE_SIZE, feedVisibleCount + 1);
+  render();
+  saveFeedCache(USER_POSTS);
 }
 
 function applyFreshFeedData(freshPosts, freshState, forceApply) {
@@ -4645,62 +4676,16 @@ async function loadUserPosts(options = {}) {
     return;
   }
 
-  const freshIds = new Set(freshPosts.map(p => p.id));
-
-  if (feedRenderedIds.size === 0) {
-    await fetchFeedRelevanceScores();
-    resetFeedShuffle();
-    USER_POSTS = freshPosts;
-    userPostState = freshState;
-    feedRenderedIds = freshIds;
-    pendingNewPosts.clear();
-    hideNewPostsBanner();
-    render();
-    saveFeedCache(USER_POSTS);
-    const idsToCheck = freshPosts.map(p => p.userId)
-      .concat(Object.values(commentsByPost).flat().map(c => c.userId));
-    hydratePremiumBadges(idsToCheck);
-    scheduleFeedPoll();
-    return;
-  }
-
-  USER_POSTS.forEach(post => {
-    if (freshState[post.id]) {
-      const freshCopy = freshPosts.find(p => p.id === post.id);
-      if (freshCopy) Object.assign(post, freshCopy);
-      const freshS = freshState[post.id];
-      if (freshS) {
-        userPostState[post.id] = {
-          ...userPostState[post.id],
-          liked: freshS.liked,
-          likeCount: freshS.likeCount,
-          bookmarked: freshS.bookmarked,
-          comments: freshS.comments,
-          pollVoted: freshS.pollVoted
-        };
-      }
-    }
-  });
-
-  USER_POSTS = USER_POSTS.filter(p => freshIds.has(p.id));
-  feedRenderedIds = new Set(USER_POSTS.map(p => p.id));
-
+  // Apply the complete database snapshot in its existing newest-first order.
+  // This removes the delayed banner behavior and keeps newly-created posts at the top.
+  resetFeedShuffle();
+  USER_POSTS = freshPosts;
+  userPostState = freshState;
+  feedRenderedIds = new Set(freshPosts.map(p => p.id));
   pendingNewPosts.clear();
-  freshPosts.forEach(post => {
-    if (!feedRenderedIds.has(post.id)) {
-      pendingNewPosts.set(post.id, { post, state: freshState[post.id] });
-    }
-  });
-
-  patchVisiblePostCounts(Object.keys(freshState));
-  removeVisiblePostCards(USER_POSTS.filter(p => !freshIds.has(p.id)).map(p => p.id));
-  
-  if (pendingNewPosts.size) {
-    showNewPostsBanner(pendingNewPosts.size);
-  } else {
-    hideNewPostsBanner();
-  }
-
+  hideNewPostsBanner();
+  feedVisibleCount = FEED_PAGE_SIZE;
+  render();
   saveFeedCache(USER_POSTS);
   const idsToCheck = freshPosts.map(p => p.userId)
     .concat(Object.values(commentsByPost).flat().map(c => c.userId));
@@ -7060,11 +7045,25 @@ async function submitPasswordReset(event) {
   }
 }
 
+let feedResumeTimer = null;
+
+function refreshFeedOnAppResume() {
+  if (!appBooted || document.visibilityState === "hidden") return;
+  clearTimeout(feedResumeTimer);
+  feedResumeTimer = setTimeout(() => loadUserPosts({ manual: true }), 150);
+}
+
+document.addEventListener("visibilitychange", refreshFeedOnAppResume);
+window.addEventListener("focus", refreshFeedOnAppResume);
+
 function showAuthenticatedApp(user) {
   document.getElementById("authGate").style.display = "none";
   document.getElementById("appShell").style.display = "";
   currentSupabaseUser = user || null;
-  if (appBooted) return;
+  if (appBooted) {
+    refreshFeedOnAppResume();
+    return;
+  }
   appBooted = true;
   initTelegramIdentity();
   refreshTelegramLinkSnapshot();
@@ -9211,81 +9210,12 @@ function interleaveCommentVideo(items) {
   return interleaveAtInterval(items, commentVideoHTML, COMMENT_VIDEO_FIRST_AT, COMMENT_VIDEO_REPEAT_EVERY);
 }
 
-// "For You" ordering is a plain random shuffle, no engagement scoring —
-// but unseen posts are shuffled ahead of ones this device has already had
-// in its feed before (see feedSeenPosts above), so a reshuffle surfaces
-// fresh content first and only repeats once you've truly caught up.
-// Each post's key is cached the first time it's assigned, so re-rendering
-// for unrelated reasons (likes, comments, etc.) doesn't reshuffle the feed
-// mid-scroll. Batches, low to high: new arrivals via the "new posts"
-// banner (negative, always on top) < unseen posts (0) < already-seen
-// posts (1). Call resetFeedShuffle() for a fully fresh random order
-// (app open / manual refresh).
-const FEED_SHUFFLE_BATCH_UNSEEN = 0;
-const FEED_SHUFFLE_BATCH_SEEN = 1;
-
-let feedShuffleKeys = new Map();
-let feedShuffleNextBatch = 0;
-
-// Populated by fetchFeedRelevanceScores() right before a full reshuffle
-// (cold app open / manual refresh) -- postId -> a 0..1 relevance score
-// computed server-side (rank-feed), blending recency, engagement,
-// starred-author affinity, and learned category interest. The category
-// itself never reaches the client; only this already-computed number
-// does. Empty object = server call hasn't run yet or failed, in which
-// case shuffleKeyFor below degrades gracefully to the old pure-random
-// behavior (relevance defaults to 0 for everything).
-let feedRelevanceScores = {};
-
-async function fetchFeedRelevanceScores() {
-  if (!sb || !tg || !tg.initData) { feedRelevanceScores = {}; return; }
-  try {
-    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData } });
-    if (error) throw error;
-    feedRelevanceScores = (data && data.scores) || {};
-  } catch (e) {
-    console.error("Could not fetch feed relevance scores", e);
-    feedRelevanceScores = {};
-  }
-}
-
-function resetFeedShuffle() {
-  feedShuffleKeys = new Map();
-  feedShuffleNextBatch = 0;
-}
-
-// Call right before a new round of posts (banner tap) enters the feed,
-// pre-assigning them keys in their own batch below zero so they always
-// land above everything already on screen, seen or not.
-function bumpFeedShuffleBatchForNewPosts(posts) {
-  feedShuffleNextBatch -= 1;
-  const batch = feedShuffleNextBatch;
-  (posts || []).forEach(post => {
-    feedShuffleKeys.set(post.id, batch + Math.random());
-  });
-}
-
-function shuffleKeyFor(postId) {
-  if (!feedShuffleKeys.has(postId)) {
-    const batch = isPostSeen(postId) ? FEED_SHUFFLE_BATCH_SEEN : FEED_SHUFFLE_BATCH_UNSEEN;
-    // relevance is 0..1, higher = more relevant. Higher relevance should
-    // sort EARLIER within the batch (smaller fractional value), since
-    // rankForYouFeed sorts ascending. Jitter stays mixed in (30% weight)
-    // so ordering isn't rigidly deterministic -- same "feels alive"
-    // quality as the old pure-random version, just weighted now instead
-    // of uniform.
-    const relevance = feedRelevanceScores[postId] || 0;
-    const fractional = 0.7 * (1 - relevance) + 0.3 * Math.random();
-    feedShuffleKeys.set(postId, batch + fractional);
-  }
-  return feedShuffleKeys.get(postId);
-}
-
+// Feed order is chronological: newest posts first, oldest posts last.
 function rankForYouFeed(posts) {
-  return posts
-    .map((post, index) => ({ post, index, key: shuffleKeyFor(post.id) }))
-    .sort((a, b) => a.key - b.key || a.index - b.index)
-    .map(x => x.post);
+  return [...posts].sort((a, b) => {
+    const timeDifference = (b.createdAtMillis || 0) - (a.createdAtMillis || 0);
+    return timeDifference || String(b.id).localeCompare(String(a.id));
+  });
 }
 
 function computeRankedFeedPosts() {
@@ -9293,10 +9223,8 @@ function computeRankedFeedPosts() {
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
   if (isStarsFeed) {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
-  } else {
-    feedPosts = rankForYouFeed(feedPosts);
   }
-  return feedPosts;
+  return rankForYouFeed(feedPosts);
 }
 
 function feedEndHTML() {
@@ -9363,8 +9291,7 @@ function loadMoreFeedPosts() {
     const endIndex = Math.min(startIndex + FEED_PAGE_SIZE, totalCount);
     const nextSlice = currentRankedFeedPosts.slice(startIndex, endIndex);
     markPostsSeen(nextSlice);
-    const nextParts = nextSlice.map(userPostCardHTML);
-    const nextHtml = interleaveFeaturedVideo(nextParts, startIndex).join("");
+    const nextHtml = nextSlice.map(userPostCardHTML).join("");
 
     feedVisibleCount = endIndex;
 
@@ -9419,8 +9346,8 @@ function render() {
 
   const visiblePosts = feedPosts.slice(0, feedVisibleCount);
   markPostsSeen(visiblePosts);
-  const allPostParts = visiblePosts.map(userPostCardHTML);
-  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
+  // Video content is available only in Video Zone; the main feed contains posts only.
+  const feedHtml = visiblePosts.map(userPostCardHTML).join("");
 
   feedIsLoadingMore = false;
   feed.innerHTML = feedHtml + feedTailHTML(feedPosts.length);
