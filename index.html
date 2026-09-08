@@ -2076,6 +2076,44 @@
     overflow: hidden;
   }
 
+  .yt-embed-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background-color: #000;
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+  }
+  .yt-embed-wrap iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .yt-embed-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(20,20,20,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .yt-embed-wrap:hover .yt-embed-play {
+    background: var(--heart, #e0604a);
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+  .yt-embed-play svg { width: 22px; height: 22px; margin-left: 3px; }
+  .link-preview-card.yt-card { background: #000; }
+
   .read-more-toggle {
     display: inline-block;
     margin-top: 4px;
@@ -5981,6 +6019,35 @@ async function syncLinkPreviewForPost(post) {
   }
 }
 
+function getYouTubeVideoId(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "").replace(/^m\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0];
+      return id || null;
+    }
+    if (host === "youtube.com" || host === "music.youtube.com") {
+      if (u.pathname === "/watch") return u.searchParams.get("v");
+      if (u.pathname.startsWith("/shorts/")) return u.pathname.split("/")[2] || null;
+      if (u.pathname.startsWith("/embed/")) return u.pathname.split("/")[2] || null;
+      if (u.pathname.startsWith("/live/")) return u.pathname.split("/")[2] || null;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function playYoutubeEmbed(el, videoId) {
+  const iframe = document.createElement("iframe");
+  iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&playsinline=1`;
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+  iframe.allowFullscreen = true;
+  el.innerHTML = "";
+  el.appendChild(iframe);
+}
+
 function renderLinkPreviewCard(post) {
   if (!post || !post.linkUrl) return "";
   const url = safeExternalUrl(post.linkUrl);
@@ -5988,6 +6055,25 @@ function renderLinkPreviewCard(post) {
   const image = safeExternalUrl(post.linkImage);
   let domain = post.linkSite || "";
   if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, ""); } catch (e) { domain = ""; } }
+
+  const videoId = getYouTubeVideoId(url);
+  if (videoId) {
+    const thumb = `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
+    return `
+      <div class="link-preview-card yt-card">
+        <div class="yt-embed-wrap" style="background-image:url('${escapeAttr(thumb)}')"
+             onclick="event.stopPropagation(); playYoutubeEmbed(this, '${escapeAttr(videoId)}');">
+          <div class="yt-embed-play">
+            <svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+        <div class="link-preview-body">
+          ${post.linkTitle ? `<div class="link-preview-title">${escapeHtml(post.linkTitle)}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <a class="link-preview-card" href="#" data-url="${escapeAttr(url)}" onclick="event.stopPropagation(); event.preventDefault(); openExternalUrl(this.dataset.url);">
       ${image ? `<div class="link-preview-image" style="background-image:url('${escapeAttr(image)}')"></div>` : ""}
