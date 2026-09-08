@@ -5394,7 +5394,7 @@ function renderQuestCard(q) {
       : "Submitted \u00b7 pending review";
     actionHtml = `<div class="quest-status-pill ${mine.status}">${label}</div>`;
   } else if (!submissionOpen) {
-    actionHtml = `<div class="quest-status-pill">${q.status !== "open" ? "Closed" : "Submissions ended"}</div>`;
+    actionHtml = `<div class="quest-status-pill">Submissions closed</div>`;
   } else if (!canSubmit) {
     actionHtml = `<button class="quest-submit-btn locked" onclick="openPremiumModal()">Premium to submit</button>`;
   } else {
@@ -5440,7 +5440,7 @@ function openQuestSubmitModal(questId) {
   const quest = questsCache.find(q => q.id === questId);
   if (!quest) return;
   if (!isQuestSubmissionOpen(quest)) {
-    alert("This quest is no longer accepting submissions.");
+    alert("Submission closed.");
     return;
   }
   if ((quest.tier || "silver") === "gold" && !isPremiumUser() && !isQuestAdmin) {
@@ -5466,6 +5466,15 @@ async function submitQuestEntry() {
   const link = input.value.trim();
   const statusEl = document.getElementById("questSubmitStatus");
   if (!link) return;
+
+  const quest = questsCache.find(q => q.id === questId);
+  if (quest && !isQuestSubmissionOpen(quest)) {
+    statusEl.textContent = "Submission closed.";
+    statusEl.className = "gift-status-line error";
+    renderQuestsPage();
+    return;
+  }
+
   try {
     const { error } = await sb.from("quest_submissions").insert({
       quest_id: questId,
@@ -5476,8 +5485,9 @@ async function submitQuestEntry() {
     closeQuestSubmitModal();
     renderQuestsPage();
   } catch (e) {
-    statusEl.textContent = e && e.message && e.message.includes("duplicate")
-      ? "You've already submitted to this quest."
+    const msg = e && e.message ? e.message : "";
+    statusEl.textContent = msg.includes("duplicate") ? "You've already submitted to this quest."
+      : msg.includes("Submission closed") ? "Submission closed."
       : "Couldn't submit. Please try again.";
     statusEl.className = "gift-status-line error";
   }
