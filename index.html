@@ -5986,6 +5986,39 @@ async function syncLinkPreviewForPost(post) {
   }
   if (url === post.linkUrl) return;
 
+  const ytId = getYouTubeVideoId(url);
+  if (ytId) {
+    // Embed immediately — don't wait on microlink, which is slow/unreliable
+    // for YouTube and was the reason only some links ever showed a preview.
+    post.linkUrl = url;
+    post.linkTitle = post.linkTitle || null;
+    post.linkDescription = null;
+    post.linkImage = null;
+    post.linkSite = "youtube.com";
+    render();
+    if (sb) sb.from("posts").update({
+      link_url: url, link_title: post.linkTitle, link_description: null, link_image: null, link_site: "youtube.com"
+    }).eq("id", post.id).then(() => {});
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.title && post.linkUrl === url) {
+          post.linkTitle = json.title;
+          render();
+          if (sb) sb.from("posts").update({ link_title: json.title }).eq("id", post.id).then(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("YouTube oEmbed title fetch failed:", e);
+    }
+    return;
+  }
+
   const preview = await fetchLinkPreview(url);
   if (!preview) return;
   post.linkUrl = preview.link_url;
@@ -7383,10 +7416,22 @@ function startSupabaseAuth() {
         await linkTelegramIdentity(user);
         showAuthenticatedApp(user);
       } catch (error) {
-        await sb.auth.signOut();
         setAuthBusy(false);
-        showAuthGate();
-        setAuthMessage(authErrorMessage(error), true);
+        // Only force sign-out for errors where the session genuinely can't
+        // be trusted (identity conflict, or not running inside Telegram).
+        // A transient/RLS failure on telegram_links must not log the user
+        // out of an otherwise valid, already-created account.
+        const fatal = error.code === "telegram/required" ||
+                      error.code === "telegram/already-linked" ||
+                      error.code === "telegram/wrong-telegram";
+        if (fatal) {
+          await sb.auth.signOut();
+          showAuthGate();
+          setAuthMessage(authErrorMessage(error), true);
+        } else {
+          showAuthenticatedApp(user);
+          showToast(authErrorMessage(error), { duration: 4000 });
+        }
       }
     });
   } catch (error) {
