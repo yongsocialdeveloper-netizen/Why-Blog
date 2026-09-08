@@ -74,12 +74,15 @@
   }
   .feed-tab {
     flex: 1;
-    padding: 12px 0 10px;
+    padding: 12px 4px 10px;
     background: transparent;
     border: none;
     color: var(--ink-faint);
     font-weight: 700;
     font-size: 14.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     position: relative;
   }
   .feed-tab.active { color: var(--ink); }
@@ -2683,6 +2686,7 @@
     <div class="feed-tabs" id="feedTabs">
       <button class="feed-tab active" id="feedTabForYou" onclick="setFeedTab('foryou')">For You</button>
       <button class="feed-tab" id="feedTabStars" onclick="setFeedTab('stars')">Stars ✨</button>
+      <button class="feed-tab" id="feedTabOffInterest" onclick="setFeedTab('offinterest')">Off-Interest</button>
     </div>
   </div>
 
@@ -4000,6 +4004,7 @@ async function setFeedTab(tab) {
   activeFeedTab = tab;
   document.getElementById("feedTabForYou").classList.toggle("active", tab === "foryou");
   document.getElementById("feedTabStars").classList.toggle("active", tab === "stars");
+  document.getElementById("feedTabOffInterest").classList.toggle("active", tab === "offinterest");
   haptic("light");
   feedVisibleCount = FEED_PAGE_SIZE;
   render();
@@ -8052,8 +8057,11 @@ function renderInterestList() {
   `).join("");
 }
 
+let interestStateDirty = false;
+
 function toggleInterestTopic(key) {
   interestState[key] = !interestState[key];
+  interestStateDirty = true;
   saveInterestState();
   haptic("light");
   renderInterestList();
@@ -8061,14 +8069,26 @@ function toggleInterestTopic(key) {
 
 function resetInterestTopics() {
   INTEREST_TOPICS.forEach(t => interestState[t.key] = true);
+  interestStateDirty = true;
   saveInterestState();
   renderInterestList();
 }
 
-function toggleInterestsSheet(open) {
+async function toggleInterestsSheet(open) {
   document.getElementById("interestsOverlay").classList.toggle("open", open);
   document.getElementById("interestsSheet").classList.toggle("open", open);
-  if (open) renderInterestList();
+  if (open) {
+    interestStateDirty = false;
+    renderInterestList();
+  } else if (interestStateDirty) {
+    // The Interest toggles now drive a pure client-side hard split
+    // (For You vs Off-Interest, see computeRankedFeedPosts) rather than
+    // a server-side ranking penalty, so no relevance refetch is needed
+    // here -- just re-render with the new filter.
+    interestStateDirty = false;
+    feedVisibleCount = FEED_PAGE_SIZE;
+    render();
+  }
   syncBackButton();
 }
 
@@ -9333,7 +9353,7 @@ let feedRelevanceScores = {};
 async function fetchFeedRelevanceScores() {
   if (!sb || !tg || !tg.initData) { feedRelevanceScores = {}; return; }
   try {
-    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData, interests: interestState } });
+    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData } });
     if (error) throw error;
     feedRelevanceScores = (data && data.scores) || {};
   } catch (e) {
@@ -9381,12 +9401,23 @@ function rankForYouFeed(posts) {
     .map(x => x.post);
 }
 
+function isOffInterestPost(p) {
+  return !!(p.category && interestState[p.category] === false);
+}
+
 function computeRankedFeedPosts() {
-  const isStarsFeed = activeFeedTab === "stars";
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
-  if (isStarsFeed) {
+  if (activeFeedTab === "stars") {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
+  } else if (activeFeedTab === "offinterest") {
+    // Hard split, not a ranking penalty: posts whose AI-tagged category
+    // the user has explicitly toggled off in the Interest sheet land
+    // here instead of For You. Uncategorized posts (category === null,
+    // e.g. categorize-post hasn't run yet) never qualify as off-interest
+    // -- there's nothing to have turned off.
+    feedPosts = feedPosts.filter(isOffInterestPost);
   } else {
+    feedPosts = feedPosts.filter(p => !isOffInterestPost(p));
     feedPosts = rankForYouFeed(feedPosts);
   }
   return feedPosts;
@@ -9479,6 +9510,7 @@ function loadMoreFeedPosts() {
 function render() {
   const feed = document.getElementById("feed");
   const isStarsFeed = activeFeedTab === "stars";
+  const isOffInterestFeed = activeFeedTab === "offinterest";
 
   const feedPosts = computeRankedFeedPosts();
   currentRankedFeedPosts = feedPosts;
@@ -9490,6 +9522,11 @@ function render() {
       <div class="feed-empty">
         <div class="feed-empty-title">No starred posts yet</div>
         <div class="feed-empty-sub">Star a profile to see their posts here.</div>
+      </div>
+    ` : isOffInterestFeed ? `
+      <div class="feed-empty">
+        <div class="feed-empty-title">Nothing here</div>
+        <div class="feed-empty-sub">Posts from categories you've turned off in Interests will show up here.</div>
       </div>
     ` : `
       <div class="feed-empty">
