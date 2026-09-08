@@ -9364,7 +9364,7 @@ function loadMoreFeedPosts() {
     const nextSlice = currentRankedFeedPosts.slice(startIndex, endIndex);
     markPostsSeen(nextSlice);
     const nextParts = nextSlice.map(userPostCardHTML);
-    const nextHtml = interleaveFeaturedVideo(nextParts, startIndex).join("");
+    const nextHtml = nextParts.join("");
 
     feedVisibleCount = endIndex;
 
@@ -9420,7 +9420,7 @@ function render() {
   const visiblePosts = feedPosts.slice(0, feedVisibleCount);
   markPostsSeen(visiblePosts);
   const allPostParts = visiblePosts.map(userPostCardHTML);
-  const feedHtml = interleaveFeaturedVideo(allPostParts).join("");
+  const feedHtml = allPostParts.join("");
 
   feedIsLoadingMore = false;
   feed.innerHTML = feedHtml + feedTailHTML(feedPosts.length);
