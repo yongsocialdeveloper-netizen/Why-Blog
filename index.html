@@ -5768,6 +5768,17 @@ async function renderQuestReview() {
           photoUrl: p.avatar_url || "",
           tonWallet: p.ton_wallet || ""
         } : { name: "WhyBlog user", username: "", photoUrl: "", tonWallet: "" };
+      } else if (!profile.tonWallet) {
+        // profile came from PROFILES cache (built from a post/comment), which
+        // never carries wallet info — fetch it directly instead of showing
+        // "No wallet on file" for someone who actually has one saved.
+        try {
+          const { data: p } = await sb.from("profiles")
+            .select("ton_wallet")
+            .eq("telegram_id", s.telegram_id)
+            .maybeSingle();
+          if (p && p.ton_wallet) profile.tonWallet = p.ton_wallet;
+        } catch (e) {}
       }
 
       const isYou = telegramUser && String(s.telegram_id) === String(telegramUser.id);
