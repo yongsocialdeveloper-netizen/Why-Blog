@@ -3485,11 +3485,24 @@ function closeProfile() {
   syncBackButton();
 }
 
+// Fire-and-forget: classifies a freshly published post into a hidden
+// category used only for ranking (see rank-feed / categorize-post).
+// Never awaited by callers -- publishing should never wait on this, and
+// if it fails the post just stays uncategorized and gets a neutral
+// relevance score until/unless retried, rather than blocking anything
+// user-facing.
+function triggerPostCategorization(postId) {
+  if (!sb || !postId) return;
+  sb.functions.invoke("categorize-post", { body: { post_id: postId } }).catch(e => {
+    console.error("categorize-post failed for", postId, e);
+  });
+}
+
 async function ensurePostLoaded(postId) {
   if (findUserPostById(postId)) return true;
   if (!sb) return false;
   try {
-    const { data, error } = await sb.from("posts").select("*").eq("id", postId).maybeSingle();
+    const { data, error } = await sb.from("posts_public").select("*").eq("id", postId).maybeSingle();
     if (error || !data) return false;
     const post = mapPostRow(data);
     ensureTelegramPostProfile(post);
@@ -4489,7 +4502,7 @@ async function loadUserPosts(options = {}) {
   let freshPosts = [];
   try {
     if (sb) {
-      const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
+      const { data, error } = await sb.from("posts_public").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       freshPosts = (data || []).map(mapPostRow);
       freshPosts.forEach(ensureTelegramPostProfile);
@@ -4561,6 +4574,7 @@ async function loadUserPosts(options = {}) {
   }
 
   if (forceFreshApply) {
+    await fetchFeedRelevanceScores();
     resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
@@ -4579,6 +4593,7 @@ async function loadUserPosts(options = {}) {
   const freshIds = new Set(freshPosts.map(p => p.id));
 
   if (feedRenderedIds.size === 0) {
+    await fetchFeedRelevanceScores();
     resetFeedShuffle();
     USER_POSTS = freshPosts;
     userPostState = freshState;
@@ -5512,6 +5527,7 @@ async function submitQuestCreate() {
         quest_ends_at: endsAt
       }).select().single();
       if (postError) throw postError;
+      triggerPostCategorization(postRow.id);
 
       const newPost = mapPostRow(postRow);
       newPost.profileId = "you";
@@ -6651,6 +6667,7 @@ async function submitCompose() {
         like_count: 0
       }).select().single();
       if (error) throw error;
+      triggerPostCategorization(data.id);
       const newPost = mapPostRow(data);
       newPost.profileId = "you";
       queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null });
@@ -6690,6 +6707,7 @@ async function submitCompose() {
       like_count: 0
     }).select().single();
     if (error) throw error;
+    triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
@@ -7488,6 +7506,7 @@ async function runCreatePostForAI(input) {
       like_count: 0
     }).select().single();
     if (error) throw error;
+    triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
@@ -7548,6 +7567,7 @@ async function runCreatePollForAI(input) {
       like_count: 0
     }).select().single();
     if (error) throw error;
+    triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
     newPost.profileId = "you";
     queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null, pollVoted: null });
@@ -8640,7 +8660,7 @@ async function renderBookmarksPage() {
 
   if (missingIds.length) {
     try {
-      const { data } = await sb.from("posts").select("*").in("id", missingIds);
+      const { data } = await sb.from("posts_public").select("*").in("id", missingIds);
       (data || []).forEach(row => {
         const post = mapPostRow(row);
         ensureTelegramPostProfile(post);
@@ -9151,6 +9171,28 @@ const FEED_SHUFFLE_BATCH_SEEN = 1;
 let feedShuffleKeys = new Map();
 let feedShuffleNextBatch = 0;
 
+// Populated by fetchFeedRelevanceScores() right before a full reshuffle
+// (cold app open / manual refresh) -- postId -> a 0..1 relevance score
+// computed server-side (rank-feed), blending recency, engagement,
+// starred-author affinity, and learned category interest. The category
+// itself never reaches the client; only this already-computed number
+// does. Empty object = server call hasn't run yet or failed, in which
+// case shuffleKeyFor below degrades gracefully to the old pure-random
+// behavior (relevance defaults to 0 for everything).
+let feedRelevanceScores = {};
+
+async function fetchFeedRelevanceScores() {
+  if (!sb || !tg || !tg.initData) { feedRelevanceScores = {}; return; }
+  try {
+    const { data, error } = await sb.functions.invoke("rank-feed", { body: { init_data: tg.initData } });
+    if (error) throw error;
+    feedRelevanceScores = (data && data.scores) || {};
+  } catch (e) {
+    console.error("Could not fetch feed relevance scores", e);
+    feedRelevanceScores = {};
+  }
+}
+
 function resetFeedShuffle() {
   feedShuffleKeys = new Map();
   feedShuffleNextBatch = 0;
@@ -9170,7 +9212,15 @@ function bumpFeedShuffleBatchForNewPosts(posts) {
 function shuffleKeyFor(postId) {
   if (!feedShuffleKeys.has(postId)) {
     const batch = isPostSeen(postId) ? FEED_SHUFFLE_BATCH_SEEN : FEED_SHUFFLE_BATCH_UNSEEN;
-    feedShuffleKeys.set(postId, batch + Math.random());
+    // relevance is 0..1, higher = more relevant. Higher relevance should
+    // sort EARLIER within the batch (smaller fractional value), since
+    // rankForYouFeed sorts ascending. Jitter stays mixed in (30% weight)
+    // so ordering isn't rigidly deterministic -- same "feels alive"
+    // quality as the old pure-random version, just weighted now instead
+    // of uniform.
+    const relevance = feedRelevanceScores[postId] || 0;
+    const fractional = 0.7 * (1 - relevance) + 0.3 * Math.random();
+    feedShuffleKeys.set(postId, batch + fractional);
   }
   return feedShuffleKeys.get(postId);
 }
