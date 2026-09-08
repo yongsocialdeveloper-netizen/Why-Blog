@@ -5189,15 +5189,37 @@ function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
 async function tonConnectSendPayment(recipientAddress, amount, memo) {
   const ui = getTonConnectUI();
   if (!ui) throw new Error("TON Connect failed to load. Check your connection and try again.");
-  if (!ui.connected) {
+
+  const justConnected = !ui.connected;
+  if (justConnected) {
     await ui.connectWallet();
+    // The wallet's bridge session isn't always ready to accept a
+    // transaction request the instant connectWallet() resolves — sending
+    // immediately caused "Transaction was not sent" on the first tap.
+    // Give it a moment to settle before the first send.
+    await new Promise(resolve => setTimeout(resolve, 700));
   }
+
   const nanotons = Math.round(amount * 1e9).toString();
   const payload = buildCommentPayload(memo);
-  const result = await ui.sendTransaction({
+  const sendOnce = () => ui.sendTransaction({
     validUntil: Math.floor(Date.now() / 1000) + 300,
     messages: [{ address: recipientAddress, amount: nanotons, payload }]
   });
+
+  let result;
+  try {
+    result = await sendOnce();
+  } catch (err) {
+    if (justConnected) {
+      // First send after a fresh connection can still race the bridge —
+      // retry once automatically instead of making the user tap again.
+      await new Promise(resolve => setTimeout(resolve, 900));
+      result = await sendOnce();
+    } else {
+      throw err;
+    }
+  }
   return extractBocHash(result.boc);
 }
 
@@ -5467,15 +5489,28 @@ async function submitQuestEntry() {
   const statusEl = document.getElementById("questSubmitStatus");
   if (!link) return;
 
-  const quest = questsCache.find(q => q.id === questId);
-  if (quest && !isQuestSubmissionOpen(quest)) {
-    statusEl.textContent = "Submission closed.";
-    statusEl.className = "gift-status-line error";
-    renderQuestsPage();
-    return;
-  }
+  const sendBtn = document.querySelector("#questSubmitSheet .form-submit-btn");
+  if (sendBtn) sendBtn.disabled = true;
 
   try {
+    // Re-check against the live row, not the cached list — the cache can be
+    // stale (e.g. quest list fetched a while ago, tab left open past the
+    // deadline). This is the authoritative client-side check.
+    if (sb) {
+      const { data: freshQuest, error: fetchErr } = await sb.from("quests")
+        .select("status, ends_at")
+        .eq("id", questId)
+        .maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!freshQuest || !isQuestSubmissionOpen(freshQuest)) {
+        statusEl.textContent = "Submission closed.";
+        statusEl.className = "gift-status-line error";
+        if (sendBtn) sendBtn.disabled = false;
+        renderQuestsPage();
+        return;
+      }
+    }
+
     const { error } = await sb.from("quest_submissions").insert({
       quest_id: questId,
       telegram_id: String(telegramUser.id),
@@ -5490,6 +5525,8 @@ async function submitQuestEntry() {
       : msg.includes("Submission closed") ? "Submission closed."
       : "Couldn't submit. Please try again.";
     statusEl.className = "gift-status-line error";
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
