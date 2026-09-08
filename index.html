@@ -1115,6 +1115,8 @@
 
   .quest-review-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
   .quest-review-info { flex: 1; min-width: 0; }
+  .quest-review-submitter { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; cursor: pointer; text-align: left; color: inherit; }
+  .quest-review-submitter:hover .quest-review-name { text-decoration: underline; }
   .quest-review-name { font-weight: 700; font-size: 13.5px; }
   .quest-review-link-url { font-size: 12px; color: var(--accent); word-break: break-all; }
   .quest-review-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
@@ -5607,18 +5609,36 @@ async function renderQuestReview() {
           tonWallet: p.ton_wallet || ""
         } : { name: "WhyBlog user", username: "", photoUrl: "", tonWallet: "" };
       }
-      return { submission: s, profile };
+
+      const isYou = telegramUser && String(s.telegram_id) === String(telegramUser.id);
+      const profileId = isYou ? "you" : `telegram-${String(s.telegram_id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+      if (!isYou && !PROFILES[profileId]) {
+        PROFILES[profileId] = {
+          name: profile.name,
+          initials: initialsFromName(profile.name),
+          color: "#2fa393",
+          photoUrl: safeTelegramPhotoUrl(profile.photoUrl),
+          telegramId: s.telegram_id,
+          username: profile.username || "",
+          verified: false,
+          bio: "No bio yet.",
+          joined: "Recently",
+          vibes: []
+        };
+      }
+
+      return { submission: s, profile, profileId };
     }));
 
     hydratePremiumBadges(subs.map(s => s.telegram_id));
 
-    body.innerHTML = rows.map(({ submission: s, profile }) => renderQuestSubmissionRow(quest, s, profile)).join("");
+    body.innerHTML = rows.map(({ submission: s, profile, profileId }) => renderQuestSubmissionRow(quest, s, profile, profileId)).join("");
   } catch (e) {
     body.innerHTML = `<div class="search-empty">Couldn't load submissions. Please try again.</div>`;
   }
 }
 
-function renderQuestSubmissionRow(quest, s, profile) {
+function renderQuestSubmissionRow(quest, s, profile, profileId) {
   const nameLine = (profile.username ? `${escapeHtml(profile.name)} \u00b7 @${escapeHtml(profile.username)}` : escapeHtml(profile.name)) + inlineVerifiedBadge(s.telegram_id);
   const avatarHtml = profile.photoUrl
     ? `<img src="${profile.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
@@ -5650,14 +5670,21 @@ function renderQuestSubmissionRow(quest, s, profile) {
 
   return `
     <div class="quest-review-row">
-      <div class="avatar-sm">${avatarHtml}</div>
-      <div class="quest-review-info">
-        <div class="quest-review-name">${nameLine}</div>
-        <a class="quest-review-link-url" href="${escapeHtml(s.submission_link)}" target="_blank" rel="noopener">${escapeHtml(s.submission_link)}</a>
-      </div>
+      <button class="quest-review-submitter" onclick="openQuestSubmitterProfile('${profileId}')" aria-label="View ${escapeAttr(profile.name)}'s profile">
+        <div class="avatar-sm">${avatarHtml}</div>
+        <div class="quest-review-info">
+          <div class="quest-review-name">${nameLine}</div>
+          <a class="quest-review-link-url" href="${escapeHtml(s.submission_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(s.submission_link)}</a>
+        </div>
+      </button>
       <div class="quest-review-actions">${actionsHtml}</div>
     </div>
   `;
+}
+
+function openQuestSubmitterProfile(profileId) {
+  closeQuestReview();
+  openProfile(profileId);
 }
 
 async function markQuestSubmission(submissionId, status) {
