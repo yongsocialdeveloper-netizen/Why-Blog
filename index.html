@@ -2747,6 +2747,10 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v12"/><path d="M15.5 9.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1-3.5 2.3c0 3.2 7 1.4 7 4.7 0 1.4-1.6 2.5-3.5 2.5s-3.5-1.1-3.5-2.5"/></svg>
       Quests
     </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); toggleInterestsSheet(true);">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.6 6.6L21 11l-6.4 2.4L12 20l-2.6-6.6L3 11l6.4-2.4L12 2z"/></svg>
+      Interest
+    </a>
     <hr class="menu-divider" />
 
     <a class="menu-item" href="https://whyblog.yongsocial.com/help" target="_blank" rel="noopener">
@@ -2783,6 +2787,19 @@
     <div class="sheet-body" id="topicList"></div>
     <div class="sheet-footer">
       <button class="sheet-reset" onclick="resetSnoozeTopics()">Reset</button>
+    </div>
+  </div>
+
+  <div class="sheet-overlay" id="interestsOverlay" onclick="toggleInterestsSheet(false)"></div>
+  <div class="settings-sheet" id="interestsSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">Interests</div>
+      <div class="sheet-sub">Turn topics on or off to shape what you see</div>
+    </div>
+    <div class="sheet-body" id="interestList"></div>
+    <div class="sheet-footer">
+      <button class="sheet-reset" onclick="resetInterestTopics()">Reset</button>
     </div>
   </div>
 
@@ -7845,6 +7862,7 @@ function anyOverlayOpen() {
   return document.getElementById("menuPanel").classList.contains("open")
     || document.getElementById("aiPage").classList.contains("open")
     || document.getElementById("settingsSheet").classList.contains("open")
+    || document.getElementById("interestsSheet").classList.contains("open")
     || document.getElementById("searchPage").classList.contains("open")
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
@@ -7917,6 +7935,8 @@ function closeTopOverlay() {
     closeInvite();
   } else if (document.getElementById("settingsSheet").classList.contains("open")) {
     toggleSettingsSheet(false);
+  } else if (document.getElementById("interestsSheet").classList.contains("open")) {
+    toggleInterestsSheet(false);
   } else if (document.getElementById("menuPanel").classList.contains("open")) {
     toggleMenu(false);
   }
@@ -7976,6 +7996,40 @@ function toggleSettingsSheet(open) {
   document.getElementById("settingsOverlay").classList.toggle("open", open);
   document.getElementById("settingsSheet").classList.toggle("open", open);
   if (open) renderTopicList();
+  syncBackButton();
+}
+
+// Visualisation only — toggles are local UI state and don't yet affect
+// what's actually shown in the feed.
+let interestState = {};
+SNOOZE_TOPICS.forEach(t => interestState[t.key] = true);
+
+function renderInterestList() {
+  const list = document.getElementById("interestList");
+  list.innerHTML = SNOOZE_TOPICS.map(t => `
+    <div class="topic-row">
+      <span class="topic-icon">${t.icon}</span>
+      <span class="topic-label">${t.label}</span>
+      <button class="toggle ${interestState[t.key] ? 'on' : ''}" onclick="toggleInterestTopic('${t.key}')" aria-label="Toggle ${t.label}"></button>
+    </div>
+  `).join("");
+}
+
+function toggleInterestTopic(key) {
+  interestState[key] = !interestState[key];
+  haptic("light");
+  renderInterestList();
+}
+
+function resetInterestTopics() {
+  SNOOZE_TOPICS.forEach(t => interestState[t.key] = true);
+  renderInterestList();
+}
+
+function toggleInterestsSheet(open) {
+  document.getElementById("interestsOverlay").classList.toggle("open", open);
+  document.getElementById("interestsSheet").classList.toggle("open", open);
+  if (open) renderInterestList();
   syncBackButton();
 }
 
