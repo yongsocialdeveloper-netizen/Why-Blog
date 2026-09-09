@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src='//libtl.com/sdk.js' data-zone='11716919' data-sdk='show_11716919'></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WhyBlog</title>
@@ -5544,9 +5545,42 @@ function renderQuestProfileGateBody() {
   `;
 }
 
+const AD_COUNTERS_STORAGE_KEY = "whyblog_ad_counters";
+let questsTapCount = 0;
+let questSubmitCount = 0;
+
+function loadAdCounters() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(AD_COUNTERS_STORAGE_KEY));
+    if (saved) {
+      questsTapCount = Number(saved.questsTapCount) || 0;
+      questSubmitCount = Number(saved.questSubmitCount) || 0;
+    }
+  } catch (e) {}
+}
+loadAdCounters();
+
+function saveAdCounters() {
+  try {
+    localStorage.setItem(AD_COUNTERS_STORAGE_KEY, JSON.stringify({ questsTapCount, questSubmitCount }));
+  } catch (e) {}
+}
+
+function showInterstitialAd() {
+  try {
+    if (typeof window["show_11716919"] === "function") {
+      window["show_11716919"]().catch(() => {});
+    }
+  } catch (e) {}
+}
+
 function openQuestsPage() {
   document.getElementById("questsPage").classList.add("open");
   syncBackButton();
+  questsTapCount++;
+  saveAdCounters();
+  // Ad on the 1st, 3rd, 5th... tap of the Quests tab (every odd tap).
+  if (questsTapCount % 2 === 1) showInterstitialAd();
   if (!hasCompletedQuestProfile()) {
     renderQuestProfileGateBody();
     openQuestProfileSheet(true);
@@ -5709,6 +5743,10 @@ async function submitQuestEntry() {
     if (error) throw error;
     closeQuestSubmitModal();
     renderQuestsPage();
+    questSubmitCount++;
+    saveAdCounters();
+    // Ad on the 2nd, 4th, 6th... successful quest submission (every even one).
+    if (questSubmitCount % 2 === 0) showInterstitialAd();
   } catch (e) {
     const msg = e && e.message ? e.message : "";
     statusEl.textContent = msg.includes("duplicate") ? "You've already submitted to this quest."
