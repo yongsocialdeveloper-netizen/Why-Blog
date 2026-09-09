@@ -1462,7 +1462,17 @@
     margin: 0 auto 10px;
   }
   .feed-end-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-  .feed-end-sub { font-size: 12.5px; color: var(--ink-faint); }
+  .feed-end-sub { font-size: 12.5px; color: var(--ink-faint); margin-bottom: 16px; }
+  .feed-end-action {
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 700;
+    text-decoration: none;
+  }
 
   .new-posts-banner {
     position: fixed;
@@ -4474,6 +4484,7 @@ function hideNewPostsBanner() {
 function queueOwnPostAsPending(post, state) {
   pendingNewPosts.set(post.id, { post, state });
   showNewPostsBanner(pendingNewPosts.size);
+  showToast("Posted");
 }
 
 function applyFreshFeedData(freshPosts, freshState, forceApply) {
@@ -9770,7 +9781,8 @@ function feedEndHTML() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>
       </div>
       <div class="feed-end-title">You're all caught up</div>
-      <div class="feed-end-sub">Come back later for new posts.</div>
+      <div class="feed-end-sub">Browse Channel</div>
+      <a class="feed-end-action" href="https://t.me/WhyBlogBrodcast" target="_blank" rel="noopener">Open Channel</a>
     </div>
   `;
 }
