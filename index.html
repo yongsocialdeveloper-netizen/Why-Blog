@@ -6977,6 +6977,7 @@ function closePostOptions() {
 }
 
 const AD_STARS_PER_DAY = 50;
+const AD_INVOICE_ENDPOINT = "https://xrunlxchksrycauujkgy.supabase.co/functions/v1/create-ad-invoice";
 let adCreatePostId = null;
 
 function openAdCreateModal(postId) {
@@ -7044,17 +7045,25 @@ async function submitAdRequest() {
   statusEl.className = "gift-status-line";
 
   try {
-    const { data, error } = await sb.functions.invoke("create-ad-invoice", {
-      body: { post_id: postId, duration_days: days, button_text: buttonText, button_url: buttonUrl }
+    const res = await fetch(AD_INVOICE_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        init_data: tg.initData,
+        post_id: postId,
+        duration_days: days,
+        button_text: buttonText,
+        button_url: buttonUrl
+      })
     });
-    if (error) throw error;
-    if (!data || !data.invoice_url) throw new Error((data && data.error) || "Could not create invoice");
+    const data = await res.json();
+    if (!res.ok || !data.invoice_link) throw new Error(data.error || "Could not create invoice");
 
     const post = USER_POSTS.find(p => p.id === postId);
     if (post) post.adStatus = "pending_payment"; // lock editing immediately, matches server
     render();
 
-    tg.openInvoice(data.invoice_url, async (status) => {
+    tg.openInvoice(data.invoice_link, async (status) => {
       if (status === "paid") {
         statusEl.textContent = "Payment received \u2014 your ad will go live shortly.";
         statusEl.className = "gift-status-line success";
