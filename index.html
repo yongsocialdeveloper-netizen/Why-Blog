@@ -3862,9 +3862,12 @@ function updatePostDetailCommentCount(id) {
   }
 }
 
+let commentSubmitInFlight = {};
+
 async function submitPostDetailComment(id) {
   if (!requireTelegramSession()) return;
   if (!requireIdentitySetup()) return;
+  if (commentSubmitInFlight[id]) return; // blocks double-tap / Enter+Send double-fire
   const input = document.getElementById(`detail-upinput-${id}`);
   if (!input) return;
   const text = input.value.trim();
@@ -3873,6 +3876,8 @@ async function submitPostDetailComment(id) {
   const image = s.draftImage;
 
   if (!text && !image) return;
+
+  commentSubmitInFlight[id] = true;
 
   const localId = `local-${Date.now()}`;
   const comment = {
@@ -3893,7 +3898,7 @@ async function submitPostDetailComment(id) {
   input.value = "";
   s.draftImage = null;
   render();
-  if (!sb) return;
+  if (!sb) { commentSubmitInFlight[id] = false; return; }
   try {
     const { data, error } = await sb.from("comments").insert({
       post_id: id,
@@ -3905,7 +3910,10 @@ async function submitPostDetailComment(id) {
       image: image || null
     }).select().single();
     if (!error && data) { comment.id = data.id; render(); }
-  } catch (e) {}
+  } catch (e) {
+  } finally {
+    commentSubmitInFlight[id] = false;
+  }
 }
 
 let starState = {};
