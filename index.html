@@ -4422,7 +4422,7 @@ function saveFeedCache(posts) {
       id: p.id, type: p.type, text: p.text, image: p.image, question: p.question,
       options: p.options, name: p.name, username: p.username, userId: p.userId,
       photoUrl: p.photoUrl, initials: p.initials, color: p.color,
-      likeCount: p.likeCount, createdAtMillis: p.createdAtMillis
+      likeCount: p.likeCount, createdAtMillis: p.createdAtMillis, category: p.category
     }));
     localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ posts: slim, ts: Date.now() }));
   } catch (e) {}
@@ -7534,6 +7534,54 @@ async function pushIdentityToOwnContent() {
   render();
 }
 
+const TELEGRAM_LINK_CACHE_KEY = "telegramLinkVerified:v1";
+const TELEGRAM_LINK_RECHECK_MS = 24 * 60 * 60 * 1000; // re-verify at most once a day
+
+function readTelegramLinkCache() {
+  try {
+    const raw = localStorage.getItem(TELEGRAM_LINK_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function writeTelegramLinkCache(user) {
+  try {
+    localStorage.setItem(TELEGRAM_LINK_CACHE_KEY, JSON.stringify({
+      telegramId: String(telegramUser.id),
+      userId: user.id,
+      username: telegramUser.username || "",
+      name: telegramUser.name || "",
+      photoUrl: telegramUser.photoUrl || "",
+      ts: Date.now()
+    }));
+  } catch (e) {}
+}
+
+function clearTelegramLinkCache() {
+  try { localStorage.removeItem(TELEGRAM_LINK_CACHE_KEY); } catch (e) {}
+}
+
+// linkTelegramIdentity does 2 selects + an upsert + an auth.updateUser call,
+// and showAuthenticatedApp() waits on all of it before the feed can paint.
+// That's fine the first time, but it was running unconditionally on every
+// single app open -- including session restores where nothing about the
+// Telegram <-> account link has changed -- which is what made logging in
+// feel slow. If we've already confirmed this exact pairing recently and
+// nothing about the Telegram profile has changed, skip straight to
+// showAuthenticatedApp instead of re-doing that round trip.
+function isTelegramLinkFresh(user) {
+  if (!isTelegramSession || !user) return false;
+  const cache = readTelegramLinkCache();
+  if (!cache) return false;
+  if (cache.userId !== user.id) return false;
+  if (cache.telegramId !== String(telegramUser.id)) return false;
+  if (cache.username !== (telegramUser.username || "")) return false;
+  if (cache.name !== (telegramUser.name || "")) return false;
+  if (cache.photoUrl !== (telegramUser.photoUrl || "")) return false;
+  if (Date.now() - cache.ts > TELEGRAM_LINK_RECHECK_MS) return false;
+  return true;
+}
+
 async function linkTelegramIdentity(user) {
   if (!isTelegramSession) {
     const error = new Error("Open this app inside Telegram.");
@@ -7647,6 +7695,7 @@ async function resetPassword() {
 }
 
 async function signOutUser() {
+  clearTelegramLinkCache();
   if (sb) await sb.auth.signOut();
 }
 
@@ -7685,8 +7734,13 @@ function startSupabaseAuth() {
       }
       setAuthBusy(true);
       try {
-        await linkTelegramIdentity(user);
-        showAuthenticatedApp(user);
+        if (isTelegramLinkFresh(user)) {
+          showAuthenticatedApp(user);
+        } else {
+          await linkTelegramIdentity(user);
+          writeTelegramLinkCache(user);
+          showAuthenticatedApp(user);
+        }
       } catch (error) {
         setAuthBusy(false);
         // Only force sign-out for errors where the session genuinely can't
