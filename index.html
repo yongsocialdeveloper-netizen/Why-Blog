@@ -4503,6 +4503,9 @@ let feedPollTimer = null;
 let isColdAppLoad = true;
 
 const FEED_PAGE_SIZE = 20;
+const FEED_QUERY_PAGE_SIZE = 150; // server-side fetch window, not the reveal-on-scroll size
+let hasMoreOlderPosts = true;
+let isLoadingOlderPosts = false;
 let feedVisibleCount = FEED_PAGE_SIZE;
 let feedIsLoadingMore = false;
 let feedInfiniteObserver = null;
@@ -4785,10 +4788,13 @@ async function loadUserPosts(options = {}) {
   let freshPosts = [];
   try {
     if (sb) {
-      const { data, error } = await sb.from("posts_public").select("*").order("created_at", { ascending: false });
+      const { data, error } = await sb.from("posts_public").select("*").order("created_at", { ascending: false }).limit(FEED_QUERY_PAGE_SIZE);
       if (error) throw error;
       freshPosts = (data || []).map(mapPostRow);
       freshPosts.forEach(ensureTelegramPostProfile);
+      // A full page back means there's probably more history beyond it;
+      // a short page means we've already fetched everything that exists.
+      hasMoreOlderPosts = freshPosts.length >= FEED_QUERY_PAGE_SIZE;
     }
   } catch (e) {
     console.error("loadUserPosts failed:", e);
@@ -10196,7 +10202,12 @@ function setupFeedInfiniteScroll() {
 function loadMoreFeedPosts() {
   if (feedIsLoadingMore) return;
   const totalCount = currentRankedFeedPosts.length;
-  if (feedVisibleCount >= totalCount) return;
+  if (feedVisibleCount >= totalCount) {
+    if (activeFeedTab === "foryou" && hasMoreOlderPosts && !isLoadingOlderPosts) {
+      loadOlderFeedPosts();
+    }
+    return;
+  }
 
   feedIsLoadingMore = true;
   teardownFeedInfiniteScroll();
@@ -10227,6 +10238,83 @@ function loadMoreFeedPosts() {
     setupFeedInfiniteScroll();
     feedIsLoadingMore = false;
   }, 300);
+}
+
+async function loadOlderFeedPosts() {
+  if (isLoadingOlderPosts || !hasMoreOlderPosts || !sb) return;
+  isLoadingOlderPosts = true;
+  feedIsLoadingMore = true;
+  teardownFeedInfiniteScroll();
+  const sentinel = document.getElementById("feedSentinel");
+  if (sentinel) sentinel.outerHTML = feedLoadingMoreHTML();
+
+  try {
+    if (!USER_POSTS.length) { hasMoreOlderPosts = false; return; }
+    const oldestMillis = Math.min(...USER_POSTS.map(p => p.createdAtMillis));
+    const oldestIso = new Date(oldestMillis).toISOString();
+
+    const { data, error } = await sb.from("posts_public").select("*")
+      .lt("created_at", oldestIso)
+      .order("created_at", { ascending: false })
+      .limit(FEED_QUERY_PAGE_SIZE);
+    if (error) throw error;
+
+    const olderPosts = (data || []).map(mapPostRow);
+    olderPosts.forEach(ensureTelegramPostProfile);
+    hasMoreOlderPosts = olderPosts.length >= FEED_QUERY_PAGE_SIZE;
+
+    if (olderPosts.length) {
+      const ids = olderPosts.map(p => p.id);
+      let likedIds = new Set(), bookmarkedIds = new Set(), commentsByPost = {}, votesByPost = {};
+      try {
+        const [likesRes, bookmarksRes, commentsRes, votesRes] = await Promise.all([
+          sb.from("likes").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+          sb.from("bookmarks").select("post_id").eq("telegram_id", String(telegramUser.id)).in("post_id", ids),
+          sb.from("comments").select("*").in("post_id", ids).order("created_at", { ascending: true }),
+          sb.from("votes").select("post_id, option_index").eq("telegram_id", String(telegramUser.id)).in("post_id", ids)
+        ]);
+        (likesRes.data || []).forEach(r => likedIds.add(r.post_id));
+        (bookmarksRes.data || []).forEach(r => bookmarkedIds.add(r.post_id));
+        (commentsRes.data || []).forEach(r => {
+          if (!commentsByPost[r.post_id]) commentsByPost[r.post_id] = [];
+          const comment = mapCommentRow(r);
+          ensureTelegramCommentProfile(comment);
+          commentsByPost[r.post_id].push(comment);
+        });
+        (votesRes.data || []).forEach(r => { votesByPost[r.post_id] = r.option_index; });
+      } catch (e) {}
+
+      olderPosts.forEach(post => {
+        USER_POSTS.push(post);
+        userPostState[post.id] = {
+          liked: likedIds.has(post.id),
+          likeCount: post.likeCount || 0,
+          bookmarked: bookmarkedIds.has(post.id),
+          gifted: false,
+          comments: commentsByPost[post.id] || [],
+          showComments: false,
+          textExpanded: false,
+          draftImage: null,
+          pollVoted: post.type === "poll" ? (votesByPost[post.id] ?? null) : null
+        };
+        feedRenderedIds.add(post.id);
+      });
+
+      const idsToCheck = olderPosts.map(p => p.userId)
+        .concat(Object.values(commentsByPost).flat().map(c => c.userId));
+      hydratePremiumBadges(idsToCheck);
+    }
+  } catch (e) {
+    console.error("loadOlderFeedPosts failed:", e);
+  } finally {
+    isLoadingOlderPosts = false;
+    // render() recomputes currentRankedFeedPosts (now longer) and
+    // reattaches the sentinel, then this reveals the newly-loaded batch
+    // via the normal path -- or lands on "all caught up" if that was
+    // genuinely the end of the post history.
+    render();
+    loadMoreFeedPosts();
+  }
 }
 
 function render() {
