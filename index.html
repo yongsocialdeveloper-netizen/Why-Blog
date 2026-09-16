@@ -825,6 +825,18 @@
     cursor: pointer;
   }
   .report-reason-btn.selected { border-color: var(--heart); color: var(--heart); font-weight: 700; }
+  .report-meta-line { font-size: 12px; color: var(--ink-faint); margin-top: 3px; }
+  .report-preview {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--line);
+    background: rgba(255,255,255,0.02);
+    border-radius: 4px;
+    word-break: break-word;
+  }
+  .report-open-hint { font-size: 11.5px; color: var(--accent); margin-top: 6px; font-weight: 600; }
   .ad-sponsored-label {
     font-size: 11.5px;
     font-weight: 700;
@@ -5743,37 +5755,104 @@ async function renderReportsPage() {
       return;
     }
 
-    const rows = await Promise.all(reports.map(async r => {
+    // Fetch the reported content straight from the DB rather than looking
+    // in USER_POSTS -- the feed is paginated, so most reported content
+    // won't be in memory and would otherwise show "content not found".
+    const postIds = reports.filter(r => r.target_type === "post").map(r => r.target_id);
+    const commentIds = reports.filter(r => r.target_type === "comment").map(r => r.target_id);
+    const profileTgIds = reports.filter(r => r.target_type === "profile").map(r => r.target_id);
+
+    const [postsRes, commentsRes] = await Promise.all([
+      postIds.length ? sb.from("posts_public").select("id, text, image, type, name, username, telegram_id").in("id", postIds) : Promise.resolve({ data: [] }),
+      commentIds.length ? sb.from("comments").select("id, text, post_id, author, telegram_id").in("id", commentIds) : Promise.resolve({ data: [] })
+    ]);
+
+    const postsById = {};
+    (postsRes.data || []).forEach(p => { postsById[p.id] = p; });
+    const commentsById = {};
+    (commentsRes.data || []).forEach(c => { commentsById[c.id] = c; });
+
+    // Look up usernames for both reporters and reported profiles in one go.
+    const lookupTgIds = [...new Set(
+      reports.map(r => r.reporter_telegram_id)
+        .concat(profileTgIds)
+        .concat((commentsRes.data || []).map(c => c.telegram_id))
+        .filter(Boolean)
+    )];
+    let profilesByTgId = {};
+    if (lookupTgIds.length) {
+      const { data: profs } = await sb.from("profiles")
+        .select("telegram_id, username, display_name")
+        .in("telegram_id", lookupTgIds);
+      (profs || []).forEach(p => { profilesByTgId[p.telegram_id] = p; });
+    }
+
+    const handleFor = (tgId) => {
+      const p = profilesByTgId[tgId];
+      if (!p) return `ID ${escapeHtml(String(tgId || "unknown"))}`;
+      return p.username ? `@${escapeHtml(p.username)}` : escapeHtml(p.display_name || `ID ${tgId}`);
+    };
+
+    const rows = reports.map(r => {
       let preview = "(content not found \u2014 may already be deleted)";
+      let authorLine = "";
+      let openAttr = "";
+
       if (r.target_type === "post") {
-        const post = USER_POSTS.find(p => p.id === r.target_id);
-        preview = post ? (post.text ? post.text.slice(0, 140) : "(image/media post)") : preview;
-      } else if (r.target_type === "comment") {
-        for (const id in userPostState) {
-          const c = userPostState[id].comments.find(c => c.id === r.target_id);
-          if (c) { preview = c.text.slice(0, 140); break; }
+        const post = postsById[r.target_id];
+        if (post) {
+          preview = post.text ? post.text.slice(0, 200) : `(${post.type || "media"} post, no text)`;
+          authorLine = post.username ? `@${escapeHtml(post.username)}` : escapeHtml(post.name || `ID ${post.telegram_id}`);
+          openAttr = `onclick="openReportedContent('post', '${r.target_id}')"`;
         }
+      } else if (r.target_type === "comment") {
+        const c = commentsById[r.target_id];
+        if (c) {
+          preview = c.text ? c.text.slice(0, 200) : "(no text)";
+          authorLine = handleFor(c.telegram_id);
+          openAttr = `onclick="openReportedContent('comment', '${c.post_id}')"`;
+        }
+      } else if (r.target_type === "profile") {
+        preview = "(reported profile)";
+        authorLine = handleFor(r.target_id);
       }
+
       return `
         <div class="quest-review-row">
-          <div class="quest-review-info">
-            <div class="quest-review-name">${escapeHtml(r.reason)} \u00b7 ${r.target_type}</div>
-            <div class="quest-review-link-url" style="color: var(--ink-soft);">${escapeHtml(preview)}</div>
-            ${r.details ? `<div class="quest-review-link-url">${escapeHtml(r.details)}</div>` : ""}
+          <div class="quest-review-info" style="${openAttr ? "cursor:pointer;" : ""}" ${openAttr}>
+            <div class="quest-review-name">${escapeHtml(r.reason)} \u00b7 ${escapeHtml(r.target_type)}</div>
+            ${authorLine ? `<div class="report-meta-line">Reported user: <strong>${authorLine}</strong></div>` : ""}
+            <div class="report-meta-line">Reported by: ${handleFor(r.reporter_telegram_id)} \u00b7 ${formatRelativeTime(new Date(r.created_at).getTime())}</div>
+            <div class="report-preview">${escapeHtml(preview)}</div>
+            ${r.details ? `<div class="report-meta-line">Details: ${escapeHtml(r.details)}</div>` : ""}
+            ${openAttr ? `<div class="report-open-hint">Tap to view content \u2192</div>` : ""}
           </div>
           <div class="quest-review-actions">
-            <button class="quest-review-action" onclick="dismissReport('${r.id}')">Dismiss</button>
-            <button class="quest-review-action" style="color: var(--heart);" onclick="removeReportedContent('${r.id}', '${r.target_type}', '${r.target_id}')">Remove</button>
+            <button class="quest-review-action" onclick="event.stopPropagation(); dismissReport('${r.id}')">Dismiss</button>
+            <button class="quest-review-action" style="color: var(--heart);" onclick="event.stopPropagation(); removeReportedContent('${r.id}', '${r.target_type}', '${r.target_id}')">Remove</button>
           </div>
         </div>
       `;
-    }));
+    });
 
     body.innerHTML = rows.join("");
   } catch (e) {
     console.error("renderReportsPage failed:", e);
     body.innerHTML = `<div class="search-empty">Couldn't load reports.</div>`;
   }
+}
+
+// For a reported comment we open its parent post (that's where the comment
+// is actually readable in context); for a post we open the post itself.
+async function openReportedContent(targetType, postId) {
+  if (!postId) return;
+  const ok = await ensurePostLoaded(postId);
+  if (!ok) {
+    alert("Couldn't load that content \u2014 it may have been deleted.");
+    return;
+  }
+  closeReportsPage();
+  openPostDetail(postId);
 }
 
 async function dismissReport(reportId) {
