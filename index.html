@@ -2265,6 +2265,24 @@
   .stat.bookmark.active { color: var(--accent); }
   .stat.bookmark.active svg { fill: var(--accent); }
   .stat.share:hover { color: var(--accent); }
+  .stat.ai-summarize:hover, .stat.ai-summarize.active { color: var(--accent); background: var(--accent-soft); }
+  .stat.ai-summarize img { border-radius: 4px; }
+
+  .ai-summary-box {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 8px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+  }
+  .ai-summary-box img { flex-shrink: 0; margin-top: 1px; border-radius: 4px; }
+  .ai-summary-text { font-size: 13px; line-height: 1.45; color: var(--ink); }
+  .ai-summary-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+  .ai-summary-error { font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+  .ai-summary-error:hover { color: var(--accent); }
 
   .comments { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
   .comment { display: flex; gap: 8px; padding: 6px 0; }
@@ -3588,19 +3606,6 @@
     </div>
   </div>
 
-  <div class="form-sheet-overlay" id="postExplainOverlay" onclick="closePostExplainSheet()"></div>
-  <div class="form-sheet" id="postExplainSheet">
-    <div class="form-sheet-header">
-      <div class="form-sheet-title">Explained by Why AI</div>
-      <button class="form-sheet-close" onclick="closePostExplainSheet()" aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="form-sheet-body">
-      <div id="postExplainBody" style="font-size:14.5px; line-height:1.55; color:var(--ink);"></div>
-    </div>
-  </div>
-
   <div class="form-sheet-overlay" id="adCreateOverlay" onclick="closeAdCreateModal()"></div>
   <div class="form-sheet" id="adCreateSheet">
     <div class="form-sheet-header">
@@ -3931,10 +3936,11 @@ function profilePostCardHTML(post, isPinned) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat why-ai" onclick="event.stopPropagation(); explainPostWithAI('${post.id}')" aria-label="Explain with Why AI">
-            ${whyAiIconHTML()}
+          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="event.stopPropagation(); summarizePost('${post.id}', event)" aria-label="Summarize with Why">
+            ${aiSparkIcon(15)}
           </button>
         </div>
+        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
       </div>
     </article>
   `;
@@ -4015,10 +4021,11 @@ function postDetailCardHTML(post) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat why-ai" onclick="explainPostWithAI('${post.id}')" aria-label="Explain with Why AI">
-            ${whyAiIconHTML()}
+          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="summarizePost('${post.id}', event)" aria-label="Summarize with Why">
+            ${aiSparkIcon(15)}
           </button>
         </div>
+        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
         <div class="comments">
           ${commentsHtml}
         </div>
@@ -6821,10 +6828,11 @@ function userPostCardHTML(post) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat why-ai" onclick="explainPostWithAI('${post.id}')" aria-label="Explain with Why AI">
-            ${whyAiIconHTML()}
+          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="summarizePost('${post.id}', event)" aria-label="Summarize with Why">
+            ${aiSparkIcon(15)}
           </button>
         </div>
+        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
       </div>
     </article>
   `;
@@ -7308,63 +7316,6 @@ function closeReportSheet() {
   document.getElementById("reportSheet").classList.remove("open");
 }
 
-function closePostExplainSheet() {
-  document.getElementById("postExplainOverlay").classList.remove("open");
-  document.getElementById("postExplainSheet").classList.remove("open");
-}
-
-function describePostForAI(post) {
-  if (post.type === "poll" && post.question) {
-    const options = (post.options || []).map(o => o.text || o).join(", ");
-    return `A poll asking: "${post.question}"${options ? ` with these options: ${options}` : ""}.`;
-  }
-  if (post.type === "quest") {
-    return `A quest post titled "${post.questTitle || post.text || "Untitled quest"}".`;
-  }
-  if (post.text) return post.text;
-  if (post.image) return "(This post has an image with no caption.)";
-  return "(This post has no text content.)";
-}
-
-async function explainPostWithAI(postId) {
-  const post = findUserPostById(postId) || USER_POSTS.find(p => p.id === postId);
-  const bodyEl = document.getElementById("postExplainBody");
-  document.getElementById("postExplainOverlay").classList.add("open");
-  document.getElementById("postExplainSheet").classList.add("open");
-
-  if (!post) {
-    bodyEl.textContent = "Couldn't find this post.";
-    return;
-  }
-  if (!sb) {
-    bodyEl.textContent = "Can't connect right now \u2014 try again in a moment.";
-    return;
-  }
-
-  bodyEl.innerHTML = `<div style="display:flex; align-items:center; gap:8px; color:var(--ink-faint);"><div class="gift-spinner"></div>Thinking\u2026</div>`;
-  haptic("light");
-
-  const content = describePostForAI(post);
-  const prompt = `Explain the following social media post in simple, everyday words. `
-    + `Write like you're explaining it to a friend who isn't familiar with jargon \u2014 no big or complicated words, no technical terms unless you explain them plainly. `
-    + `Keep it clear and to the point: most posts only need a few short sentences, and you must never go over 1000 words. `
-    + `Just explain what the post is saying, don't add opinions or unrelated commentary.\n\n`
-    + `Post:\n"""\n${content}\n"""`;
-
-  try {
-    const res = await sb.functions.invoke("ai-agent", {
-      body: { messages: [{ role: "user", content: prompt }], context: buildAIContext(), init_data: tg && tg.initData }
-    });
-    if (res.error) throw res.error;
-    const blocks = (res.data && res.data.content) || [];
-    const text = blocks.filter(b => b.type === "text" && b.text).map(b => b.text).join("\n\n").trim();
-    bodyEl.textContent = text || "Couldn't generate an explanation for this post. Please try again.";
-  } catch (e) {
-    console.error("explainPostWithAI failed:", e);
-    bodyEl.textContent = "Sorry, couldn't reach Why AI just now. Please try again.";
-  }
-}
-
 async function submitReport() {
   const statusEl = document.getElementById("reportStatus");
   if (!reportTarget.reason) {
@@ -7808,9 +7759,6 @@ function starIcon(filled) {
 }
 function giftIcon(filled) {
   return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1" fill="${filled ? 'currentColor' : 'none'}"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>`;
-}
-function whyAiIconHTML() {
-  return `<img src="https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png" alt="" referrerpolicy="no-referrer" style="width:18px;height:18px;border-radius:50%;" />`;
 }
 function verifiedBadge() {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 2.2 3.1-.4.6 3.1 2.9 1.4-1.1 2.9 1.1 2.9-2.9 1.4-.6 3.1-3.1-.4L12 21l-2.2-2.8-3.1.4-.6-3.1-2.9-1.4L4.3 11.2 3.2 8.3l2.9-1.4.6-3.1 3.1.4L12 2z"/><path d="M9 12l2 2 4-4" stroke="#0d1116" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -8475,6 +8423,97 @@ function aiSparkIcon(size) {
   return `<img src="${WHY_APP_ICON_URL}" alt="Why" width="${size}" height="${size}" referrerpolicy="no-referrer" />`;
 }
 
+// ---------- Per-post "Why" summary ----------
+// Deliberately kept separate from the ai-agent chat assistant: this
+// only ever sends read-only post text to a small dedicated function
+// and renders back plain text, so it can't get tangled up with the
+// chat assistant's tools/quota/history logic (or its bugs).
+function aiSummaryBoxHTML(postId) {
+  const s = userPostState[postId];
+  if (!s || !s.aiSummaryOpen) return "";
+  if (s.aiSummaryLoading) {
+    return `
+      <div class="ai-summary-box">
+        ${aiSparkIcon(15)}
+        <div class="ai-typing"><span></span><span></span><span></span></div>
+      </div>
+    `;
+  }
+  if (s.aiSummaryError) {
+    return `
+      <div class="ai-summary-box">
+        ${aiSparkIcon(15)}
+        <div class="ai-summary-error" onclick="summarizePost('${postId}')">Couldn't summarize this post. Tap to try again.</div>
+      </div>
+    `;
+  }
+  if (s.aiSummary) {
+    return `
+      <div class="ai-summary-box">
+        ${aiSparkIcon(15)}
+        <div>
+          <div class="ai-summary-label">Summary</div>
+          <div class="ai-summary-text">${escapeHtml(s.aiSummary)}</div>
+        </div>
+      </div>
+    `;
+  }
+  return "";
+}
+
+function renderAISummarySlot(postId) {
+  const slot = document.getElementById(`aiSummary-${postId}`);
+  if (slot) slot.innerHTML = aiSummaryBoxHTML(postId);
+  document.querySelectorAll(`.stat.ai-summarize[onclick*="'${postId}'"]`).forEach(btn => {
+    btn.classList.toggle("active", !!(userPostState[postId] && userPostState[postId].aiSummaryOpen));
+  });
+}
+
+async function summarizePost(postId, evt) {
+  if (evt) evt.stopPropagation();
+  const s = userPostState[postId];
+  const post = findUserPostById(postId);
+  if (!s || !post) return;
+
+  // Already fetched (or currently loading) -- tapping again just
+  // toggles the box closed rather than re-fetching.
+  if (s.aiSummary || s.aiSummaryLoading) {
+    s.aiSummaryOpen = !s.aiSummaryOpen;
+    renderAISummarySlot(postId);
+    return;
+  }
+
+  if (!post.text || !post.text.trim()) {
+    showToast("Nothing to summarize on this post.");
+    return;
+  }
+
+  if (!sb) {
+    showToast("Can't reach Why right now.");
+    return;
+  }
+
+  s.aiSummaryOpen = true;
+  s.aiSummaryLoading = true;
+  s.aiSummaryError = false;
+  haptic("light");
+  renderAISummarySlot(postId);
+
+  try {
+    const { data, error } = await sb.functions.invoke("summarize-post", {
+      body: { post_id: postId, text: post.text }
+    });
+    if (error) throw error;
+    s.aiSummary = (data && data.summary) ? String(data.summary).trim() : "";
+    if (!s.aiSummary) throw new Error("empty summary");
+  } catch (e) {
+    s.aiSummaryError = true;
+  } finally {
+    s.aiSummaryLoading = false;
+    renderAISummarySlot(postId);
+  }
+}
+
 function renderAIItem(item) {
   if (item.kind === "user") {
     return `
@@ -8947,7 +8986,6 @@ function anyOverlayOpen() {
     || document.getElementById("draftViewPage").classList.contains("open")
     || document.getElementById("postOptionsSheet").classList.contains("open")
     || document.getElementById("reportSheet").classList.contains("open")
-    || document.getElementById("postExplainSheet").classList.contains("open")
     || document.getElementById("videoZonePlayer").classList.contains("open")
     || document.getElementById("videoZonePage").classList.contains("open");
 }
@@ -8961,8 +8999,6 @@ function closeTopOverlay() {
     closeVideoZone();
   } else if (document.getElementById("discardPopup").classList.contains("open")) {
     cancelDiscardPost();
-  } else if (document.getElementById("postExplainSheet").classList.contains("open")) {
-    closePostExplainSheet();
   } else if (document.getElementById("reportSheet").classList.contains("open")) {
     closeReportSheet();
   } else if (document.getElementById("postOptionsSheet").classList.contains("open")) {
