@@ -838,6 +838,40 @@
   }
   .report-open-hint { font-size: 11.5px; color: var(--accent); margin-top: 6px; font-weight: 600; }
 
+  .notif-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .notif-setting-info { flex: 1; min-width: 0; padding-right: 12px; }
+  .notif-setting-title { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .notif-setting-desc { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+  .toggle-switch {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--line);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .toggle-switch.on { background: var(--accent); }
+  .toggle-switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s ease;
+  }
+  .toggle-switch.on .toggle-switch-knob { transform: translateX(20px); }
+
   .topic-chips-row {
     display: flex;
     gap: 8px;
@@ -2906,6 +2940,10 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><circle cx="12" cy="16.5" r=".2" fill="currentColor"/><path d="M10.3 3.9L2.7 17.3A1.5 1.5 0 004 19.5h16a1.5 1.5 0 001.3-2.2L13.7 3.9a1.5 1.5 0 00-2.6 0z"/></svg>
       Reports
     </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openNotificationSettingsPage();">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+      Notifications
+    </a>
     <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); toggleInterestsSheet(true);">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.6 6.6L21 11l-6.4 2.4L12 20l-2.6-6.6L3 11l6.4-2.4L12 2z"/></svg>
       Interest
@@ -3260,6 +3298,16 @@
       <div class="bookmarks-title">Reports</div>
     </div>
     <div class="bookmarks-body" id="reportsBody"></div>
+  </div>
+
+  <div class="bookmarks-page" id="notificationSettingsPage">
+    <div class="bookmarks-header">
+      <button class="bookmarks-back" onclick="closeNotificationSettingsPage()" aria-label="Back">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="bookmarks-title">Notifications</div>
+    </div>
+    <div class="bookmarks-body" id="notificationSettingsBody"></div>
   </div>
 
   <div class="bookmarks-page" id="questReviewPage">
@@ -3663,7 +3711,7 @@ const PROFILES = {
     bio: "Add a bio to tell people what you're into.",
     joined: "Recently",
     vibes: [],
-    bioUpdatedAt: null, tonWallet: "", editLog: [], premiumUntil: null
+    bioUpdatedAt: null, tonWallet: "", editLog: [], premiumUntil: null, notificationPrefs: {}
   }
 };
 
@@ -5795,6 +5843,74 @@ function openReportsPage() {
 function closeReportsPage() {
   document.getElementById("reportsPage").classList.remove("open");
   syncBackButton();
+}
+
+const NOTIFICATION_TYPES = [
+  { key: "comments", title: "Comments", desc: "Someone comments on your post" },
+  { key: "likes", title: "Likes", desc: "Someone likes your post" },
+  { key: "gifts", title: "Gifts", desc: "Someone sends you a TON gift" },
+  { key: "stars", title: "Stars", desc: "Someone stars your profile" },
+  { key: "quest_results", title: "Quest results", desc: "You're marked a winner, or your reward is paid" },
+  { key: "reports", title: "Reports", desc: "A report you filed gets actioned" },
+  { key: "ads", title: "Ads", desc: "Your ad payment is confirmed and goes live" },
+];
+
+function openNotificationSettingsPage() {
+  document.getElementById("notificationSettingsPage").classList.add("open");
+  syncBackButton();
+  renderNotificationSettingsPage();
+}
+
+function closeNotificationSettingsPage() {
+  document.getElementById("notificationSettingsPage").classList.remove("open");
+  syncBackButton();
+}
+
+function renderNotificationSettingsPage() {
+  const body = document.getElementById("notificationSettingsBody");
+  if (!body) return;
+  const prefs = PROFILES.you.notificationPrefs || {};
+  body.innerHTML = `
+    <div class="form-note" style="margin:14px 14px 0;">Choose which notifications you get from WhyBlog, sent to you as messages from the bot.</div>
+    ${NOTIFICATION_TYPES.map(t => {
+      const isOn = prefs[t.key] !== false; // default on unless explicitly turned off
+      return `
+        <div class="notif-setting-row">
+          <div class="notif-setting-info">
+            <div class="notif-setting-title">${escapeHtml(t.title)}</div>
+            <div class="notif-setting-desc">${escapeHtml(t.desc)}</div>
+          </div>
+          <button class="toggle-switch ${isOn ? 'on' : ''}" onclick="toggleNotificationPref('${t.key}')" aria-label="Toggle ${escapeHtml(t.title)}">
+            <div class="toggle-switch-knob"></div>
+          </button>
+        </div>
+      `;
+    }).join("")}
+  `;
+}
+
+async function toggleNotificationPref(key) {
+  const prefs = Object.assign({}, PROFILES.you.notificationPrefs || {});
+  const current = prefs[key] !== false;
+  prefs[key] = !current;
+  PROFILES.you.notificationPrefs = prefs;
+  renderNotificationSettingsPage();
+  haptic("light");
+
+  if (!sb || !telegramUser.id) return;
+  try {
+    const { error } = await sb.from("profiles")
+      .update({ notification_prefs: prefs })
+      .eq("telegram_id", String(telegramUser.id));
+    if (error) throw error;
+  } catch (e) {
+    console.error("toggleNotificationPref failed:", e);
+    // Roll back on failure so the UI doesn't lie about what's saved.
+    prefs[key] = current;
+    PROFILES.you.notificationPrefs = Object.assign({}, prefs);
+    renderNotificationSettingsPage();
+    showToast("Couldn't save. Please try again.");
+  }
 }
 
 async function renderReportsPage() {
@@ -8975,6 +9091,7 @@ function anyOverlayOpen() {
     || document.getElementById("questsPage").classList.contains("open")
     || document.getElementById("questReviewPage").classList.contains("open")
     || document.getElementById("reportsPage").classList.contains("open")
+    || document.getElementById("notificationSettingsPage").classList.contains("open")
     || document.getElementById("questSubmitSheet").classList.contains("open")
     || document.getElementById("questProfileSheet").classList.contains("open")
     || document.getElementById("questFollowSheet").classList.contains("open")
@@ -9029,6 +9146,8 @@ function closeTopOverlay() {
     closeQuestSubmitModal();
   } else if (document.getElementById("questReviewPage").classList.contains("open")) {
     closeQuestReview();
+  } else if (document.getElementById("notificationSettingsPage").classList.contains("open")) {
+    closeNotificationSettingsPage();
   } else if (document.getElementById("reportsPage").classList.contains("open")) {
     closeReportsPage();
   } else if (document.getElementById("questsPage").classList.contains("open")) {
@@ -9288,7 +9407,7 @@ async function loadMyProfile() {
   let hasUsername = false;
   try {
     const { data } = await sb.from("profiles")
-      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at, premium_until, pinned_post_id, ai_messages_used_today, ai_messages_reset_date, quest_telegram, quest_x, quest_youtube, quest_tiktok")
+      .select("bio, vibes, bio_updated_at, ton_wallet, avatar_url, edit_log, username, display_name, created_at, premium_until, pinned_post_id, ai_messages_used_today, ai_messages_reset_date, quest_telegram, quest_x, quest_youtube, quest_tiktok, notification_prefs")
       .eq("telegram_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
@@ -9300,6 +9419,7 @@ async function loadMyProfile() {
       PROFILES.you.questX = data.quest_x || "";
       PROFILES.you.questYoutube = data.quest_youtube || "";
       PROFILES.you.questTiktok = data.quest_tiktok || "";
+      PROFILES.you.notificationPrefs = data.notification_prefs || {};
       PROFILES.you.premiumUntil = data.premium_until || null;
       PROFILES.you.pinnedPostId = data.pinned_post_id || null;
       const todayUTC = new Date().toISOString().slice(0, 10);
