@@ -837,6 +837,77 @@
     word-break: break-word;
   }
   .report-open-hint { font-size: 11.5px; color: var(--accent); margin-top: 6px; font-weight: 600; }
+
+  .stories-row {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    scrollbar-width: none;
+  }
+  .stories-row::-webkit-scrollbar { display: none; }
+  .story-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    width: 62px;
+    cursor: pointer;
+  }
+  .story-ring {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    padding: 2.5px;
+    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .story-ring.seen {
+    background: var(--line);
+  }
+  .story-ring.own {
+    background: var(--line);
+  }
+  .story-ring-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--bg, #000);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .story-ring-inner .avatar { width: 100%; height: 100%; font-size: 15px; }
+  .story-add-badge {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    border: 2px solid var(--bg, #000);
+  }
+  .story-item-name {
+    font-size: 11px;
+    color: var(--ink-soft);
+    max-width: 62px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .ad-sponsored-label {
     font-size: 11.5px;
     font-weight: 700;
@@ -2790,6 +2861,8 @@
       <button class="feed-tab" id="feedTabOffInterest" onclick="setFeedTab('offinterest')">Off-Interest</button>
     </div>
   </div>
+
+  <div class="stories-row" id="storiesRow"></div>
 
   <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
     <div class="pull-refresh-mark">
@@ -7965,7 +8038,8 @@ function showAuthenticatedApp(user) {
   initTelegramIdentity();
   refreshTelegramLinkSnapshot();
   paintCachedFeedImmediately();
-  loadMyProfile();
+  renderStoriesRow();
+  loadMyProfile().then(renderStoriesRow);
   loadUserPosts();
   loadQuestAdminStatus();
 }
@@ -9104,6 +9178,55 @@ function toggleMenu(open) {
 }
 
 const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"];
+
+function avatarInnerHTML(photoUrl, initials) {
+  const safePhoto = safeTelegramPhotoUrl(photoUrl);
+  return safePhoto
+    ? `<img src="${escapeHtml(safePhoto)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : escapeHtml(initials || "?");
+}
+
+// Visual placeholder only -- no story data/backend yet. Tapping shows a
+// "coming soon" toast. Your own circle uses your real avatar; the rest
+// are static sample entries just to show the intended layout.
+const STORY_PLACEHOLDER_SAMPLES = [
+  { name: "Amara", initials: "A", color: "#e0604a", seen: false },
+  { name: "DevWithKay", initials: "K", color: "#2fa393", seen: false },
+  { name: "Tokunbo", initials: "T", color: "#6228d7", seen: true },
+  { name: "buildwithzee", initials: "Z", color: "#f5a623", seen: false },
+  { name: "Nia", initials: "N", color: "#3b82f6", seen: true },
+];
+
+function renderStoriesRow() {
+  const row = document.getElementById("storiesRow");
+  if (!row) return;
+
+  const you = PROFILES.you;
+  const ownItem = `
+    <div class="story-item" onclick="showToast('Stories coming soon')">
+      <div class="story-ring own">
+        <div class="story-ring-inner">
+          <div class="avatar" style="background:${you.color || '#2fa393'}">${avatarInnerHTML(you.photoUrl, you.initials)}</div>
+        </div>
+        <div class="story-add-badge">+</div>
+      </div>
+      <div class="story-item-name">Your story</div>
+    </div>
+  `;
+
+  const sampleItems = STORY_PLACEHOLDER_SAMPLES.map(s => `
+    <div class="story-item" onclick="showToast('Stories coming soon')">
+      <div class="story-ring ${s.seen ? 'seen' : ''}">
+        <div class="story-ring-inner">
+          <div class="avatar" style="background:${s.color}">${escapeHtml(s.initials)}</div>
+        </div>
+      </div>
+      <div class="story-item-name">${escapeHtml(s.name)}</div>
+    </div>
+  `).join("");
+
+  row.innerHTML = ownItem + sampleItems;
+}
 
 async function loadMyProfile() {
   if (!sb) return;
