@@ -838,75 +838,35 @@
   }
   .report-open-hint { font-size: 11.5px; color: var(--accent); margin-top: 6px; font-weight: 600; }
 
-  .stories-row {
+  .topic-chips-row {
     display: flex;
-    gap: 14px;
+    gap: 8px;
     overflow-x: auto;
-    padding: 12px 14px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--line);
     scrollbar-width: none;
   }
-  .stories-row::-webkit-scrollbar { display: none; }
-  .story-item {
+  .topic-chips-row::-webkit-scrollbar { display: none; }
+  .topic-chip {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     flex-shrink: 0;
-    width: 62px;
-    cursor: pointer;
-  }
-  .story-ring {
-    width: 58px;
-    height: 58px;
-    border-radius: 50%;
-    padding: 2.5px;
-    background: linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-  .story-ring.seen {
-    background: var(--line);
-  }
-  .story-ring.own {
-    background: var(--line);
-  }
-  .story-ring-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: var(--bg, #000);
-    padding: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .story-ring-inner .avatar { width: 100%; height: 100%; font-size: 15px; }
-  .story-add-badge {
-    position: absolute;
-    bottom: -1px;
-    right: -1px;
-    width: 19px;
-    height: 19px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 700;
-    border: 2px solid var(--bg, #000);
-  }
-  .story-item-name {
-    font-size: 11px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: none;
     color: var(--ink-soft);
-    max-width: 62px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
     white-space: nowrap;
+  }
+  .topic-chip svg { width: 15px; height: 15px; }
+  .topic-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
   }
   .ad-sponsored-label {
     font-size: 11.5px;
@@ -2862,7 +2822,7 @@
     </div>
   </div>
 
-  <div class="stories-row" id="storiesRow"></div>
+  <div class="topic-chips-row" id="topicChipsRow"></div>
 
   <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
     <div class="pull-refresh-mark">
@@ -8038,8 +7998,8 @@ function showAuthenticatedApp(user) {
   initTelegramIdentity();
   refreshTelegramLinkSnapshot();
   paintCachedFeedImmediately();
-  renderStoriesRow();
-  loadMyProfile().then(renderStoriesRow);
+  renderTopicChipsRow();
+  loadMyProfile();
   loadUserPosts();
   loadQuestAdminStatus();
 }
@@ -9179,53 +9139,27 @@ function toggleMenu(open) {
 
 const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"];
 
-function avatarInnerHTML(photoUrl, initials) {
-  const safePhoto = safeTelegramPhotoUrl(photoUrl);
-  return safePhoto
-    ? `<img src="${escapeHtml(safePhoto)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-    : escapeHtml(initials || "?");
+let activeTopicFilter = null;
+
+function renderTopicChipsRow() {
+  const row = document.getElementById("topicChipsRow");
+  if (!row) return;
+  const allChip = `<button class="topic-chip ${activeTopicFilter === null ? 'active' : ''}" onclick="setTopicFilter(null)">All</button>`;
+  const chips = INTEREST_TOPICS.map(t => `
+    <button class="topic-chip ${activeTopicFilter === t.key ? 'active' : ''}" onclick="setTopicFilter('${t.key}')">
+      ${t.icon}${escapeHtml(t.label)}
+    </button>
+  `).join("");
+  row.innerHTML = allChip + chips;
 }
 
-// Visual placeholder only -- no story data/backend yet. Tapping shows a
-// "coming soon" toast. Your own circle uses your real avatar; the rest
-// are static sample entries just to show the intended layout.
-const STORY_PLACEHOLDER_SAMPLES = [
-  { name: "Amara", initials: "A", color: "#e0604a", seen: false },
-  { name: "DevWithKay", initials: "K", color: "#2fa393", seen: false },
-  { name: "Tokunbo", initials: "T", color: "#6228d7", seen: true },
-  { name: "buildwithzee", initials: "Z", color: "#f5a623", seen: false },
-  { name: "Nia", initials: "N", color: "#3b82f6", seen: true },
-];
-
-function renderStoriesRow() {
-  const row = document.getElementById("storiesRow");
-  if (!row) return;
-
-  const you = PROFILES.you;
-  const ownItem = `
-    <div class="story-item" onclick="showToast('Stories coming soon')">
-      <div class="story-ring own">
-        <div class="story-ring-inner">
-          <div class="avatar" style="background:${you.color || '#2fa393'}">${avatarInnerHTML(you.photoUrl, you.initials)}</div>
-        </div>
-        <div class="story-add-badge">+</div>
-      </div>
-      <div class="story-item-name">Your story</div>
-    </div>
-  `;
-
-  const sampleItems = STORY_PLACEHOLDER_SAMPLES.map(s => `
-    <div class="story-item" onclick="showToast('Stories coming soon')">
-      <div class="story-ring ${s.seen ? 'seen' : ''}">
-        <div class="story-ring-inner">
-          <div class="avatar" style="background:${s.color}">${escapeHtml(s.initials)}</div>
-        </div>
-      </div>
-      <div class="story-item-name">${escapeHtml(s.name)}</div>
-    </div>
-  `).join("");
-
-  row.innerHTML = ownItem + sampleItems;
+function setTopicFilter(key) {
+  if (activeTopicFilter === key) return;
+  activeTopicFilter = key;
+  haptic("light");
+  feedVisibleCount = FEED_PAGE_SIZE;
+  renderTopicChipsRow();
+  render();
 }
 
 async function loadMyProfile() {
@@ -10416,6 +10350,7 @@ function getEligibleAds() {
   return USER_POSTS.filter(p => {
     if (!isAdCurrentlyActive(p)) return false;
     if (isOffInterestPost(p)) return false; // reuse the same category-relevance gate as organic posts
+    if (activeTopicFilter !== null && p.category !== activeTopicFilter) return false;
     const s = userPostState[p.id];
     return !!s;
   });
@@ -10487,6 +10422,9 @@ function isOffInterestPost(p) {
 
 function computeRankedFeedPosts() {
   let feedPosts = USER_POSTS.filter(p => userPostState[p.id]);
+  if (activeTopicFilter !== null) {
+    feedPosts = feedPosts.filter(p => p.category === activeTopicFilter);
+  }
   if (activeFeedTab === "stars") {
     feedPosts = feedPosts.filter(p => myStarredIds.has(String(p.userId)));
     return feedPosts.filter(p => !isAdCurrentlyActive(p));
