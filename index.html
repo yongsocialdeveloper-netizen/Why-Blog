@@ -2298,25 +2298,7 @@
   .stat.like.active svg { fill: var(--heart); }
   .stat.bookmark.active { color: var(--accent); }
   .stat.bookmark.active svg { fill: var(--accent); }
-  .stat.share:hover { color: var(--accent); }
-  .stat.ai-summarize:hover, .stat.ai-summarize.active { color: var(--accent); background: var(--accent-soft); }
-  .stat.ai-summarize img { border-radius: 4px; }
-
-  .ai-summary-box {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    margin-top: 8px;
-    padding: 9px 11px;
-    border-radius: 12px;
-    background: var(--accent-soft);
-    border: 1px solid var(--line);
-  }
-  .ai-summary-box img { flex-shrink: 0; margin-top: 1px; border-radius: 4px; }
-  .ai-summary-text { font-size: 13px; line-height: 1.45; color: var(--ink); }
-  .ai-summary-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
-  .ai-summary-error { font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
-  .ai-summary-error:hover { color: var(--accent); }
+  .stat.share:hover { color: var(--accent); background: var(--accent-soft); }
 
   .comments { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
   .comment { display: flex; gap: 8px; padding: 6px 0; }
@@ -3984,11 +3966,10 @@ function profilePostCardHTML(post, isPinned) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="event.stopPropagation(); summarizePost('${post.id}', event)" aria-label="Summarize with Why">
-            ${aiSparkIcon(15)}
+          <button class="stat share" onclick="event.stopPropagation(); sharePost('${post.id}', event)" aria-label="Share post">
+            ${shareIcon()}
           </button>
         </div>
-        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
       </div>
     </article>
   `;
@@ -4069,11 +4050,10 @@ function postDetailCardHTML(post) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="summarizePost('${post.id}', event)" aria-label="Summarize with Why">
-            ${aiSparkIcon(15)}
+          <button class="stat share" onclick="sharePost('${post.id}', event)" aria-label="Share post">
+            ${shareIcon()}
           </button>
         </div>
-        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
         <div class="comments">
           ${commentsHtml}
         </div>
@@ -6944,11 +6924,10 @@ function userPostCardHTML(post) {
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat ai-summarize ${s.aiSummaryOpen ? 'active' : ''}" onclick="summarizePost('${post.id}', event)" aria-label="Summarize with Why">
-            ${aiSparkIcon(15)}
+          <button class="stat share" onclick="sharePost('${post.id}', event)" aria-label="Share post">
+            ${shareIcon()}
           </button>
         </div>
-        <div class="ai-summary-slot" id="aiSummary-${post.id}">${aiSummaryBoxHTML(post.id)}</div>
       </div>
     </article>
   `;
@@ -8560,94 +8539,47 @@ function aiSparkIcon(size) {
   return `<img src="${WHY_APP_ICON_URL}" alt="Why" width="${size}" height="${size}" referrerpolicy="no-referrer" />`;
 }
 
-// ---------- Per-post "Why" summary ----------
-// Deliberately kept separate from the ai-agent chat assistant: this
-// only ever sends read-only post text to a small dedicated function
-// and renders back plain text, so it can't get tangled up with the
-// chat assistant's tools/quota/history logic (or its bugs).
-function aiSummaryBoxHTML(postId) {
-  const s = userPostState[postId];
-  if (!s || !s.aiSummaryOpen) return "";
-  if (s.aiSummaryLoading) {
-    return `
-      <div class="ai-summary-box">
-        ${aiSparkIcon(15)}
-        <div class="ai-typing"><span></span><span></span><span></span></div>
-      </div>
-    `;
-  }
-  if (s.aiSummaryError) {
-    return `
-      <div class="ai-summary-box">
-        ${aiSparkIcon(15)}
-        <div class="ai-summary-error" onclick="summarizePost('${postId}')">Couldn't summarize this post. Tap to try again.</div>
-      </div>
-    `;
-  }
-  if (s.aiSummary) {
-    return `
-      <div class="ai-summary-box">
-        ${aiSparkIcon(15)}
-        <div>
-          <div class="ai-summary-label">Summary</div>
-          <div class="ai-summary-text">${escapeHtml(s.aiSummary)}</div>
-        </div>
-      </div>
-    `;
-  }
-  return "";
+// ---------- Share ----------
+const WHYBLOG_BASE_URL = "https://whyblog.yongsocial.com";
+
+function shareIcon() {
+  return `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>`;
 }
 
-function renderAISummarySlot(postId) {
-  const slot = document.getElementById(`aiSummary-${postId}`);
-  if (slot) slot.innerHTML = aiSummaryBoxHTML(postId);
-  document.querySelectorAll(`.stat.ai-summarize[onclick*="'${postId}'"]`).forEach(btn => {
-    btn.classList.toggle("active", !!(userPostState[postId] && userPostState[postId].aiSummaryOpen));
-  });
+function postShareLink(postId) {
+  return `${WHYBLOG_BASE_URL}?post=${encodeURIComponent(postId)}`;
 }
 
-async function summarizePost(postId, evt) {
+// Uses the device's native share sheet (the same one every other app uses --
+// copy link, Messages, WhatsApp, etc.) when available, since that's exactly
+// what's being asked for here. Falls back to copying the link for browsers
+// that don't support it (mainly desktop).
+async function sharePost(postId, evt) {
   if (evt) evt.stopPropagation();
-  const s = userPostState[postId];
   const post = findUserPostById(postId);
-  if (!s || !post) return;
+  if (!post) return;
 
-  // Already fetched (or currently loading) -- tapping again just
-  // toggles the box closed rather than re-fetching.
-  if (s.aiSummary || s.aiSummaryLoading) {
-    s.aiSummaryOpen = !s.aiSummaryOpen;
-    renderAISummarySlot(postId);
+  const link = postShareLink(postId);
+  const shareText = post.text ? truncateToWeightedLimit(post.text, 120) : "Check out this post on WhyBlog";
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "WhyBlog", text: shareText, url: link });
+    } catch (e) {
+      // AbortError just means the user closed the share sheet -- not a
+      // real failure, so don't show an error toast for it.
+      if (e && e.name !== "AbortError") {
+        console.error("Share failed:", e);
+      }
+    }
     return;
   }
-
-  if (!post.text || !post.text.trim()) {
-    showToast("Nothing to summarize on this post.");
-    return;
-  }
-
-  if (!sb) {
-    showToast("Can't reach Why right now.");
-    return;
-  }
-
-  s.aiSummaryOpen = true;
-  s.aiSummaryLoading = true;
-  s.aiSummaryError = false;
-  haptic("light");
-  renderAISummarySlot(postId);
 
   try {
-    const { data, error } = await sb.functions.invoke("summarize-post", {
-      body: { post_id: postId, text: post.text }
-    });
-    if (error) throw error;
-    s.aiSummary = (data && data.summary) ? String(data.summary).trim() : "";
-    if (!s.aiSummary) throw new Error("empty summary");
+    await navigator.clipboard.writeText(link);
+    showToast("Link copied!");
   } catch (e) {
-    s.aiSummaryError = true;
-  } finally {
-    s.aiSummaryLoading = false;
-    renderAISummarySlot(postId);
+    showToast("Couldn't copy link.");
   }
 }
 
