@@ -8148,6 +8148,27 @@ function showAuthenticatedApp(user) {
   loadMyProfile();
   loadUserPosts();
   loadQuestAdminStatus();
+  handleNotificationDeepLink();
+}
+
+// Tapping "View post" on a Telegram notification opens this Mini App at
+// ?post=<id> (see send-telegram-notification.ts). ensurePostLoaded fetches
+// that post directly if it isn't already in the loaded feed, so this works
+// even for a post far outside what's currently paginated in.
+async function handleNotificationDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const postId = params.get("post");
+  if (!postId) return;
+  params.delete("post");
+  const rest = params.toString();
+  history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+
+  const ok = await ensurePostLoaded(postId);
+  if (ok) {
+    openPostDetail(postId);
+  } else {
+    showToast("That post is no longer available.");
+  }
 }
 
 async function refreshTelegramLinkSnapshot() {
