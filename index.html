@@ -8568,10 +8568,11 @@ function shareIcon() {
 // Mini App itself via a t.me startapp link. A plain t.me link only ever
 // shows Telegram's static, non-post-specific preview, which is why this
 // extra hop is worth it.
-const SHARE_POST_FUNCTION_URL = "https://xrunlxchksrycauujkgy.supabase.co/functions/v1/share-post";
+const TELEGRAM_BOT_USERNAME = "WhyBlog_bot";
+const TELEGRAM_MINI_APP_SHORT_NAME = "WhyBlog";
 
 function postShareLink(postId) {
-  return `${SHARE_POST_FUNCTION_URL}?post_id=${encodeURIComponent(postId)}`;
+  return `https://t.me/${TELEGRAM_BOT_USERNAME}/${TELEGRAM_MINI_APP_SHORT_NAME}?startapp=post_${encodeURIComponent(postId)}`;
 }
 
 // Uses the device's native share sheet (the same one every other app uses --
