@@ -8130,17 +8130,33 @@ function showAuthenticatedApp(user) {
   handleNotificationDeepLink();
 }
 
-// Tapping "View post" on a Telegram notification opens this Mini App at
-// ?post=<id> (see send-telegram-notification.ts). ensurePostLoaded fetches
-// that post directly if it isn't already in the loaded feed, so this works
-// even for a post far outside what's currently paginated in.
+// A post can be opened via two different deep-link paths:
+// 1. Tapping "View post" on a Telegram notification -- opens this Mini App
+//    at ?post=<id> (see send-telegram-notification.ts).
+// 2. Tapping a shared t.me/<bot>/<app>?startapp=post_<id> link (see
+//    postShareLink) -- Telegram launches the app fresh and exposes the
+//    payload as tg.initDataUnsafe.start_param, not a URL param.
+// ensurePostLoaded fetches the post directly if it isn't already in the
+// loaded feed, so this works even for a post outside what's paginated in.
 async function handleNotificationDeepLink() {
-  const params = new URLSearchParams(window.location.search);
-  const postId = params.get("post");
+  let postId = null;
+
+  const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (startParam && startParam.indexOf("post_") === 0) {
+    postId = startParam.slice("post_".length);
+  }
+
+  if (!postId) {
+    const params = new URLSearchParams(window.location.search);
+    postId = params.get("post");
+    if (postId) {
+      params.delete("post");
+      const rest = params.toString();
+      history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+    }
+  }
+
   if (!postId) return;
-  params.delete("post");
-  const rest = params.toString();
-  history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
 
   const ok = await ensurePostLoaded(postId);
   if (ok) {
@@ -8542,11 +8558,26 @@ function aiSparkIcon(size) {
 // ---------- Share ----------
 const WHYBLOG_BASE_URL = "https://whyblog.yongsocial.com";
 
+// Fill these in with your bot's @username (no "@") and the Mini App short
+// name you set in BotFather. Until both are filled in, sharing falls back
+// to the plain hosted URL, which opens in a regular browser instead of
+// inside Telegram -- exactly the problem this is meant to fix.
+const TELEGRAM_BOT_USERNAME = "WhyBlog_bot";
+const TELEGRAM_MINI_APP_SHORT_NAME = "WhyBlog";
+
 function shareIcon() {
   return `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>`;
 }
 
+// t.me links are recognized by Telegram (and the OS) as "open this inside
+// Telegram" -- a plain link to whyblog.yongsocial.com has no such special
+// handling, so it just opens in whatever browser the recipient has. Once
+// TELEGRAM_BOT_USERNAME/TELEGRAM_MINI_APP_SHORT_NAME are filled in above,
+// sharing uses the t.me form instead so it opens inside Telegram itself.
 function postShareLink(postId) {
+  if (TELEGRAM_BOT_USERNAME !== "YOUR_BOT_USERNAME" && TELEGRAM_MINI_APP_SHORT_NAME !== "YOUR_APP_SHORT_NAME") {
+    return `https://t.me/${TELEGRAM_BOT_USERNAME}/${TELEGRAM_MINI_APP_SHORT_NAME}?startapp=post_${encodeURIComponent(postId)}`;
+  }
   return `${WHYBLOG_BASE_URL}?post=${encodeURIComponent(postId)}`;
 }
 
