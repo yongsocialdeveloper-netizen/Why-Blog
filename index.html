@@ -874,9 +874,9 @@
 
   .topic-chips-row {
     display: flex;
-    gap: 16px;
+    gap: 20px;
     overflow-x: auto;
-    padding: 12px 14px;
+    padding: 10px 14px 0;
     border-bottom: 1px solid var(--line);
     scrollbar-width: none;
   }
@@ -887,40 +887,28 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    width: 52px;
     background: none;
     border: none;
-    padding: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0 0 8px;
     cursor: pointer;
+    color: var(--ink-faint);
   }
   .topic-circle-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--card);
-    border: 1px solid var(--line);
-    color: var(--ink);
+    color: inherit;
   }
-  .topic-circle-avatar svg { width: 19px; height: 19px; }
+  .topic-circle-avatar svg { width: 17px; height: 17px; }
   .topic-circle-label {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--ink-soft);
+    color: inherit;
     white-space: nowrap;
-    max-width: 60px;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
-  .topic-circle.active .topic-circle-avatar {
-    width: 52px;
-    height: 52px;
-    margin: -2px;
-  }
-  .topic-circle.active .topic-circle-label {
-    font-weight: 700;
+  .topic-circle.active {
+    border-bottom-color: currentColor;
   }
   .ad-sponsored-label {
     font-size: 11.5px;
@@ -9379,40 +9367,26 @@ const TRENDING_TOPICS = ["Photography", "Travel", "Food", "Art", "Tech", "Books"
 
 let activeTopicFilter = null;
 
-function hexToRgba(hex, alpha) {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 function renderTopicChipsRow() {
   const row = document.getElementById("topicChipsRow");
   if (!row) return;
 
   const allActive = activeTopicFilter === null;
-  const allAvatarStyle = allActive
-    ? `background:var(--accent);border-color:var(--accent);color:var(--paper);box-shadow:0 0 0 2px var(--paper), 0 0 0 4px var(--accent);`
-    : "";
   const allChip = `
-    <button class="topic-circle ${allActive ? 'active' : ''}" onclick="setTopicFilter(null)">
-      <span class="topic-circle-avatar" style="${allAvatarStyle}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <button class="topic-circle ${allActive ? 'active' : ''}" style="${allActive ? 'color:var(--accent);' : ''}" onclick="setTopicFilter(null)">
+      <span class="topic-circle-avatar">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       </span>
-      <span class="topic-circle-label" style="${allActive ? "color:var(--accent);" : ""}">All</span>
+      <span class="topic-circle-label">All</span>
     </button>
   `;
 
   const chips = INTEREST_TOPICS.map(t => {
     const active = activeTopicFilter === t.key;
-    const avatarStyle = active
-      ? `background:${t.color};border-color:${t.color};color:var(--paper);box-shadow:0 0 0 2px var(--paper), 0 0 0 4px ${t.color};`
-      : `background:${hexToRgba(t.color, 0.16)};border-color:${hexToRgba(t.color, 0.4)};color:${t.color};`;
     return `
-      <button class="topic-circle ${active ? 'active' : ''}" onclick="setTopicFilter('${t.key}')">
-        <span class="topic-circle-avatar" style="${avatarStyle}">${t.icon}</span>
-        <span class="topic-circle-label" style="${active ? `color:${t.color};` : ""}">${escapeHtml(t.shortLabel || t.label)}</span>
+      <button class="topic-circle ${active ? 'active' : ''}" style="${active ? `color:${t.color};` : ""}" onclick="setTopicFilter('${t.key}')">
+        <span class="topic-circle-avatar">${t.icon}</span>
+        <span class="topic-circle-label">${escapeHtml(t.shortLabel || t.label)}</span>
       </button>
     `;
   }).join("");
