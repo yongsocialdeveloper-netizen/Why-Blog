@@ -891,26 +891,35 @@
     opacity: 0;
     padding: 0 14px;
     border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(224,74,74,0.10), rgba(224,74,74,0.02));
+    background: rgba(22,32,43,0.4);
     transform: translateY(-4px);
     transition: height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, padding 0.22s ease;
   }
   .trending-ticker.show {
-    height: 32px;
+    height: 30px;
     opacity: 1;
     padding: 7px 14px;
     transform: translateY(0);
   }
-  .trending-live {
-    display: flex;
+  .trending-live-badge {
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: rgba(224,96,74,0.16);
+    border: 1px solid rgba(224,96,74,0.32);
+    color: var(--heart);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.4;
   }
   .trending-radar {
     position: relative;
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     flex-shrink: 0;
   }
   .trending-radar::before,
@@ -919,24 +928,19 @@
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background: #ff3b3b;
-  }
-  .trending-radar::before {
-    box-shadow: 0 0 6px 1px rgba(255,59,59,0.9), 0 0 14px 3px rgba(255,59,59,0.5);
+    background: var(--heart);
   }
   .trending-radar::after {
-    animation: trendingRadarPing 1.6s cubic-bezier(0,0,0.2,1) infinite;
+    animation: trendingRadarPing 1.8s cubic-bezier(0,0,0.2,1) infinite;
   }
   @keyframes trendingRadarPing {
-    0% { transform: scale(1); opacity: 0.65; }
-    100% { transform: scale(3.2); opacity: 0; }
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(3); opacity: 0; }
   }
-  .trending-label {
-    font-size: 10.5px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    color: #ff5c5c;
-    text-shadow: 0 0 8px rgba(255,59,59,0.55);
+  .trending-static-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
     flex-shrink: 0;
   }
   .trending-marquee {
@@ -950,7 +954,9 @@
     display: inline-flex;
     white-space: nowrap;
     gap: 34px;
-    animation: trendingScroll 26s linear infinite;
+    animation-name: trendingScroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
     will-change: transform;
   }
   .trending-ticker:not(.show) .trending-marquee-track { animation-play-state: paused; }
@@ -2953,10 +2959,11 @@
     </div>
 
     <div class="trending-ticker" id="trendingTicker" aria-hidden="true">
-      <div class="trending-live">
+      <span class="trending-live-badge">
         <span class="trending-radar"></span>
-        <span class="trending-label">TRENDING</span>
-      </div>
+        LIVE
+      </span>
+      <span class="trending-static-label">Trending</span>
       <div class="trending-marquee">
         <div class="trending-marquee-track" id="trendingMarqueeTrack"></div>
       </div>
@@ -11024,10 +11031,18 @@ function render() {
 // chips row scrolls out from under the sticky topbar) --------------------
 
 function buildTrendingTickerItems() {
+  // A lightweight "hot" score (recent + liked posts float up, and the
+  // order keeps shifting purely from the age term as time passes) so the
+  // ticker feels alive even between feed polls, not just a frozen snapshot.
+  const hotScore = (p) => {
+    const ageHours = Math.max(0, (Date.now() - (p.createdAtMillis || Date.now())) / 3600000);
+    return ((p.likeCount || 0) + 1) / Math.pow(ageHours + 2, 1.3);
+  };
+
   const candidates = (USER_POSTS || [])
     .filter(p => !p.isAd && (p.text || p.linkTitle || p.question))
     .slice()
-    .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
+    .sort((a, b) => hotScore(b) - hotScore(a));
 
   const seen = new Set();
   const items = [];
@@ -11048,14 +11063,38 @@ function buildTrendingTickerItems() {
   return items;
 }
 
+const TRENDING_MARQUEE_PX_PER_SEC = 26;
+const TRENDING_MARQUEE_MIN_DURATION_S = 22;
+
+function tuneTrendingMarqueeSpeed() {
+  const track = document.getElementById("trendingMarqueeTrack");
+  if (!track) return;
+  const loopWidth = track.scrollWidth / 2; // content is duplicated once for the seamless loop
+  const duration = Math.max(TRENDING_MARQUEE_MIN_DURATION_S, loopWidth / TRENDING_MARQUEE_PX_PER_SEC);
+  track.style.animationDuration = `${duration}s`;
+}
+
+let lastTrendingItemsKey = "";
+
 function renderTrendingTicker() {
   const track = document.getElementById("trendingMarqueeTrack");
   if (!track) return;
   const items = buildTrendingTickerItems();
+  const key = items.join("||");
+  // Skip the DOM update (and the animation restart it would cause) when
+  // nothing actually changed, so the live refresh interval below doesn't
+  // visibly jump/reset the scroll position every tick for no reason.
+  if (key === lastTrendingItemsKey && track.childElementCount) return;
+  lastTrendingItemsKey = key;
   const itemsHtml = items.map(t => `<span class="trending-item">${escapeHtml(t)}</span>`).join("");
   // Duplicated once so the -50% translateX loop is seamless.
   track.innerHTML = itemsHtml + itemsHtml;
+  requestAnimationFrame(tuneTrendingMarqueeSpeed);
 }
+
+// Re-scores and refreshes the ticker on its own cadence (independent of
+// the full feed re-render) so it keeps feeling live between feed polls.
+setInterval(renderTrendingTicker, 15000);
 
 let trendingTickerVisible = false;
 
