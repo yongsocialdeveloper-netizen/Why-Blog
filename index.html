@@ -970,6 +970,119 @@
   }
   .trending-item:last-child::after { content: none; }
 
+  .leaderboard-card {
+    margin: 12px 14px 2px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 12px 4px;
+  }
+  .leaderboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 0 2px;
+  }
+  .leaderboard-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .leaderboard-title svg { flex-shrink: 0; color: #f5a623; }
+  .leaderboard-sub {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-faint);
+  }
+  .podium-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 10px;
+    padding-bottom: 12px;
+  }
+  .podium-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    width: 84px;
+  }
+  .podium-slot.gold { width: 92px; }
+  .podium-crown { color: #f5a623; margin-bottom: -2px; }
+  .podium-avatar-wrap { position: relative; }
+  .podium-avatar-ring {
+    border-radius: 50%;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .podium-slot.silver .podium-avatar-ring { width: 46px; height: 46px; background: #b7c1c9; }
+  .podium-slot.gold .podium-avatar-ring { width: 58px; height: 58px; background: #f5a623; }
+  .podium-slot.bronze .podium-avatar-ring { width: 46px; height: 46px; background: #cd8a5c; }
+  .podium-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #0d1116;
+  }
+  .podium-slot.gold .podium-avatar { font-size: 17px; }
+  .podium-rank-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -2px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    border: 2px solid var(--card);
+  }
+  .podium-slot.silver .podium-rank-badge { width: 18px; height: 18px; font-size: 10.5px; background: #b7c1c9; color: #1c2733; }
+  .podium-slot.gold .podium-rank-badge { width: 20px; height: 20px; font-size: 11px; background: #f5a623; color: #412402; }
+  .podium-slot.bronze .podium-rank-badge { width: 18px; height: 18px; font-size: 10.5px; background: #cd8a5c; color: #3a2415; }
+  .podium-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    max-width: 82px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .podium-slot.gold .podium-name { font-size: 12.5px; font-weight: 800; color: #ffffff; }
+  .podium-earnings {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .podium-earnings svg { flex-shrink: 0; }
+  .podium-slot.silver .podium-earnings { color: #b7c1c9; background: rgba(183,193,201,0.14); border: 1px solid rgba(183,193,201,0.3); }
+  .podium-slot.gold .podium-earnings { color: #f5a623; background: rgba(245,166,35,0.16); border: 1px solid rgba(245,166,35,0.34); font-size: 11.5px; font-weight: 800; padding: 2px 9px; }
+  .podium-slot.bronze .podium-earnings { color: #cd8a5c; background: rgba(205,138,92,0.14); border: 1px solid rgba(205,138,92,0.3); }
+  .podium-bar {
+    width: 64px;
+    border-radius: 6px 6px 0 0;
+    margin-top: 4px;
+  }
+  .podium-slot.silver .podium-bar { height: 46px; background: rgba(183,193,201,0.14); border-top: 2px solid #b7c1c9; }
+  .podium-slot.gold .podium-bar { width: 72px; height: 70px; background: rgba(245,166,35,0.14); border-top: 2px solid #f5a623; }
+  .podium-slot.bronze .podium-bar { height: 34px; background: rgba(205,138,92,0.14); border-top: 2px solid #cd8a5c; }
+
   .topic-circle {
     flex-shrink: 0;
     display: flex;
@@ -2964,6 +3077,50 @@
   </div>
 
   <div class="topic-chips-row" id="topicChipsRow"></div>
+
+  <div class="leaderboard-card" id="topEarnersLeaderboard">
+    <div class="leaderboard-header">
+      <span class="leaderboard-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/></svg>
+        Top earners this week
+      </span>
+      <span class="leaderboard-sub">Resets Sunday</span>
+    </div>
+    <div class="podium-row">
+
+      <div class="podium-slot silver">
+        <div class="podium-avatar-wrap">
+          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:var(--accent);">MR</div></div>
+          <div class="podium-rank-badge">2</div>
+        </div>
+        <span class="podium-name">@maya.codes</span>
+        <span class="podium-earnings"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>2,140</span>
+        <div class="podium-bar"></div>
+      </div>
+
+      <div class="podium-slot gold">
+        <svg class="podium-crown" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/></svg>
+        <div class="podium-avatar-wrap">
+          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:var(--heart); color:#fff;">JD</div></div>
+          <div class="podium-rank-badge">1</div>
+        </div>
+        <span class="podium-name">@jd.writes</span>
+        <span class="podium-earnings"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>4,860</span>
+        <div class="podium-bar"></div>
+      </div>
+
+      <div class="podium-slot bronze">
+        <div class="podium-avatar-wrap">
+          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:#7c8cf0;">RS</div></div>
+          <div class="podium-rank-badge">3</div>
+        </div>
+        <span class="podium-name">@rosa.s</span>
+        <span class="podium-earnings"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>1,905</span>
+        <div class="podium-bar"></div>
+      </div>
+
+    </div>
+  </div>
 
   <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
     <div class="pull-refresh-mark">
