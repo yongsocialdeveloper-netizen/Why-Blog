@@ -881,6 +881,95 @@
     scrollbar-width: none;
   }
   .topic-chips-row::-webkit-scrollbar { display: none; }
+
+  .trending-ticker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(224,74,74,0.10), rgba(224,74,74,0.02));
+    transform: translateY(-4px);
+    transition: height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, padding 0.22s ease;
+  }
+  .trending-ticker.show {
+    height: 32px;
+    opacity: 1;
+    padding: 7px 14px;
+    transform: translateY(0);
+  }
+  .trending-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .trending-radar {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+  .trending-radar::before,
+  .trending-radar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #ff3b3b;
+  }
+  .trending-radar::before {
+    box-shadow: 0 0 6px 1px rgba(255,59,59,0.9), 0 0 14px 3px rgba(255,59,59,0.5);
+  }
+  .trending-radar::after {
+    animation: trendingRadarPing 1.6s cubic-bezier(0,0,0.2,1) infinite;
+  }
+  @keyframes trendingRadarPing {
+    0% { transform: scale(1); opacity: 0.65; }
+    100% { transform: scale(3.2); opacity: 0; }
+  }
+  .trending-label {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #ff5c5c;
+    text-shadow: 0 0 8px rgba(255,59,59,0.55);
+    flex-shrink: 0;
+  }
+  .trending-marquee {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+  }
+  .trending-marquee-track {
+    display: inline-flex;
+    white-space: nowrap;
+    gap: 34px;
+    animation: trendingScroll 26s linear infinite;
+    will-change: transform;
+  }
+  .trending-ticker:not(.show) .trending-marquee-track { animation-play-state: paused; }
+  @keyframes trendingScroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .trending-item {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .trending-item::after {
+    content: "•";
+    margin-left: 34px;
+    color: var(--ink-faint);
+  }
+  .trending-item:last-child::after { content: none; }
+
   .topic-circle {
     flex-shrink: 0;
     display: flex;
@@ -2861,6 +2950,16 @@
       <button class="feed-tab active" id="feedTabForYou" onclick="setFeedTab('foryou')">For You</button>
       <button class="feed-tab" id="feedTabStars" onclick="setFeedTab('stars')">Stars ✨</button>
       <button class="feed-tab" id="feedTabOffInterest" onclick="setFeedTab('offinterest')">Off-Interest</button>
+    </div>
+
+    <div class="trending-ticker" id="trendingTicker" aria-hidden="true">
+      <div class="trending-live">
+        <span class="trending-radar"></span>
+        <span class="trending-label">TRENDING</span>
+      </div>
+      <div class="trending-marquee">
+        <div class="trending-marquee-track" id="trendingMarqueeTrack"></div>
+      </div>
     </div>
   </div>
 
@@ -8132,6 +8231,8 @@ function showAuthenticatedApp(user) {
   refreshTelegramLinkSnapshot();
   paintCachedFeedImmediately();
   renderTopicChipsRow();
+  renderTrendingTicker();
+  requestAnimationFrame(updateTrendingTickerVisibility);
   loadMyProfile();
   loadUserPosts();
   loadQuestAdminStatus();
@@ -10865,6 +10966,7 @@ function render() {
 
   const feedPosts = computeRankedFeedPosts();
   currentRankedFeedPosts = feedPosts;
+  renderTrendingTicker();
 
   if (!feedPosts.length) {
     teardownFeedInfiniteScroll();
@@ -10917,6 +11019,69 @@ function render() {
     renderPostDetail();
   }
 }
+
+// ---- Trending ticker (glowing "live" marquee shown once the category
+// chips row scrolls out from under the sticky topbar) --------------------
+
+function buildTrendingTickerItems() {
+  const candidates = (USER_POSTS || [])
+    .filter(p => !p.isAd && (p.text || p.linkTitle || p.question))
+    .slice()
+    .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
+
+  const seen = new Set();
+  const items = [];
+  for (const p of candidates) {
+    let label = (p.text || p.linkTitle || p.question || "").replace(/\s+/g, " ").trim();
+    if (!label) continue;
+    if (label.length > 72) label = label.slice(0, 69).trimEnd() + "…";
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(label);
+    if (items.length >= 8) break;
+  }
+
+  if (!items.length) {
+    return TRENDING_TOPICS.map(t => `Trending now on WhyBlog: ${t}`);
+  }
+  return items;
+}
+
+function renderTrendingTicker() {
+  const track = document.getElementById("trendingMarqueeTrack");
+  if (!track) return;
+  const items = buildTrendingTickerItems();
+  const itemsHtml = items.map(t => `<span class="trending-item">${escapeHtml(t)}</span>`).join("");
+  // Duplicated once so the -50% translateX loop is seamless.
+  track.innerHTML = itemsHtml + itemsHtml;
+}
+
+let trendingTickerVisible = false;
+
+function updateTrendingTickerVisibility() {
+  const appShell = document.getElementById("appShell");
+  const chipsRow = document.getElementById("topicChipsRow");
+  const ticker = document.getElementById("trendingTicker");
+  if (!appShell || appShell.style.display === "none" || !chipsRow || !ticker) return;
+
+  const scrollY = pageScrollTop();
+  const pastChipsRow = chipsRow.offsetTop + chipsRow.offsetHeight - 6;
+  const backAtTop = 4;
+
+  if (!trendingTickerVisible && scrollY > pastChipsRow) {
+    trendingTickerVisible = true;
+    ticker.classList.add("show");
+    ticker.setAttribute("aria-hidden", "false");
+  } else if (trendingTickerVisible && scrollY <= backAtTop) {
+    trendingTickerVisible = false;
+    ticker.classList.remove("show");
+    ticker.setAttribute("aria-hidden", "true");
+  }
+}
+
+window.addEventListener("scroll", updateTrendingTickerVisibility, { passive: true });
+window.addEventListener("resize", updateTrendingTickerVisibility);
 
 startSupabaseAuth();
 
