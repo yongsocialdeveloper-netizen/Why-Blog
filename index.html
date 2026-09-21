@@ -1090,6 +1090,17 @@
     font-weight: 600;
     color: var(--ink-faint);
   }
+  .quest-verify-snippet {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    word-break: break-all;
+    margin-top: 6px;
+  }
 
   .topic-circle {
     flex-shrink: 0;
@@ -3588,6 +3599,21 @@
         <label class="form-label">TikTok username</label>
         <input class="form-input" id="questProfileTiktokInput" type="text" placeholder="username" autocomplete="off" />
       </div>
+      <div class="form-field">
+        <label class="form-label">Website</label>
+        <div id="questProfileWebsiteVerified" class="quest-status-pill winner" style="display:none;"></div>
+        <div id="questProfileWebsiteForm">
+          <input class="form-input" id="questProfileWebsiteInput" type="url" placeholder="https://yoursite.com" autocomplete="off" />
+          <div class="form-note">We check your site to confirm quest submissions are actually yours.</div>
+          <button type="button" class="quest-review-action" style="margin-top:8px;" id="questProfileWebsiteGenerateBtn" onclick="generateWebsiteVerification()">Get verification code</button>
+          <div id="questProfileWebsiteVerifyBox" style="display:none;margin-top:10px;">
+            <div class="form-note" style="margin-top:0;">Add this tag to your site's &lt;head&gt;, then verify:</div>
+            <div class="quest-verify-snippet" id="questProfileWebsiteSnippet"></div>
+            <button type="button" class="quest-review-action" style="margin-top:8px;" onclick="verifyMyWebsite()">Verify website</button>
+          </div>
+        </div>
+        <div class="gift-status-line" id="questProfileWebsiteStatus"></div>
+      </div>
       <div class="gift-status-line" id="questProfileStatus"></div>
     </div>
     <div class="form-sheet-footer">
@@ -5907,7 +5933,135 @@ function setQuestsTier(tier) {
 
 function hasCompletedQuestProfile() {
   const p = PROFILES.you;
-  return !!(p.questTelegram && p.questX && p.questYoutube && p.questTiktok);
+  return !!(p.questTelegram && p.questX && p.questYoutube && p.questTiktok && p.websiteVerified);
+}
+
+function normalizeWebsiteUrl(raw) {
+  let v = String(raw || "").trim();
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+  try {
+    const u = new URL(v);
+    return u.origin + u.pathname.replace(/\/+$/, "");
+  } catch (e) {
+    return "";
+  }
+}
+
+function generateVerificationToken() {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const hex = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return `YQ-${hex.slice(0, 6)}-${hex.slice(6, 12)}`;
+}
+
+async function loadMyWebsiteVerification() {
+  if (!sb || !telegramUser.id) return;
+  try {
+    const { data } = await sb.from("website_verifications")
+      .select("website_url, verification_token, verified")
+      .eq("user_id", String(telegramUser.id))
+      .maybeSingle();
+    if (data) {
+      PROFILES.you.websiteUrl = data.website_url || "";
+      PROFILES.you.websiteToken = data.verification_token || "";
+      PROFILES.you.websiteVerified = !!data.verified;
+    }
+  } catch (e) {
+    console.error("loadMyWebsiteVerification failed:", e);
+  }
+}
+
+function renderQuestProfileWebsiteState() {
+  const verifiedBox = document.getElementById("questProfileWebsiteVerified");
+  const formBox = document.getElementById("questProfileWebsiteForm");
+  const verifyBox = document.getElementById("questProfileWebsiteVerifyBox");
+  const input = document.getElementById("questProfileWebsiteInput");
+  const snippet = document.getElementById("questProfileWebsiteSnippet");
+  if (!verifiedBox || !formBox) return;
+
+  if (PROFILES.you.websiteVerified) {
+    verifiedBox.style.display = "";
+    verifiedBox.textContent = `Verified \u2713 ${PROFILES.you.websiteUrl || ""}`;
+    formBox.style.display = "none";
+  } else {
+    verifiedBox.style.display = "none";
+    formBox.style.display = "";
+    if (input) input.value = PROFILES.you.websiteUrl || "";
+    if (PROFILES.you.websiteToken) {
+      snippet.textContent = `<meta name="whyquest-verification" content="${PROFILES.you.websiteToken}">`;
+      verifyBox.style.display = "";
+    } else {
+      verifyBox.style.display = "none";
+    }
+  }
+}
+
+async function generateWebsiteVerification() {
+  const input = document.getElementById("questProfileWebsiteInput");
+  const statusEl = document.getElementById("questProfileWebsiteStatus");
+  const url = normalizeWebsiteUrl(input.value);
+  if (!url) {
+    statusEl.textContent = "Please enter a valid website URL.";
+    statusEl.className = "gift-status-line error";
+    return;
+  }
+
+  const btn = document.getElementById("questProfileWebsiteGenerateBtn");
+  if (btn) btn.disabled = true;
+  statusEl.textContent = "";
+  statusEl.className = "gift-status-line";
+
+  try {
+    const token = generateVerificationToken();
+    const { error } = await sb.from("website_verifications").upsert({
+      user_id: String(telegramUser.id),
+      website_url: url,
+      verification_token: token,
+      verification_method: "meta",
+      verified: false,
+      verified_at: null
+    }, { onConflict: "user_id" });
+    if (error) throw error;
+
+    PROFILES.you.websiteUrl = url;
+    PROFILES.you.websiteToken = token;
+    PROFILES.you.websiteVerified = false;
+    renderQuestProfileWebsiteState();
+  } catch (e) {
+    console.error("generateWebsiteVerification failed:", e);
+    statusEl.textContent = "Couldn't generate a code. Please try again.";
+    statusEl.className = "gift-status-line error";
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function verifyMyWebsite() {
+  const statusEl = document.getElementById("questProfileWebsiteStatus");
+  statusEl.textContent = "Checking\u2026";
+  statusEl.className = "gift-status-line";
+
+  try {
+    const { data, error } = await sb.functions.invoke("verify-website", {
+      body: { user_id: String(telegramUser.id) }
+    });
+    if (error) throw error;
+
+    if (data && data.verified) {
+      PROFILES.you.websiteVerified = true;
+      renderQuestProfileWebsiteState();
+      statusEl.textContent = "Website verified!";
+      statusEl.className = "gift-status-line";
+    } else {
+      statusEl.textContent = (data && data.error) || "Couldn't verify yet. Make sure the tag is published.";
+      statusEl.className = "gift-status-line error";
+    }
+  } catch (e) {
+    console.error("verifyMyWebsite failed:", e);
+    statusEl.textContent = "Couldn't verify right now. Please try again.";
+    statusEl.className = "gift-status-line error";
+  }
 }
 
 function stripHandle(v) {
@@ -5924,6 +6078,9 @@ function openQuestProfileSheet(isFirstTimeFlow) {
   document.getElementById("questProfileTiktokInput").value = PROFILES.you.questTiktok || "";
   document.getElementById("questProfileStatus").textContent = "";
   document.getElementById("questProfileStatus").className = "gift-status-line";
+  document.getElementById("questProfileWebsiteStatus").textContent = "";
+  document.getElementById("questProfileWebsiteStatus").className = "gift-status-line";
+  renderQuestProfileWebsiteState();
   document.getElementById("questProfileOverlay").classList.add("open");
   document.getElementById("questProfileSheet").classList.add("open");
 }
@@ -6316,7 +6473,9 @@ function renderQuestCard(q) {
 
   let actionHtml;
   if (mine) {
-    const label = mine.status === "winner" ? `Winner \u00b7 ${mine.reward_amount} \u2b50`
+    const hasReward = mine.reward_amount !== null && mine.reward_amount !== undefined;
+    const label = mine.status === "winner"
+      ? (hasReward ? `Winner \u00b7 ${mine.reward_amount} \u2b50` : "Winner \u00b7 payout pending")
       : mine.status === "rejected" ? "Not selected"
       : "Submitted \u00b7 pending review";
     actionHtml = `<div class="quest-status-pill ${mine.status}">${label}</div>`;
@@ -8548,6 +8707,7 @@ function showAuthenticatedApp(user) {
   renderTrendingTicker();
   requestAnimationFrame(updateTrendingTickerVisibility);
   loadMyProfile();
+  loadMyWebsiteVerification();
   loadUserPosts();
   loadQuestAdminStatus();
   loadTopEarnersLeaderboard();
