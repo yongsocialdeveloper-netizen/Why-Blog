@@ -6384,7 +6384,11 @@ async function submitQuestEntry() {
   const questId = input.dataset.questId;
   const link = input.value.trim();
   const statusEl = document.getElementById("questSubmitStatus");
-  if (!link) return;
+  if (!link) {
+    statusEl.textContent = "Please paste a link to your submission first.";
+    statusEl.className = "gift-status-line error";
+    return;
+  }
 
   const sendBtn = document.querySelector("#questSubmitSheet .form-submit-btn");
   if (sendBtn) sendBtn.disabled = true;
@@ -6532,7 +6536,11 @@ async function submitQuestCreate() {
   const tier = document.getElementById("questCreateTier").dataset.value;
   const endsLocal = document.getElementById("questCreateEndsInput").value;
 
-  if (!title || !description || !(totalReward > 0) || !(winnerCount >= 1) || !endsLocal) return;
+  if (!title) { alert("Please add a title."); return; }
+  if (!description) { alert("Please add a description."); return; }
+  if (!(totalReward > 0)) { alert("Please enter a total reward greater than 0."); return; }
+  if (!(winnerCount >= 1)) { alert("Please enter at least 1 winner."); return; }
+  if (!endsLocal) { alert("Please pick when submissions close."); return; }
 
   const endsAt = new Date(endsLocal).toISOString();
   const btn = document.getElementById("questPublishBtn");
@@ -6766,15 +6774,20 @@ function openQuestSubmitterProfile(profileId) {
 
 async function markQuestSubmission(submissionId, status) {
   try {
-    const { error } = await sb.from("quest_submissions").update({ status }).eq("id", submissionId);
+    const { data, error } = await sb.from("quest_submissions").update({ status }).eq("id", submissionId).select();
     if (error) throw error;
+    // Supabase can return no error but 0 affected rows when a row-level
+    // security policy silently excludes the row — catch that explicitly
+    // instead of proceeding as if the update actually happened.
+    if (!data || !data.length) throw new Error("Nothing was updated — you may not have admin permission for this action.");
 
     if (status === "winner") {
       await maybeFinalizeQuestPayouts(currentQuestReviewId);
     }
     await renderQuestReview();
   } catch (e) {
-    alert("Couldn't update this submission. Please try again.");
+    console.error("markQuestSubmission failed:", e);
+    alert(e && e.message ? e.message : "Couldn't update this submission. Please try again.");
   }
 }
 
@@ -6812,12 +6825,13 @@ async function maybeFinalizeQuestPayouts(questId) {
 
 async function markQuestRewardPaid(submissionId) {
   try {
-    const { error } = await sb.from("quest_submissions").update({ paid_status: "confirmed" }).eq("id", submissionId);
+    const { data, error } = await sb.from("quest_submissions").update({ paid_status: "confirmed" }).eq("id", submissionId).select();
     if (error) throw error;
+    if (!data || !data.length) throw new Error("Nothing was updated — you may not have admin permission for this action.");
     await renderQuestReview();
   } catch (e) {
     console.error("markQuestRewardPaid failed:", e);
-    alert("Couldn't mark as paid. Please try again.");
+    alert(e && e.message ? e.message : "Couldn't mark as paid. Please try again.");
   }
 }
 
