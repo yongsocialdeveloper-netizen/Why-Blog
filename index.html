@@ -5989,7 +5989,7 @@ function renderQuestProfileWebsiteState() {
     formBox.style.display = "";
     if (input) input.value = PROFILES.you.websiteUrl || "";
     if (PROFILES.you.websiteToken) {
-      snippet.textContent = `<meta name="whyquest-verification" content="${PROFILES.you.websiteToken}">`;
+      snippet.textContent = `<meta name="whyquest-verification" content="${PROFILES.you.websiteToken}" />`;
       verifyBox.style.display = "";
     } else {
       verifyBox.style.display = "none";
