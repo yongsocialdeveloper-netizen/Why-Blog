@@ -6656,6 +6656,13 @@ async function renderQuestReview() {
   document.getElementById("questReviewTitle").textContent = quest.title;
   body.innerHTML = `<div class="search-empty">Loading submissions\u2026</div>`;
 
+  // Catches quests where the deadline has already passed without ever
+  // reaching the target winner count (e.g. fewer people submitted than
+  // planned winner slots) — this finalizes payouts for whoever actually
+  // won instead of leaving them stuck waiting for winners that can no
+  // longer arrive.
+  await maybeFinalizeQuestPayouts(quest.id);
+
   try {
     const { data: subs, error } = await sb.from("quest_submissions")
       .select("*")
@@ -6736,7 +6743,10 @@ function renderQuestSubmissionRow(quest, s, profile, profileId) {
       <button class="quest-review-action reject" onclick="markQuestSubmission('${s.id}', 'rejected')">Reject</button>
     `;
   } else if (s.status === "winner") {
-    if (s.paid_status === "confirmed") {
+    const hasReward = s.reward_amount !== null && s.reward_amount !== undefined;
+    if (!hasReward) {
+      actionsHtml = `<div class="quest-status-pill">Winner \u00b7 awaiting other winners</div>`;
+    } else if (s.paid_status === "confirmed") {
       actionsHtml = `<div class="quest-status-pill winner">Paid \u00b7 ${s.reward_amount} \u2b50</div>`;
     } else if (!profile.questTelegram) {
       actionsHtml = `<div class="quest-status-pill">No Telegram username on file</div>`;
@@ -6795,13 +6805,31 @@ async function maybeFinalizeQuestPayouts(questId) {
   const quest = questsCache.find(q => q.id === questId);
   if (!quest) return;
 
-  const { data: winners } = await sb.from("quest_submissions")
+  const { data: allSubs } = await sb.from("quest_submissions")
     .select("*")
-    .eq("quest_id", questId)
-    .eq("status", "winner")
-    .order("created_at", { ascending: true });
+    .eq("quest_id", questId);
+  if (!allSubs) return;
 
-  if (!winners || winners.length < quest.winner_count) return;
+  const winners = allSubs.filter(s => s.status === "winner");
+  const pending = allSubs.filter(s => s.status === "pending");
+  const deadlinePassed = quest.ends_at && new Date(quest.ends_at).getTime() <= Date.now();
+  const capReached = winners.length >= quest.winner_count;
+
+  // Only finalize once no more winners can possibly be added: either every
+  // winner slot has been filled, or submissions have closed and at least
+  // one winner exists (covers quests where fewer entries came in than
+  // planned winner slots, so the cap can never be reached).
+  if (!capReached && !(deadlinePassed && winners.length > 0)) return;
+  // Already finalized (reward amounts already assigned) — nothing to do.
+  if (winners.length && winners.every(w => w.reward_amount !== null && w.reward_amount !== undefined)) return;
+
+  // No more winners can be picked from here, so anything still pending
+  // is automatically rejected.
+  if (pending.length) {
+    await Promise.all(pending.map(s =>
+      sb.from("quest_submissions").update({ status: "rejected" }).eq("id", s.id)
+    ));
+  }
 
   const n = winners.length;
   let shares;
