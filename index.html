@@ -3078,7 +3078,7 @@
 
   <div class="topic-chips-row" id="topicChipsRow"></div>
 
-  <div class="leaderboard-card" id="topEarnersLeaderboard">
+  <div class="leaderboard-card" id="topEarnersLeaderboard" style="display:none;">
     <div class="leaderboard-header">
       <span class="leaderboard-title">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/></svg>
@@ -3086,40 +3086,7 @@
       </span>
       <span class="leaderboard-sub">Resets Sunday</span>
     </div>
-    <div class="podium-row">
-
-      <div class="podium-slot silver">
-        <div class="podium-avatar-wrap">
-          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:var(--accent);">MR</div></div>
-          <div class="podium-rank-badge">2</div>
-        </div>
-        <span class="podium-name">@maya.codes</span>
-        <span class="podium-earnings"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>2,140</span>
-        <div class="podium-bar"></div>
-      </div>
-
-      <div class="podium-slot gold">
-        <svg class="podium-crown" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/></svg>
-        <div class="podium-avatar-wrap">
-          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:var(--heart); color:#fff;">JD</div></div>
-          <div class="podium-rank-badge">1</div>
-        </div>
-        <span class="podium-name">@jd.writes</span>
-        <span class="podium-earnings"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>4,860</span>
-        <div class="podium-bar"></div>
-      </div>
-
-      <div class="podium-slot bronze">
-        <div class="podium-avatar-wrap">
-          <div class="podium-avatar-ring"><div class="podium-avatar" style="background:#7c8cf0;">RS</div></div>
-          <div class="podium-rank-badge">3</div>
-        </div>
-        <span class="podium-name">@rosa.s</span>
-        <span class="podium-earnings"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>1,905</span>
-        <div class="podium-bar"></div>
-      </div>
-
-    </div>
+    <div class="podium-row" id="topEarnersPodiumRow"></div>
   </div>
 
   <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
@@ -6854,6 +6821,102 @@ async function markQuestRewardPaid(submissionId) {
   }
 }
 
+// ---- Top earners podium: gold/silver/bronze leaderboard shown above the
+// feed, ranked by each user's sum of paid quest reward_amount ("Stars ⭐")
+// this week (Monday \u2013 Sunday). -------------------------------------
+
+function startOfCurrentWeekMillis() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday ... 6 = Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday.getTime();
+}
+
+async function loadTopEarnersLeaderboard() {
+  const card = document.getElementById("topEarnersLeaderboard");
+  const row = document.getElementById("topEarnersPodiumRow");
+  if (!card || !row) return;
+
+  try {
+    const weekStartIso = new Date(startOfCurrentWeekMillis()).toISOString();
+    const { data: subs, error } = await sb.from("quest_submissions")
+      .select("telegram_id, reward_amount")
+      .eq("status", "winner")
+      .eq("paid_status", "confirmed")
+      .gte("created_at", weekStartIso);
+    if (error) throw error;
+
+    // Sum reward_amount per submitter — this is "earnings in Stars".
+    const totals = new Map();
+    (subs || []).forEach(s => {
+      const amount = Number(s.reward_amount) || 0;
+      if (!amount) return;
+      const key = String(s.telegram_id);
+      totals.set(key, (totals.get(key) || 0) + amount);
+    });
+
+    const ranked = [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    if (!ranked.length) {
+      card.style.display = "none";
+      return;
+    }
+
+    const telegramIds = ranked.map(([id]) => id);
+    const { data: profiles } = await sb.from("profiles")
+      .select("telegram_id, display_name, username, avatar_url")
+      .in("telegram_id", telegramIds);
+    const profileByTgId = new Map((profiles || []).map(p => [String(p.telegram_id), p]));
+
+    const entries = ranked.map(([telegramId, total]) => {
+      const p = profileByTgId.get(telegramId);
+      return {
+        telegramId,
+        name: (p && p.display_name) || "WhyBlog user",
+        username: (p && p.username) || "",
+        avatarUrl: safeTelegramPhotoUrl(p && p.avatar_url),
+        total
+      };
+    });
+
+    row.innerHTML = [1, 2, 3].map(rank => topEarnerSlotHtml(rank, entries[rank - 1])).join("");
+    card.style.display = "";
+  } catch (e) {
+    console.error("loadTopEarnersLeaderboard failed:", e);
+    card.style.display = "none";
+  }
+}
+
+function topEarnerSlotHtml(rank, entry) {
+  if (!entry) return "";
+  const tierClass = rank === 1 ? "gold" : rank === 2 ? "silver" : "bronze";
+  const bg = rank === 1 ? "var(--heart)" : rank === 2 ? "var(--accent)" : "#7c8cf0";
+  const displayName = entry.username ? `@${entry.username}` : entry.name;
+  const avatarInner = entry.avatarUrl
+    ? `<img class="podium-avatar" style="object-fit:cover;" src="${escapeAttr(entry.avatarUrl)}" alt="">`
+    : `<div class="podium-avatar" style="background:${bg};${rank === 1 ? "color:#fff;" : ""}">${escapeHtml(initialsFromName(entry.name))}</div>`;
+  const crownHtml = rank === 1
+    ? `<svg class="podium-crown" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/></svg>`
+    : "";
+  const starSize = rank === 1 ? 12 : 11;
+  return `
+    <div class="podium-slot ${tierClass}">
+      ${crownHtml}
+      <div class="podium-avatar-wrap">
+        <div class="podium-avatar-ring">${avatarInner}</div>
+        <div class="podium-rank-badge">${rank}</div>
+      </div>
+      <span class="podium-name">${escapeHtml(displayName)}</span>
+      <span class="podium-earnings"><svg width="${starSize}" height="${starSize}" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>${Math.round(entry.total).toLocaleString()}</span>
+      <div class="podium-bar"></div>
+    </div>
+  `;
+}
+
 function handleUserPostImageSelect(id, input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -8393,6 +8456,7 @@ function showAuthenticatedApp(user) {
   loadMyProfile();
   loadUserPosts();
   loadQuestAdminStatus();
+  loadTopEarnersLeaderboard();
   handleNotificationDeepLink();
 }
 
