@@ -5948,6 +5948,17 @@ function normalizeWebsiteUrl(raw) {
   }
 }
 
+function hostnameOf(raw) {
+  let v = String(raw || "").trim();
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+  try {
+    return new URL(v).hostname.replace(/^www\./i, "").toLowerCase();
+  } catch (e) {
+    return "";
+  }
+}
+
 function generateVerificationToken() {
   const bytes = new Uint8Array(6);
   crypto.getRandomValues(bytes);
@@ -6553,6 +6564,20 @@ async function submitQuestEntry() {
   const statusEl = document.getElementById("questSubmitStatus");
   if (!link) {
     statusEl.textContent = "Please paste a link to your submission first.";
+    statusEl.className = "gift-status-line error";
+    return;
+  }
+
+  // Submissions must live on the user's own verified website — otherwise
+  // website ownership verification doesn't actually mean anything at
+  // submission time. This mirrors the same check the grading function
+  // enforces server-side, so it can't be bypassed by skipping the UI.
+  const linkHost = hostnameOf(link);
+  const verifiedHost = hostnameOf(PROFILES.you.websiteUrl || "");
+  if (!PROFILES.you.websiteVerified || !linkHost || linkHost !== verifiedHost) {
+    statusEl.textContent = PROFILES.you.websiteVerified
+      ? `This link must be on your verified website (${verifiedHost}).`
+      : "Verify your website in Quest profile before submitting.";
     statusEl.className = "gift-status-line error";
     return;
   }
