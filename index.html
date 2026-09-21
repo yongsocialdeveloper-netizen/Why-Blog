@@ -1475,6 +1475,12 @@
   }
   .quest-status-pill.winner { color: var(--accent); border-color: var(--accent); }
   .quest-status-pill.pending { color: var(--ink-soft); }
+  .quest-grading-reason {
+    font-size: 11px;
+    color: var(--ink-faint);
+    margin-top: 4px;
+    max-width: 220px;
+  }
 
   .quest-review-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
   .quest-review-info { flex: 1; min-width: 0; }
@@ -6953,6 +6959,9 @@ function renderQuestSubmissionRow(quest, s, profile, profileId) {
     }
   } else {
     actionsHtml = `<div class="quest-status-pill">Rejected</div>`;
+    if (s.grading_reason) {
+      actionsHtml += `<div class="quest-grading-reason">${escapeHtml(s.grading_reason)}</div>`;
+    }
   }
 
   return `
