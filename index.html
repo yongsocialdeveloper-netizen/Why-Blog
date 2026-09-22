@@ -4212,7 +4212,7 @@ function profilePostCardHTML(post, isPinned) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -4296,7 +4296,7 @@ function postDetailCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? `<div class="post-text"><span class="excerpt">${escapeHtml(post.text)}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -6557,6 +6557,37 @@ function closeQuestSubmitModal() {
   document.getElementById("questSubmitSheet").classList.remove("open");
 }
 
+async function postQuestSubmissionAnnouncement(questId, link) {
+  if (!sb) return;
+  try {
+    const quest = questsCache.find(q => q.id === questId);
+    const questTitle = quest ? quest.title : "a WhyQuest";
+    const { data, error } = await sb.from("posts").insert({
+      type: "quest_submission",
+      text: `Check out my WhyQuest submission on ${questTitle}!\n\n${link}`,
+      name: PROFILES.you.name,
+      username: PROFILES.you.username,
+      telegram_id: String(telegramUser.id),
+      photo_url: PROFILES.you.photoUrl,
+      initials: PROFILES.you.initials,
+      color: PROFILES.you.color,
+      like_count: 0,
+      quest_id: questId,
+      quest_title: questTitle
+    }).select().single();
+    if (error) throw error;
+    triggerPostCategorization(data.id);
+    const newPost = mapPostRow(data);
+    newPost.profileId = "you";
+    queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
+    syncLinkPreviewForPost(newPost);
+  } catch (e) {
+    // Don't let a failure here undo the fact that the actual quest
+    // submission (the part that matters) already succeeded above.
+    console.error("postQuestSubmissionAnnouncement failed:", e);
+  }
+}
+
 async function submitQuestEntry() {
   const input = document.getElementById("questSubmitLinkInput");
   const questId = input.dataset.questId;
@@ -6612,6 +6643,7 @@ async function submitQuestEntry() {
     if (error) throw error;
     closeQuestSubmitModal();
     renderQuestsPage();
+    postQuestSubmissionAnnouncement(questId, link);
     questSubmitCount++;
     saveAdCounters();
     // Ad on the 2nd, 4th, 6th... successful quest submission (every even one).
@@ -6803,6 +6835,15 @@ function renderQuestPostCard(post) {
         ${deadline ? `<span>Ends ${deadline}</span>` : ""}
       </div>
       <button class="quest-submit-btn" onclick="event.stopPropagation(); viewQuestFromPost('${post.questId}')">View quest</button>
+    </div>
+  `;
+}
+
+function renderQuestSubmissionPostCard(post) {
+  return `
+    <div class="quest-submission-embed">
+      ${renderLinkPreviewCard(post)}
+      <button class="quest-submit-btn" style="margin-top:8px;" onclick="event.stopPropagation(); viewQuestFromPost('${post.questId}')">View quest</button>
     </div>
   `;
 }
@@ -7510,7 +7551,7 @@ function userPostCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post))}</div>
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
