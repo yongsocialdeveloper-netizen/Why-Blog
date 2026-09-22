@@ -3512,15 +3512,15 @@
       <button class="quest-header-add" id="questsSettingsBtn" onclick="openQuestProfileSheet(false)" aria-label="Quest settings">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       </button>
-      <button class="quest-header-add" id="questsCreateBtn" onclick="openQuestCreateModal()" style="display:none" aria-label="New quest">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-      </button>
     </div>
     <div class="feed-tabs" id="questsTabs">
       <button class="feed-tab active" id="questsTabSilver" onclick="setQuestsTier('silver')">Silver</button>
       <button class="feed-tab" id="questsTabGold" onclick="setQuestsTier('gold')">Gold</button>
     </div>
     <div class="bookmarks-body" id="questsBody"></div>
+    <button class="post-fab" id="questsCreateFab" onclick="openQuestCreateModal()" style="display:none" aria-label="New quest">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>
 
   <div class="bookmarks-page" id="reportsPage">
@@ -6163,7 +6163,7 @@ function closeQuestFollowSheet() {
 function renderQuestProfileGateBody() {
   const body = document.getElementById("questsBody");
   if (!body) return;
-  document.getElementById("questsCreateBtn").style.display = "none";
+  document.getElementById("questsCreateFab").style.display = "none";
   body.innerHTML = `
     <div class="search-empty">
       Set up your quest profile to see quests.<br/>
@@ -6447,7 +6447,7 @@ async function removeReportedContent(reportId, targetType, targetId) {
 async function renderQuestsPage() {
   const body = document.getElementById("questsBody");
   if (!body) return;
-  document.getElementById("questsCreateBtn").style.display = isQuestAdmin ? "" : "none";
+  document.getElementById("questsCreateFab").style.display = isQuestAdmin ? "" : "none";
 
   body.innerHTML = `<div class="search-empty">Loading quests\u2026</div>`;
   try {
