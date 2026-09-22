@@ -6961,9 +6961,8 @@ function renderQuestSubmissionRow(quest, s, profile, profileId) {
     actionsHtml = `<div class="quest-status-pill">Rejected</div>`;
     if (s.grading_reason) {
       actionsHtml += `<div class="quest-grading-reason">${escapeHtml(s.grading_reason)}</div>`;
-    } else {
-      actionsHtml += `<button class="quest-review-action" onclick="recheckQuestSubmissionReason('${s.id}')" id="questRecheckBtn-${s.id}">Re-check reason</button>`;
     }
+    actionsHtml += `<button class="quest-review-action" onclick="recheckQuestSubmissionReason('${s.id}')" id="questRecheckBtn-${s.id}">Re-check reason</button>`;
   }
 
   return `
