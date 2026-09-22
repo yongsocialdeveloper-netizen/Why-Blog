@@ -6961,6 +6961,8 @@ function renderQuestSubmissionRow(quest, s, profile, profileId) {
     actionsHtml = `<div class="quest-status-pill">Rejected</div>`;
     if (s.grading_reason) {
       actionsHtml += `<div class="quest-grading-reason">${escapeHtml(s.grading_reason)}</div>`;
+    } else {
+      actionsHtml += `<button class="quest-review-action" onclick="recheckQuestSubmissionReason('${s.id}')" id="questRecheckBtn-${s.id}">Re-check reason</button>`;
     }
   }
 
@@ -7050,6 +7052,23 @@ async function maybeFinalizeQuestPayouts(questId) {
   ));
 
   await sb.from("quests").update({ status: "reviewing" }).eq("id", questId);
+}
+
+async function recheckQuestSubmissionReason(submissionId) {
+  const btn = document.getElementById(`questRecheckBtn-${submissionId}`);
+  if (btn) { btn.disabled = true; btn.textContent = "Checking\u2026"; }
+  try {
+    const { data, error } = await sb.functions.invoke("grade-quest-submissions", {
+      body: { submission_id: submissionId }
+    });
+    if (error) throw error;
+    if (!data || !data.ok) throw new Error((data && data.error) || "Re-check failed.");
+    await renderQuestReview();
+  } catch (e) {
+    console.error("recheckQuestSubmissionReason failed:", e);
+    if (btn) { btn.disabled = false; btn.textContent = "Re-check reason"; }
+    alert("Couldn't re-check this submission. Please try again.");
+  }
 }
 
 async function markQuestRewardPaid(submissionId) {
