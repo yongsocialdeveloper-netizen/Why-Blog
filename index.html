@@ -958,6 +958,67 @@
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
   }
+
+  /* Demo banner ad slot -- static placeholder, no logic yet. */
+  .banner-ad-slot {
+    position: relative;
+    margin: 10px 14px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .banner-ad-badge {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .banner-ad-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .banner-ad-copy { flex: 1; min-width: 0; }
+  .banner-ad-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .banner-ad-sub {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .banner-ad-cta {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+  }
   .trending-item {
     font-size: 12.5px;
     font-weight: 600;
@@ -3086,14 +3147,14 @@
       <button class="feed-tab" id="feedTabOffInterest" onclick="setFeedTab('offinterest')">Off-Interest</button>
     </div>
 
-    <div class="trending-ticker" id="trendingTicker" aria-hidden="true">
-      <span class="trending-live-badge">
-        <span class="trending-radar"></span>
-        LIVE
-      </span>
-      <div class="trending-marquee">
-        <div class="trending-marquee-track" id="trendingMarqueeTrack"></div>
+    <div class="banner-ad-slot" id="bannerAdDemo">
+      <span class="banner-ad-badge">Ad</span>
+      <div class="banner-ad-icon">🛍️</div>
+      <div class="banner-ad-copy">
+        <div class="banner-ad-title">Your Brand Here</div>
+        <div class="banner-ad-sub">Sponsored placement — demo banner</div>
       </div>
+      <div class="banner-ad-cta">Learn more</div>
     </div>
   </div>
 
