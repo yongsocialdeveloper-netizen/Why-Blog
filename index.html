@@ -2318,7 +2318,8 @@
   }
   .post-source { font-weight: 700; white-space: nowrap; }
   .post-verified { display: inline-flex; color: var(--accent); flex-shrink: 0; }
-  .post-handle, .post-dot, .post-time { color: var(--ink-faint); font-size: 14.5px; white-space: nowrap; }
+  .post-handle, .post-dot, .post-time, .post-edited { color: var(--ink-faint); font-size: 14.5px; white-space: nowrap; }
+  .post-edited { font-style: italic; }
   .post-handle { overflow: hidden; text-overflow: ellipsis; }
   .post-more { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; }
   .post-more-btn { margin-left: auto; color: var(--ink-faint); flex-shrink: 0; display: flex; padding: 2px; }
@@ -4205,6 +4206,7 @@ function profilePostCardHTML(post, isPinned) {
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${editedTagHTML(post)}
           ${isOwnPost ? `
             <button class="post-more-btn" onclick="event.stopPropagation(); openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
           ` : ""}
@@ -4291,6 +4293,7 @@ function postDetailCardHTML(post) {
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${editedTagHTML(post)}
           <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
         </div>
         ${categoryBadgeHTML(post)}
@@ -4790,8 +4793,17 @@ function mapPostRow(row) {
     adDurationDays: row.ad_duration_days || null,
     adStarsCost: row.ad_stars_cost || null,
     adExpiresAtMillis: row.ad_expires_at ? new Date(row.ad_expires_at).getTime() : null,
-    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+    createdAtMillis: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    editedAtMillis: row.edited_at ? new Date(row.edited_at).getTime() : null
   };
+}
+
+// Small "· Edited" tag shown next to the timestamp on any post that has
+// been edited, visible to everyone (not just the author) so readers know
+// the content may have changed since it was first posted.
+function editedTagHTML(post) {
+  if (!post || !post.editedAtMillis) return "";
+  return `<span class="post-dot">·</span><span class="post-edited" title="Edited ${new Date(post.editedAtMillis).toLocaleString()}">Edited</span>`;
 }
 
 function mapCommentRow(row) {
@@ -7546,6 +7558,7 @@ function userPostCardHTML(post) {
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
+          ${editedTagHTML(post)}
           <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
         </div>
         ${categoryBadgeHTML(post)}
@@ -7977,7 +7990,7 @@ function openPostOptions(postId) {
   }
 
   reportBtn.style.display = "none";
-  editBtn.style.display = isLocked ? "none" : "";
+  editBtn.style.display = (isLocked || !isPremiumUser()) ? "none" : "";
   editBtn.onclick = () => { closePostOptions(); editUserPost(postId); };
   deleteBtn.style.display = "";
   deleteBtn.onclick = () => { closePostOptions(); deleteUserPost(postId); };
@@ -8226,6 +8239,11 @@ function isPinDisplayed(profileId) {
 function editUserPost(postId) {
   const post = USER_POSTS.find(p => p.id === postId);
   if (!post) return;
+  if (!isPremiumUser()) {
+    showToast("Editing posts is a Premium feature");
+    openPremiumModal();
+    return;
+  }
   const isLocked = post.adStatus === "pending_payment" || isAdCurrentlyActive(post);
   if (isLocked) {
     showToast("Ads can't be edited");
@@ -8269,6 +8287,11 @@ async function submitPostEdit() {
   const id = editingPostId;
   const post = USER_POSTS.find(p => p.id === id);
   if (!post) { resetComposeUI(); return; }
+  if (!isPremiumUser()) {
+    resetComposeUI();
+    showToast("Editing posts is a Premium feature");
+    return;
+  }
 
   let updateData;
   if (post.type === "poll") {
@@ -8289,6 +8312,7 @@ async function submitPostEdit() {
     updateData = { text: post.text, image: post.image };
   }
 
+  post.editedAtMillis = Date.now();
   resetComposeUI();
   showPostingProgressToast();
   render();
