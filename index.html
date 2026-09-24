@@ -813,6 +813,25 @@
   .form-textarea { resize: none; min-height: 76px; line-height: 1.4; }
   .form-char-count { text-align: right; font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
   .ad-cost-preview { font-size: 14px; font-weight: 700; color: var(--accent); margin-top: 4px; }
+  .form-toggle-group { display: flex; gap: 8px; }
+  .form-toggle-btn {
+    flex: 1; border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+    border-radius: 12px; padding: 11px 13px; font-size: 14px; font-weight: 600;
+    cursor: pointer; text-align: center; font-family: inherit;
+  }
+  .form-toggle-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .form-section-divider { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+  .event-ticket-row { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .event-ticket-row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .event-ticket-row-title { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+  .event-ticket-remove-btn { font-size: 12px; color: var(--heart); background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+  .event-add-ticket-btn {
+    width: 100%; border: 1px dashed var(--line); background: none; color: var(--accent);
+    border-radius: 12px; padding: 11px; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    font-family: inherit; margin-bottom: 6px;
+  }
+  .event-add-ticket-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .event-ticket-count-hint { font-size: 11.5px; color: var(--ink-faint); text-align: center; margin-bottom: 14px; }
   .report-reason-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .report-reason-btn {
     text-align: left;
@@ -1662,6 +1681,29 @@
   .poll-post-option-text { color: var(--ink); }
   .poll-post-option-pct { color: var(--ink-soft); font-weight: 700; font-size: 13px; flex-shrink: 0; }
   .poll-post-votecount { font-size: 12.5px; color: var(--ink-faint); }
+
+  .event-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 8px; }
+  .event-card-title { font-size: 16px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+  .event-meta-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; flex-wrap: wrap; }
+  .event-meta-row svg { flex-shrink: 0; opacity: 0.7; }
+  .event-format-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700;
+    color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 3px 8px; margin-bottom: 8px;
+  }
+  .event-ticket-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .event-ticket { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .event-ticket-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .event-ticket-name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .event-ticket-deadline { font-size: 11.5px; color: var(--ink-faint); }
+  .event-ticket-btn {
+    flex-shrink: 0; text-align: center; padding: 9px 14px; border-radius: 9px; background: var(--accent);
+    color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap;
+  }
+  .event-ticket-expired-label {
+    flex-shrink: 0; text-align: center; padding: 9px 14px; border-radius: 9px; background: var(--paper);
+    border: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .event-free-badge { display: inline-block; margin-top: 12px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
 
   .compose-reply-row {
     display: flex;
@@ -3189,6 +3231,10 @@
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="10" rx="2"/><path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2"/></svg>
       Banner ads
     </a>
+    <a class="menu-item" href="#" onclick="event.preventDefault(); toggleMenu(false); openEventCreateModal();">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
+      Events
+    </a>
     <hr class="menu-divider" />
 
     <a class="menu-item" href="https://whyblog.yongsocial.com/help" target="_blank" rel="noopener">
@@ -4027,6 +4073,92 @@
     </div>
   </div>
 
+  <div class="form-sheet-overlay" id="eventCreateOverlay" onclick="closeEventCreateModal()"></div>
+  <div class="form-sheet" id="eventCreateSheet">
+    <div class="form-sheet-header">
+      <div class="form-sheet-title">Create event</div>
+      <button class="form-sheet-close" onclick="closeEventCreateModal()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="form-sheet-body">
+      <div class="form-note" style="margin-top:0;">Publish an event with optional ticket tiers. This posts to your feed like any other update.</div>
+
+      <div class="form-field">
+        <label class="form-label">Cover image (optional)</label>
+        <input type="file" id="eventImageInput" accept="image/*" style="display:none" onchange="handleEventImageSelect(this)" />
+        <button type="button" class="form-input" style="text-align:left;color:var(--ink-faint)" onclick="document.getElementById('eventImageInput').click()">Choose image\u2026</button>
+        <div id="eventImagePreview" style="display:none;margin-top:8px;">
+          <img id="eventImagePreviewImg" src="" alt="" style="width:100%;max-height:160px;border-radius:12px;object-fit:cover;" />
+          <button type="button" class="form-note" style="color:var(--heart);margin-top:4px;" onclick="removeEventImage()">Remove image</button>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Event title</label>
+        <input class="form-input" id="eventTitleInput" type="text" maxlength="60" placeholder="e.g. WhyBlog Founders Meetup" oninput="updateEventTitleCount()" />
+        <div class="form-char-count" id="eventTitleCount">0 / 60</div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="eventDescriptionInput" maxlength="500" placeholder="What's this event about?" oninput="updateEventDescriptionCount()"></textarea>
+        <div class="form-char-count" id="eventDescriptionCount">0 / 500</div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Format</label>
+        <div class="form-toggle-group">
+          <button type="button" class="form-toggle-btn active" id="eventFormatDigitalBtn" onclick="setEventFormat('digital')">\ud83d\udcbb Digital</button>
+          <button type="button" class="form-toggle-btn" id="eventFormatPhysicalBtn" onclick="setEventFormat('physical')">\ud83d\udccd Physical</button>
+        </div>
+      </div>
+
+      <div class="form-field" id="eventLocationField" style="display:none">
+        <label class="form-label">Location</label>
+        <input class="form-input" id="eventLocationInput" type="text" maxlength="120" placeholder="e.g. 14 Adeola Odeku St, Victoria Island, Lagos" />
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Starts</label>
+        <input class="form-input" id="eventStartInput" type="datetime-local" oninput="onEventDatesChanged()" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Ends</label>
+        <input class="form-input" id="eventEndInput" type="datetime-local" oninput="onEventDatesChanged()" />
+      </div>
+
+      <hr class="form-section-divider" />
+
+      <div class="form-field">
+        <label class="form-label">Entry</label>
+        <div class="form-toggle-group">
+          <button type="button" class="form-toggle-btn active" id="eventPricingFreeBtn" onclick="setEventPricing('free')">Free</button>
+          <button type="button" class="form-toggle-btn" id="eventPricingPaidBtn" onclick="setEventPricing('paid')">Paid</button>
+        </div>
+      </div>
+
+      <div id="eventPaidSection" style="display:none">
+        <div class="form-field">
+          <label class="form-label">Ticket ranks</label>
+          <div class="form-sublabel">Turn this on if you're selling more than one type of ticket, e.g. Normal vs VIP.</div>
+          <div class="form-toggle-group">
+            <button type="button" class="form-toggle-btn active" id="eventRanksNoBtn" onclick="setEventHasRanks(false)">Single ticket</button>
+            <button type="button" class="form-toggle-btn" id="eventRanksYesBtn" onclick="setEventHasRanks(true)">Has ranks</button>
+          </div>
+        </div>
+        <div id="eventTicketRows"></div>
+        <button type="button" class="event-add-ticket-btn" id="eventAddTicketBtn" onclick="addEventTicketRow()" style="display:none">+ Add ticket tier</button>
+        <div class="event-ticket-count-hint" id="eventTicketCountHint" style="display:none"></div>
+      </div>
+
+      <div class="gift-status-line" id="eventCreateStatus"></div>
+    </div>
+    <div class="form-sheet-footer">
+      <button class="form-submit-btn" id="eventCreateSubmitBtn" onclick="submitEventPost()">Publish event</button>
+    </div>
+  </div>
+
   <div class="search-page" id="searchPage">
     <div class="search-header">
       <button class="search-back" onclick="closeSearch()" aria-label="Back">
@@ -4310,7 +4442,7 @@ function profilePostCardHTML(post, isPinned) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -4396,7 +4528,7 @@ function postDetailCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? `<div class="post-text"><span class="excerpt">${linkifyMentions(escapeHtml(post.text))}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -4884,6 +5016,13 @@ function mapPostRow(row) {
     questWinnerCount: row.quest_winner_count || null,
     questEndsAt: row.quest_ends_at || null,
     category: row.category || null,
+    eventTitle: row.event_title || null,
+    eventFormat: row.event_format || null,
+    eventLocation: row.event_location || null,
+    eventStartAtMillis: row.event_start_at ? new Date(row.event_start_at).getTime() : null,
+    eventEndAtMillis: row.event_end_at ? new Date(row.event_end_at).getTime() : null,
+    eventIsPaid: !!row.event_is_paid,
+    eventTickets: row.event_tickets || [],
     isAd: !!row.is_ad,
     adStatus: row.ad_status || null,
     adButtonText: row.ad_button_text || null,
@@ -7935,6 +8074,42 @@ async function voteOnPoll(postId, optionIndex) {
   } catch (e) {}
 }
 
+function isEventTicketExpired(ticket) {
+  return Boolean(ticket.deadline) && Date.now() >= new Date(ticket.deadline).getTime();
+}
+
+function renderEventPost(post) {
+  const startLabel = formatQuestDeadline(post.eventStartAtMillis ? new Date(post.eventStartAtMillis).toISOString() : null);
+  const endLabel = formatQuestDeadline(post.eventEndAtMillis ? new Date(post.eventEndAtMillis).toISOString() : null);
+  const dateRange = startLabel && endLabel ? `${startLabel} \u2192 ${endLabel}` : (startLabel || endLabel || "");
+
+  const ticketsHtml = post.eventIsPaid && post.eventTickets && post.eventTickets.length
+    ? `<div class="event-ticket-list">${post.eventTickets.map(t => {
+        const expired = isEventTicketExpired(t);
+        const deadlineLabel = t.deadline ? formatQuestDeadline(t.deadline) : null;
+        return `
+          <div class="event-ticket">
+            <div class="event-ticket-info">
+              <span class="event-ticket-name">${escapeHtml(t.name || "Ticket")}</span>
+              ${deadlineLabel ? `<span class="event-ticket-deadline">${expired ? "Purchase closed" : "Buy before"} ${deadlineLabel}</span>` : ""}
+            </div>
+            ${expired
+              ? `<span class="event-ticket-expired-label">This ticket has reached its purchase deadline.</span>`
+              : `<a class="event-ticket-btn" href="${escapeAttr(t.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(t.button_text || "Get ticket")}</a>`}
+          </div>`;
+      }).join("")}</div>`
+    : (post.eventIsPaid ? "" : `<div class="event-free-badge">\u2713 Free entry</div>`);
+
+  return `
+    <div class="event-card">
+      <div class="event-format-badge">${post.eventFormat === "physical" ? "\ud83d\udccd Physical event" : "\ud83d\udcbb Digital event"}</div>
+      <div class="event-card-title">${escapeHtml(post.eventTitle || "Event")}</div>
+      ${dateRange ? `<div class="event-meta-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>${escapeHtml(dateRange)}</div>` : ""}
+      ${post.eventFormat === "physical" && post.eventLocation ? `<div class="event-meta-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0116 0z"/><circle cx="12" cy="10" r="3"/></svg>${escapeHtml(post.eventLocation)}</div>` : ""}
+      ${ticketsHtml}
+    </div>`;
+}
+
 function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
@@ -7956,7 +8131,7 @@ function userPostCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : renderLinkPreviewCard(post)))}</div>
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -8836,6 +9011,293 @@ async function submitBannerAdRequest() {
   }
 }
 
+// ---- Events (Business plan only) ---------------------------------------
+//
+// Stored on posts (type: "event"): event_title, text (=description),
+// image (optional), event_format ('digital'|'physical'), event_location
+// (physical only), event_start_at/event_end_at, event_is_paid, and
+// event_tickets (jsonb array, max 10, each {name, button_text, link,
+// deadline}). Free events carry an empty tickets array. Server-side
+// validation (business-plan gate, required fields, ticket count, and
+// "deadline <= event end") lives in a BEFORE INSERT/UPDATE trigger --
+// never trust the client-side checks below alone, they're just UX.
+
+const EVENT_MAX_TICKETS = 10;
+let eventImage = null;
+let eventFormat = "digital";
+let eventPricing = "free";
+let eventHasRanks = false;
+let eventTickets = []; // [{ name, buttonText, link, deadline }]
+
+function openEventCreateModal() {
+  if (!isBusinessUser()) {
+    toggleMenu(false);
+    openPremiumModal("business");
+    return;
+  }
+  document.getElementById("eventTitleInput").value = "";
+  document.getElementById("eventDescriptionInput").value = "";
+  document.getElementById("eventLocationInput").value = "";
+  document.getElementById("eventStartInput").value = "";
+  document.getElementById("eventEndInput").value = "";
+  document.getElementById("eventCreateStatus").textContent = "";
+  document.getElementById("eventCreateStatus").className = "gift-status-line";
+  removeEventImage();
+  updateEventTitleCount();
+  updateEventDescriptionCount();
+  setEventFormat("digital");
+  setEventPricing("free");
+  setEventHasRanks(false);
+  document.getElementById("eventCreateSubmitBtn").disabled = false;
+  document.getElementById("eventCreateOverlay").classList.add("open");
+  document.getElementById("eventCreateSheet").classList.add("open");
+}
+
+function closeEventCreateModal() {
+  document.getElementById("eventCreateOverlay").classList.remove("open");
+  document.getElementById("eventCreateSheet").classList.remove("open");
+}
+
+function updateEventTitleCount() {
+  const input = document.getElementById("eventTitleInput");
+  document.getElementById("eventTitleCount").textContent = `${input.value.length} / 60`;
+}
+
+function updateEventDescriptionCount() {
+  const input = document.getElementById("eventDescriptionInput");
+  document.getElementById("eventDescriptionCount").textContent = `${input.value.length} / 500`;
+}
+
+function handleEventImageSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Please choose an image file.");
+    input.value = "";
+    return;
+  }
+  if (file.size > 900 * 1024) {
+    alert("Please choose an image under 900KB.");
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    eventImage = reader.result;
+    document.getElementById("eventImagePreviewImg").src = eventImage;
+    document.getElementById("eventImagePreview").style.display = "block";
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function removeEventImage() {
+  eventImage = null;
+  document.getElementById("eventImagePreviewImg").src = "";
+  document.getElementById("eventImagePreview").style.display = "none";
+}
+
+function setEventFormat(format) {
+  eventFormat = format;
+  document.getElementById("eventFormatDigitalBtn").classList.toggle("active", format === "digital");
+  document.getElementById("eventFormatPhysicalBtn").classList.toggle("active", format === "physical");
+  document.getElementById("eventLocationField").style.display = format === "physical" ? "block" : "none";
+}
+
+function setEventPricing(pricing) {
+  eventPricing = pricing;
+  document.getElementById("eventPricingFreeBtn").classList.toggle("active", pricing === "free");
+  document.getElementById("eventPricingPaidBtn").classList.toggle("active", pricing === "paid");
+  document.getElementById("eventPaidSection").style.display = pricing === "paid" ? "block" : "none";
+  if (pricing === "paid" && eventTickets.length === 0) {
+    eventTickets = [{ name: "", buttonText: "Get ticket", link: "", deadline: "" }];
+  }
+  renderEventTicketRows();
+}
+
+function setEventHasRanks(hasRanks) {
+  eventHasRanks = hasRanks;
+  document.getElementById("eventRanksNoBtn").classList.toggle("active", !hasRanks);
+  document.getElementById("eventRanksYesBtn").classList.toggle("active", hasRanks);
+  if (!hasRanks) {
+    // Collapse to a single tier -- keep whatever's already in the first row.
+    eventTickets = eventTickets.slice(0, 1);
+  }
+  if (eventTickets.length === 0) {
+    eventTickets = [{ name: "", buttonText: "Get ticket", link: "", deadline: "" }];
+  }
+  document.getElementById("eventAddTicketBtn").style.display = hasRanks ? "block" : "none";
+  document.getElementById("eventTicketCountHint").style.display = hasRanks ? "block" : "none";
+  renderEventTicketRows();
+}
+
+function addEventTicketRow() {
+  captureEventTicketInputs();
+  if (eventTickets.length >= EVENT_MAX_TICKETS) return;
+  eventTickets.push({ name: "", buttonText: "Get ticket", link: "", deadline: "" });
+  renderEventTicketRows();
+}
+
+function removeEventTicketRow(index) {
+  captureEventTicketInputs();
+  if (eventTickets.length <= 1) return;
+  eventTickets.splice(index, 1);
+  renderEventTicketRows();
+}
+
+// Pulls current values out of the DOM into eventTickets before any
+// re-render (add/remove row, date change), so in-progress typing on
+// other rows isn't lost when the list re-renders.
+function captureEventTicketInputs() {
+  eventTickets.forEach((t, i) => {
+    const nameEl = document.getElementById(`eventTicketName-${i}`);
+    const btnEl = document.getElementById(`eventTicketBtn-${i}`);
+    const linkEl = document.getElementById(`eventTicketLink-${i}`);
+    const deadlineEl = document.getElementById(`eventTicketDeadline-${i}`);
+    if (nameEl) t.name = nameEl.value;
+    if (btnEl) t.buttonText = btnEl.value;
+    if (linkEl) t.link = linkEl.value;
+    if (deadlineEl) t.deadline = deadlineEl.value;
+  });
+}
+
+function renderEventTicketRows() {
+  const container = document.getElementById("eventTicketRows");
+  if (!container) return;
+  const maxDeadline = document.getElementById("eventEndInput").value || null;
+
+  container.innerHTML = eventTickets.map((t, i) => `
+    <div class="event-ticket-row">
+      ${eventHasRanks ? `
+        <div class="event-ticket-row-header">
+          <span class="event-ticket-row-title">Tier ${i + 1}</span>
+          ${eventTickets.length > 1 ? `<button type="button" class="event-ticket-remove-btn" onclick="removeEventTicketRow(${i})">Remove</button>` : ""}
+        </div>
+        <div class="form-field">
+          <label class="form-label">Rank name</label>
+          <input class="form-input" id="eventTicketName-${i}" type="text" maxlength="30" placeholder="e.g. VIP" value="${escapeAttr(t.name || "")}" />
+        </div>
+      ` : ""}
+      <div class="form-field">
+        <label class="form-label">Ticket purchase button name</label>
+        <input class="form-input" id="eventTicketBtn-${i}" type="text" maxlength="30" placeholder="e.g. Get ticket" value="${escapeAttr(t.buttonText || "")}" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Ticket purchase link</label>
+        <input class="form-input" id="eventTicketLink-${i}" type="url" placeholder="https://" value="${escapeAttr(t.link || "")}" />
+      </div>
+      <div class="form-field" style="margin-bottom:0">
+        <label class="form-label">Purchase deadline (optional)</label>
+        <input class="form-input" id="eventTicketDeadline-${i}" type="datetime-local" ${maxDeadline ? `max="${maxDeadline}"` : ""} value="${escapeAttr(t.deadline || "")}" />
+      </div>
+    </div>
+  `).join("");
+
+  const addBtn = document.getElementById("eventAddTicketBtn");
+  if (addBtn) addBtn.disabled = eventTickets.length >= EVENT_MAX_TICKETS;
+  const hint = document.getElementById("eventTicketCountHint");
+  if (hint) hint.textContent = `${eventTickets.length} / ${EVENT_MAX_TICKETS} ticket tiers`;
+}
+
+function onEventDatesChanged() {
+  // Re-render so every ticket deadline input's max= tracks the event end date.
+  captureEventTicketInputs();
+  renderEventTicketRows();
+}
+
+async function submitEventPost() {
+  if (!isBusinessUser()) {
+    showToast("Events are a Business plan feature");
+    return;
+  }
+  if (!requireTelegramSession()) return;
+  if (!sb) { showToast("Can't publish right now — try again in a moment."); return; }
+
+  const statusEl = document.getElementById("eventCreateStatus");
+  const setError = (msg) => {
+    statusEl.textContent = msg;
+    statusEl.className = "gift-status-line error";
+  };
+
+  const title = document.getElementById("eventTitleInput").value.trim();
+  const description = document.getElementById("eventDescriptionInput").value.trim();
+  const location = document.getElementById("eventLocationInput").value.trim();
+  const startLocal = document.getElementById("eventStartInput").value;
+  const endLocal = document.getElementById("eventEndInput").value;
+
+  if (!title) return setError("Enter an event title.");
+  if (!description) return setError("Enter a description.");
+  if (eventFormat === "physical" && !location) return setError("Enter the event location.");
+  if (!startLocal || !endLocal) return setError("Set the event start and end date.");
+
+  const startAt = new Date(startLocal);
+  const endAt = new Date(endLocal);
+  if (endAt.getTime() < startAt.getTime()) return setError("Event end must be after the event start.");
+
+  let tickets = [];
+  if (eventPricing === "paid") {
+    captureEventTicketInputs();
+    if (eventTickets.length === 0) return setError("Add at least one ticket.");
+    if (eventTickets.length > EVENT_MAX_TICKETS) return setError(`Maximum ${EVENT_MAX_TICKETS} ticket tiers.`);
+    for (const t of eventTickets) {
+      if (eventHasRanks && (!t.name || !t.name.trim())) return setError("Enter a rank name for every ticket tier.");
+      if (!t.buttonText || !t.buttonText.trim()) return setError("Enter a ticket purchase button name.");
+      if (!/^https?:\/\//i.test(t.link || "")) return setError("Enter a valid ticket purchase link (starting with http:// or https://).");
+      if (t.deadline && new Date(t.deadline).getTime() > endAt.getTime()) {
+        return setError("Ticket purchase deadline can't be after the event end date.");
+      }
+    }
+    tickets = eventTickets.map(t => ({
+      name: eventHasRanks ? t.name.trim() : ((t.name || "").trim() || null),
+      button_text: t.buttonText.trim(),
+      link: t.link.trim(),
+      deadline: t.deadline ? new Date(t.deadline).toISOString() : null
+    }));
+  }
+
+  const submitBtn = document.getElementById("eventCreateSubmitBtn");
+  submitBtn.disabled = true;
+  statusEl.textContent = "Publishing\u2026";
+  statusEl.className = "gift-status-line";
+
+  try {
+    const { data, error } = await sb.from("posts").insert({
+      type: "event",
+      image: eventImage,
+      event_title: title,
+      text: description,
+      event_format: eventFormat,
+      event_location: eventFormat === "physical" ? location : null,
+      event_start_at: startAt.toISOString(),
+      event_end_at: endAt.toISOString(),
+      event_is_paid: eventPricing === "paid",
+      event_tickets: tickets,
+      name: PROFILES.you.name,
+      username: PROFILES.you.username,
+      telegram_id: String(telegramUser.id),
+      photo_url: PROFILES.you.photoUrl,
+      initials: PROFILES.you.initials,
+      color: PROFILES.you.color,
+      like_count: 0
+    }).select().single();
+    if (error) throw error;
+
+    triggerPostCategorization(data.id);
+    const newPost = mapPostRow(data);
+    newPost.profileId = "you";
+    queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
+    haptic("medium");
+    showToast("Event published");
+    closeEventCreateModal();
+    render();
+  } catch (e) {
+    console.error("submitEventPost failed:", e);
+    setError(e && e.message ? e.message : "Couldn't publish this event. Please try again.");
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
 async function togglePinPost(postId) {
   if (!sb || !telegramUser) return;
   PROFILES.you.pinnedPostId = postId;
@@ -8946,7 +9408,7 @@ async function submitPostEdit() {
     const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
     if (error) throw error;
     showPostedSuccessToast();
-    if (post.type !== "poll") syncLinkPreviewForPost(post);
+    if (post.type !== "poll" && post.type !== "event") syncLinkPreviewForPost(post);
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
   }
