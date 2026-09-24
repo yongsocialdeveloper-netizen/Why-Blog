@@ -5933,6 +5933,10 @@ function isPremiumUser() {
 }
 
 function isBusinessUser() {
+  // The app's admin(s) (quest_admins) don't pay for a subscription and
+  // shouldn't be locked out if one lapses -- treat them as permanently
+  // on the Business plan, no expiry date needed.
+  if (isQuestAdmin) return true;
   const until = PROFILES.you.businessUntil;
   return !!until && new Date(until).getTime() > Date.now();
 }
@@ -6122,6 +6126,18 @@ async function loadQuestAdminStatus() {
   }
   const reportsLink = document.getElementById("menuReportsLink");
   if (reportsLink) reportsLink.style.display = isQuestAdmin ? "" : "none";
+
+  // isBusinessUser() (and isPremiumUser() through it) now depends on
+  // isQuestAdmin, which just resolved after loadMyProfile() may already
+  // have painted the profile/badges/AI banner with stale values -- sync
+  // everything that reads those once we actually know.
+  if (isQuestAdmin) {
+    PROFILES.you.verified = true;
+    PROFILES.you.verifiedBusiness = true;
+    if (document.getElementById("profilePage").classList.contains("open")) renderProfileMeta(currentProfileId);
+    renderAIUsageBanner();
+    render();
+  }
 }
 
 function setQuestsTier(tier) {
@@ -8323,6 +8339,13 @@ function updateAdButtonTextCount() {
 function updateAdCostPreview() {
   const days = Math.floor(Number(document.getElementById("adDurationInput").value));
   const preview = document.getElementById("adCostPreview");
+  // Actual admin status is only ever verified server-side (in
+  // create-ad-invoice) -- this is purely a cosmetic preview, matching
+  // whatever the request will actually come back as.
+  if (isQuestAdmin) {
+    preview.textContent = "Free \u2014 admin";
+    return;
+  }
   if (Number.isFinite(days) && days > 0) {
     const cost = days * AD_STARS_PER_DAY;
     preview.textContent = `${days} day${days === 1 ? "" : "s"} \u00b7 ${cost} \u2b50 total`;
@@ -8373,7 +8396,23 @@ async function submitAdRequest() {
       })
     });
     const data = await res.json();
-    if (!res.ok || !data.invoice_link) throw new Error(data.error || "Could not create invoice");
+    if (!res.ok) throw new Error(data.error || "Could not create invoice");
+
+    // Admins (quest_admins, verified server-side by create-ad-invoice --
+    // never trust a client flag for this) skip payment entirely: the ad
+    // is already active by the time this response comes back.
+    if (data.activated) {
+      const post = USER_POSTS.find(p => p.id === postId);
+      if (post) post.adStatus = "active";
+      render();
+      statusEl.textContent = "Ad published \u2014 free as an admin.";
+      statusEl.className = "gift-status-line success";
+      showToast("Ad submitted");
+      setTimeout(() => { closeAdCreateModal(); loadUserPosts(); }, 1200);
+      return;
+    }
+
+    if (!data.invoice_link) throw new Error("No invoice link returned");
 
     const post = USER_POSTS.find(p => p.id === postId);
     if (post) post.adStatus = "pending_payment"; // lock editing immediately, matches server
@@ -8488,6 +8527,12 @@ function updateBannerAdCostPreview() {
   const preview = document.getElementById("bannerAdCostPreview");
   const creditDays = PROFILES.you.bannerCreditDaysRemaining || 0;
 
+  // Actual admin status is only ever verified server-side (in
+  // create-banner-ad-invoice) -- this is purely a cosmetic preview.
+  if (isQuestAdmin) {
+    preview.textContent = "Free \u2014 admin";
+    return;
+  }
   if (Number.isFinite(days) && days > 0) {
     const creditUsed = Math.min(days, creditDays);
     const paidDays = days - creditUsed;
