@@ -4922,9 +4922,14 @@ async function hydratePremiumBadges(telegramIds) {
   toCheck.forEach(id => premiumCheckedIds.add(id));
 
   try {
-    const { data } = await sb.from("profiles")
-      .select("telegram_id, premium_until, business_until")
-      .in("telegram_id", toCheck);
+    const [{ data }, { data: adminRows }] = await Promise.all([
+      sb.from("profiles")
+        .select("telegram_id, premium_until, business_until")
+        .in("telegram_id", toCheck),
+      sb.from("quest_admins")
+        .select("telegram_id")
+        .in("telegram_id", toCheck)
+    ]);
     (data || []).forEach(row => {
       if (row.premium_until && new Date(row.premium_until).getTime() > Date.now()) {
         premiumVerifiedIds.add(String(row.telegram_id));
@@ -4932,6 +4937,9 @@ async function hydratePremiumBadges(telegramIds) {
       if (row.business_until && new Date(row.business_until).getTime() > Date.now()) {
         businessVerifiedIds.add(String(row.telegram_id));
       }
+    });
+    (adminRows || []).forEach(row => {
+      businessVerifiedIds.add(String(row.telegram_id));
     });
     Object.values(PROFILES).forEach(p => {
       if (p.telegramId == null) return;
