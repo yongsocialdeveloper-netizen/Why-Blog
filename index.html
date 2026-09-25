@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 <script src="https://unpkg.com/tonweb/dist/web/index.js"></script>
 <style>
@@ -7061,27 +7062,108 @@ function closeQuestCreateModal() {
   document.getElementById("questCreateSheet").classList.remove("open");
 }
 
+// ---- Image compression, shared by every upload surface -----------------
+//
+// Every image the user picks (compose, comments, quests, banner ads,
+// events, avatar) must be compressed client-side to <=630,000 bytes
+// before it goes anywhere near the network. Most of these surfaces store
+// the result as a base64 data URL directly in a Postgres column (posts.
+// image, comments.image, banner_ads.icon_image) rather than object
+// storage -- worth knowing that base64 inflates the compressed binary by
+// ~33% once stored as text (a 630KB image becomes ~840KB of column data),
+// which matters for database-size headroom on the free plan. Avatar is
+// the one surface that already uploads a real Blob to Supabase Storage,
+// so it isn't affected by that inflation.
+//
+// Server-side enforcement (the 630,000-byte cap can't rely on the client
+// alone) lives in image_size_limits.sql as CHECK constraints on those
+// three columns.
+const MAX_IMAGE_SIZE = 630000;
+
+async function compressImageTo630KB(file) {
+  if (file.size <= MAX_IMAGE_SIZE) {
+    return file;
+  }
+  if (typeof imageCompression !== "function") {
+    // browser-image-compression failed to load (offline / CDN blocked).
+    // Fail closed rather than silently letting an uncompressed file
+    // through -- an unenforced upload could blow past the size cap.
+    throw new Error("Image processing isn't available right now. Please try again.");
+  }
+
+  let quality = 0.85;
+  let compressedFile = null;
+
+  while (quality >= 0.1) {
+    compressedFile = await imageCompression(file, {
+      maxSizeMB: 0.61,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      initialQuality: quality,
+      fileType: "image/jpeg"
+    });
+    if (compressedFile.size <= MAX_IMAGE_SIZE) return compressedFile;
+    quality -= 0.05;
+  }
+
+  const dimensions = [1600, 1280, 1024, 900, 800, 720, 640];
+  for (const maxDimension of dimensions) {
+    quality = 0.75;
+    while (quality >= 0.1) {
+      compressedFile = await imageCompression(file, {
+        maxSizeMB: 0.61,
+        maxWidthOrHeight: maxDimension,
+        useWebWorker: true,
+        initialQuality: quality,
+        fileType: "image/jpeg"
+      });
+      if (compressedFile.size <= MAX_IMAGE_SIZE) return compressedFile;
+      quality -= 0.05;
+    }
+  }
+
+  throw new Error("This image could not be compressed to 630 kB or less.");
+}
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Couldn't read that file."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Validates type, compresses, converts to a data URL, and does a final
+// byte-size safety check on the compressed binary (not the inflated
+// base64 string) before returning -- the single entry point every image
+// picker below should call.
+async function processImageForUpload(file) {
+  if (!file || !file.type || !file.type.startsWith("image/")) {
+    throw new Error("Please choose an image file.");
+  }
+  showToast("Processing image\u2026");
+  const compressed = await compressImageTo630KB(file);
+  if (compressed.size > MAX_IMAGE_SIZE) {
+    // Belt-and-suspenders: compressImageTo630KB already throws on failure,
+    // but never silently pass through an oversized file if that changes.
+    throw new Error("Unable to process this image. Please choose another image.");
+  }
+  return blobToDataURL(compressed);
+}
+
 function handleQuestCreateImageSelect(input) {
   const file = input.files && input.files[0];
+  input.value = "";
   if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    alert("Please choose an image file.");
-    input.value = "";
-    return;
-  }
-  if (file.size > 650 * 1024) {
-    alert("Please choose an image under 650KB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    questCreateImage = reader.result;
+  processImageForUpload(file).then(dataUrl => {
+    questCreateImage = dataUrl;
     document.getElementById("questCreateImagePreviewImg").src = questCreateImage;
     document.getElementById("questCreateImagePreview").style.display = "block";
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
+  }).catch(e => {
+    console.error("Quest image processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this image. Please choose another image.");
+  });
 }
 
 function removeQuestCreateImage() {
@@ -7618,19 +7700,15 @@ function topEarnerSlotHtml(rank, entry, metric) {
 
 function handleUserPostImageSelect(id, input) {
   const file = input.files && input.files[0];
-  if (!file) return;
-  if (file.size > 3 * 1024 * 1024) {
-    alert("Please choose an image under 3MB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    userPostState[id].draftImage = reader.result;
-    render();
-  };
-  reader.readAsDataURL(file);
   input.value = "";
+  if (!file) return;
+  processImageForUpload(file).then(dataUrl => {
+    userPostState[id].draftImage = dataUrl;
+    render();
+  }).catch(e => {
+    console.error("Comment image processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this image. Please choose another image.");
+  });
 }
 
 function removeUserPostDraftImage(id) {
@@ -8867,25 +8945,16 @@ function updateBannerAdButtonTextCount() {
 
 function handleBannerAdIconSelect(input) {
   const file = input.files && input.files[0];
+  input.value = "";
   if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    alert("Please choose an image file.");
-    input.value = "";
-    return;
-  }
-  if (file.size > 650 * 1024) {
-    alert("Please choose an image under 650KB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    bannerAdIconImage = reader.result;
+  processImageForUpload(file).then(dataUrl => {
+    bannerAdIconImage = dataUrl;
     document.getElementById("bannerAdIconPreviewImg").src = bannerAdIconImage;
     document.getElementById("bannerAdIconPreview").style.display = "block";
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
+  }).catch(e => {
+    console.error("Banner ad image processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this image. Please choose another image.");
+  });
 }
 
 function removeBannerAdIcon() {
@@ -9079,25 +9148,16 @@ function updateEventDescriptionCount() {
 
 function handleEventImageSelect(input) {
   const file = input.files && input.files[0];
+  input.value = "";
   if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    alert("Please choose an image file.");
-    input.value = "";
-    return;
-  }
-  if (file.size > 900 * 1024) {
-    alert("Please choose an image under 900KB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    eventImage = reader.result;
+  processImageForUpload(file).then(dataUrl => {
+    eventImage = dataUrl;
     document.getElementById("eventImagePreviewImg").src = eventImage;
     document.getElementById("eventImagePreview").style.display = "block";
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
+  }).catch(e => {
+    console.error("Event image processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this image. Please choose another image.");
+  });
 }
 
 function removeEventImage() {
@@ -9481,26 +9541,17 @@ function updateComposeState() {
 
 function handleComposeImageSelect(input) {
   const file = input.files && input.files[0];
+  input.value = "";
   if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    alert("Please choose an image file.");
-    input.value = "";
-    return;
-  }
-  if (file.size > 650 * 1024) {
-    alert("Please choose an image under 650KB.");
-    input.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    composeImage = reader.result;
+  processImageForUpload(file).then(dataUrl => {
+    composeImage = dataUrl;
     document.getElementById("composeImagePreviewImg").src = composeImage;
     document.getElementById("composeImagePreview").style.display = "block";
     updateComposeState();
-  };
-  reader.readAsDataURL(file);
-  input.value = "";
+  }).catch(e => {
+    console.error("Compose image processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this image. Please choose another image.");
+  });
 }
 
 function removeComposeImage() {
@@ -11347,15 +11398,20 @@ async function handleAvatarFileSelect(input) {
 
   const note = document.getElementById("editAvatarNote");
   const preview = document.getElementById("editAvatarPreview");
-  note.textContent = "Uploading...";
+  note.textContent = "Processing image\u2026";
 
   try {
     const resizedBlob = await resizeImageFile(file, 512);
+    // resizeImageFile already produces a small JPEG at a fixed quality,
+    // but doesn't guarantee a byte cap -- run it through the same
+    // compressor as every other upload surface so it's enforced here too.
+    const compressedBlob = await compressImageTo630KB(resizedBlob);
+    note.textContent = "Uploading...";
     const path = `${telegramUser.id}/${Date.now()}.jpg`;
     if (!sb) throw new Error("Not connected");
     const { error: uploadError } = await sb.storage
       .from("avatars")
-      .upload(path, resizedBlob, { contentType: "image/jpeg", upsert: true });
+      .upload(path, compressedBlob, { contentType: "image/jpeg", upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicData } = sb.storage.from("avatars").getPublicUrl(path);
