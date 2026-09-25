@@ -12377,10 +12377,10 @@ function injectAdsIntoFeed(posts) {
   for (let slot = 1; slot <= result.length; slot += 5) {
     let adId = adSlotAssignments.get(slot);
     let ad = adId ? ads.find(a => a.id === adId) : null;
-    if (ad && usedAdIds.has(ad.id)) ad = null; // don't repeat an ad across slots in one render
+    if (ad && usedAdIds.has(ad.id)) ad = null; // don't repeat an ad across slots in one render, if avoidable
     if (!ad) {
-      const candidates = ads.filter(a => !usedAdIds.has(a.id));
-      if (!candidates.length) continue;
+      let candidates = ads.filter(a => !usedAdIds.has(a.id));
+      if (!candidates.length) candidates = ads; // fewer eligible ads than slots -- repeat rather than leave a slot empty
       ad = candidates[Math.floor(Math.random() * candidates.length)];
       adSlotAssignments.set(slot, ad.id);
     }
