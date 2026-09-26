@@ -4465,7 +4465,7 @@ function profilePostCardHTML(post, isPinned) {
         ${categoryBadgeHTML(post)}
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
-        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.image && post.type !== "video" ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
@@ -4551,7 +4551,7 @@ function postDetailCardHTML(post) {
         ${categoryBadgeHTML(post)}
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? `<div class="post-text"><span class="excerpt">${linkifyMentions(escapeHtml(post.text))}</span></div>` : ""}
-        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.image && post.type !== "video" ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
@@ -8401,7 +8401,7 @@ function userPostCardHTML(post) {
         ${categoryBadgeHTML(post)}
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
-        ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
+        ${post.image && post.type !== "video" ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
         <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
