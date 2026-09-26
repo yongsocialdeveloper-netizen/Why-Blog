@@ -1716,6 +1716,13 @@
   .video-post-wrap { border-radius: 12px; overflow: hidden; margin-bottom: 8px; background: #000; }
   .video-post-player { width: 100%; max-height: 480px; display: block; }
   iframe.video-post-player { height: 480px; border: none; }
+  .video-post-pending { position: relative; height: 320px; }
+  .video-post-pending-poster { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.45; filter: blur(1px); }
+  .video-post-pending-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #fff; font-size: 13px; background: rgba(0,0,0,0.25); }
+  .video-post-spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; animation: video-post-spin 0.8s linear infinite; }
+  .video-post-pending-bar { width: 140px; height: 4px; background: rgba(255,255,255,0.25); border-radius: 2px; overflow: hidden; }
+  .video-post-pending-bar-fill { height: 100%; background: #fff; transition: width 0.2s ease; }
+  @keyframes video-post-spin { to { transform: rotate(360deg); } }
 
   .compose-reply-row {
     display: flex;
@@ -4448,7 +4455,7 @@ function profilePostCardHTML(post, isPinned) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   return `
-    <article class="post post-preview" onclick="openPostDetail('${post.id}')">
+    <article class="post post-preview" data-post-id="${post.id}" onclick="openPostDetail('${post.id}')">
       <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         ${isPinned ? `<div class="post-pinned-label">${pinIcon()} Pinned</div>` : ""}
@@ -4466,7 +4473,7 @@ function profilePostCardHTML(post, isPinned) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image && post.type !== "video" ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -4537,7 +4544,7 @@ function postDetailCardHTML(post) {
     : `<div class="comment-empty">No comments yet. Start the discussion.</div>`;
 
   return `
-    <article class="post post-detail-article">
+    <article class="post post-detail-article" data-post-id="${post.id}">
       <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
@@ -4552,7 +4559,7 @@ function postDetailCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? `<div class="post-text"><span class="excerpt">${linkifyMentions(escapeHtml(post.text))}</span></div>` : ""}
         ${post.image && post.type !== "video" ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -8357,8 +8364,35 @@ function renderEventPost(post) {
     </div>`;
 }
 
+const failedVideoPostIds = new Set();
+
+function getPendingUploadPercent(postId) {
+  for (const [token, mappedPostId] of uploadTokenToPostId) {
+    if (mappedPostId === postId) return uploadTokenToPercent.get(token) ?? null;
+  }
+  return null;
+}
+
 function renderVideoPost(post) {
-  if (!post.videoUrl) return "";
+  if (!post.videoUrl) {
+    // Posted before the upload finished (X-style): show a processing
+    // placeholder now, and patchVisiblePostVideo() swaps this out for
+    // the real player once the background upload resolves.
+    const knownFailed = failedVideoPostIds.has(post.id);
+    const stale = Date.now() - (post.createdAtMillis || Date.now()) > 10 * 60 * 1000;
+    const failed = knownFailed || stale;
+    const pct = failed ? null : getPendingUploadPercent(post.id);
+    const uploading = pct != null && pct < 100;
+    const label = failed ? "Video failed to upload" : (uploading ? `Uploading video\u2026 ${pct}%` : "Processing video\u2026");
+    return `<div class="video-post-wrap video-post-pending">
+        ${post.image ? `<img class="video-post-pending-poster" src="${escapeAttr(post.image)}" alt="" />` : ""}
+        <div class="video-post-pending-overlay">
+          ${failed ? "" : `<div class="video-post-spinner"></div>`}
+          <span>${label}</span>
+          ${uploading ? `<div class="video-post-pending-bar"><div class="video-post-pending-bar-fill" style="width:${pct}%"></div></div>` : ""}
+        </div>
+      </div>`;
+  }
   // Bunny-hosted videos go through their embeddable player (handles HLS
   // across every browser -- a plain <video> tag can't play .m3u8 outside
   // Safari). Any older post still pointing at a raw .mp4 from the retired
@@ -8379,6 +8413,23 @@ function renderVideoPost(post) {
         Your browser doesn't support video playback.
       </video>
     </div>`;
+}
+
+// Swaps a video post's card(s) currently on screen (feed, profile, post
+// detail all share the .post-embed-slot wrapper) from the processing
+// placeholder to the real player, or vice versa on failure -- without a
+// full re-render of whatever list they're in.
+function patchVisiblePostVideo(postId) {
+  const post = findUserPostById(postId);
+  if (!post) return;
+  document.querySelectorAll(`[data-post-id="${postId}"] .post-embed-slot`).forEach(slot => {
+    slot.innerHTML = renderVideoPost(post);
+  });
+}
+
+function markPostVideoFailed(postId) {
+  failedVideoPostIds.add(postId);
+  patchVisiblePostVideo(postId);
 }
 
 function userPostCardHTML(post) {
@@ -8435,6 +8486,11 @@ let composeVideoUrl = null;
 let composeVideoPoster = null;
 let composeVideoProcessing = false;
 let composeVideoJobId = null;
+let composeVideoSelected = false; // true as soon as a valid video is attached, even mid-upload
+let composeVideoUploadPromise = null; // the in-flight (or settled) Bunny upload, so submitCompose can post before it resolves
+let composeVideoUploadToken = null; // identifies this specific upload so progress can later be mapped to a post id
+const uploadTokenToPostId = new Map(); // upload token -> post id, set once submitCompose creates the row
+const uploadTokenToPercent = new Map(); // upload token -> latest progress percent
 let submitComposeInFlight = false;
 let composeVideoPollToken = 0; // bumped on remove/reselect so a stale poll loop stops updating the UI
 function getComposeMax() {
@@ -9732,7 +9788,7 @@ function updateComposeState() {
   if (weighted >= composeMax) counter.classList.add("limit");
   else if (weighted >= composeMax - 40) counter.classList.add("warn");
 
-  btn.classList.toggle("enabled", !composeVideoProcessing && (textarea.value.trim().length > 0 || !!composeImage || !!composeVideoUrl));
+  btn.classList.toggle("enabled", textarea.value.trim().length > 0 || !!composeImage || !!composeVideoUrl || composeVideoSelected);
 }
 
 function handleComposeImageSelect(input) {
@@ -9795,6 +9851,12 @@ async function handleComposeVideoSelect(input) {
       throw new Error(`Videos are limited to ${Math.round(limit / 60)} minute${limit >= 120 ? "s" : ""} on your plan.`);
     }
 
+    // Video is validated -- let the person post right away. The upload
+    // keeps running in the background; submitCompose will attach to
+    // composeVideoUploadPromise instead of waiting for it here.
+    composeVideoSelected = true;
+    updateComposeState();
+
     // Best-effort local poster frame -- shown immediately, independent of
     // how long the real (server-side) processing takes.
     captureVideoPosterFrame(file)
@@ -9808,10 +9870,16 @@ async function handleComposeVideoSelect(input) {
       .catch(() => {}); // thumbnail is best-effort, never blocks the upload
 
     progressEl.textContent = "Uploading video\u2026 0%";
-    const videoId = await uploadVideoToBunny(file, pct => {
+    const uploadPromise = uploadVideoToBunny(file, pct => {
+      uploadTokenToPercent.set(myToken, pct);
+      const mappedPostId = uploadTokenToPostId.get(myToken);
+      if (mappedPostId) patchVisiblePostVideo(mappedPostId); // already posted -- keep its feed card's % live too
       if (myToken !== composeVideoPollToken) return;
       progressEl.textContent = `Uploading video\u2026 ${pct}%`;
     });
+    composeVideoUploadPromise = uploadPromise;
+    composeVideoUploadToken = myToken;
+    const videoId = await uploadPromise;
     if (myToken !== composeVideoPollToken) return; // superseded while uploading
     composeVideoJobId = videoId;
 
@@ -9819,6 +9887,7 @@ async function handleComposeVideoSelect(input) {
     progressEl.style.display = "none";
     sizeEl.textContent = "Ready to post";
   } catch (e) {
+    uploadTokenToPercent.delete(myToken);
     if (myToken !== composeVideoPollToken) return; // a newer selection already replaced this attempt
     console.error("Video processing failed:", e);
     alert(e && e.message ? e.message : "Unable to process this video. Please choose another video.");
@@ -9839,6 +9908,8 @@ function removeComposeVideo() {
   composeVideoPoster = null;
   composeVideoProcessing = false;
   composeVideoJobId = null;
+  composeVideoSelected = false;
+  composeVideoUploadPromise = null;
   const previewEl = document.getElementById("composeVideoPreview");
   const progressEl = document.getElementById("composeVideoProgress");
   const imgEl = document.getElementById("composeVideoPreviewImg");
@@ -9908,8 +9979,10 @@ async function submitCompose() {
     return;
   }
 
-  if (composeVideoUrl) {
-    const pendingVideoUrl = composeVideoUrl;
+  if (composeVideoUrl || composeVideoSelected) {
+    const pendingVideoUrl = composeVideoUrl; // may still be null -- upload might not be done yet
+    const pendingUploadPromise = composeVideoUploadPromise;
+    const pendingUploadToken = composeVideoUploadToken;
     const pendingPoster = composeVideoPoster;
     const pendingText = document.getElementById("composeTextarea").value.trim();
     const pendingDraftId = currentDraftId;
@@ -9923,7 +9996,7 @@ async function submitCompose() {
         type: "video",
         text: pendingText || null,
         image: pendingPoster,
-        video_url: pendingVideoUrl,
+        video_url: pendingVideoUrl, // null is fine -- renderVideoPost shows a processing state until this is filled in
         name: PROFILES.you.name,
         username: PROFILES.you.username,
         telegram_id: String(telegramUser.id),
@@ -9941,6 +10014,34 @@ async function submitCompose() {
       haptic("medium");
       if (pendingDraftId) removeDraft(pendingDraftId);
       showPostedSuccessToast();
+
+      // If the upload was still running, the post above went out with
+      // video_url: null (renderVideoPost shows a "Processing…" placeholder
+      // for that, with a live % once we map this upload's token to the
+      // new post id). Once the upload that was already happening in the
+      // background resolves, fill the URL in and refresh whichever cards
+      // are currently on screen for it.
+      if (!pendingVideoUrl && pendingUploadPromise) {
+        const postId = data.id;
+        if (pendingUploadToken != null) uploadTokenToPostId.set(pendingUploadToken, postId);
+        patchVisiblePostVideo(postId); // show current % immediately, don't wait for the next progress tick
+        pendingUploadPromise
+          .then(videoId => getVideoPublicUrl(videoId))
+          .then(async url => {
+            const { error: updateError } = await sb.from("posts").update({ video_url: url }).eq("id", postId);
+            if (updateError) { console.error("Failed to save finished video URL:", updateError); markPostVideoFailed(postId); return; }
+            const livePost = findUserPostById(postId);
+            if (livePost) livePost.videoUrl = url;
+            patchVisiblePostVideo(postId);
+          })
+          .catch(e => {
+            console.error("Background video upload failed:", e);
+            markPostVideoFailed(postId);
+          })
+          .finally(() => {
+            if (pendingUploadToken != null) { uploadTokenToPostId.delete(pendingUploadToken); uploadTokenToPercent.delete(pendingUploadToken); }
+          });
+      }
     } catch (e) {
       console.error("submitCompose (video) failed:", e);
       haptic("medium");
