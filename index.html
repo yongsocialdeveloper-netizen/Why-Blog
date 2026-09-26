@@ -10,6 +10,7 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 <script src="https://unpkg.com/tonweb/dist/web/index.js"></script>
 <style>
@@ -1714,6 +1715,7 @@
   .compose-video-size-label { padding: 0 14px 10px; text-align: center; font-size: 12px; color: var(--ink-faint); }
   .video-post-wrap { border-radius: 12px; overflow: hidden; margin-bottom: 8px; background: #000; }
   .video-post-player { width: 100%; max-height: 480px; display: block; }
+  iframe.video-post-player { height: 480px; border: none; }
 
   .compose-reply-row {
     display: flex;
@@ -7169,31 +7171,34 @@ async function processImageForUpload(file) {
   return blobToDataURL(compressed);
 }
 
-// ---- Video upload + server-side processing ------------------------------
+// ---- Video upload via Bunny Stream ---------------------------------------
 //
 // Client-side ffmpeg.wasm compression was dropped: loading a ~25MB WASM
 // core inside Telegram's in-app WebView is unreliable -- it can fail
 // fast, fail slow, or (worst case) just hang forever with no error and
-// no progress ever reported. Real transcoding now happens on a separate
-// always-on server (see the video-worker repo / video_jobs.sql), not in
-// the browser.
+// no progress ever reported.
 //
-// The original file is uploaded as-is to a TEMPORARY bucket
-// (video-processing), never to the permanent post-videos bucket -- the
-// worker downloads it from there, transcodes it with real ffmpeg, and
-// uploads only the compressed result to post-videos, then deletes the
-// temp original. This file just: uploads the original, writes a
-// video_jobs row, and polls that row until the worker marks it
-// completed (or failed).
+// This used to go through a TEMPORARY Supabase Storage bucket
+// (video-processing) plus a video_jobs table and a separate always-on
+// worker that transcoded with real ffmpeg. That pipeline is gone. Now
+// the browser uploads the raw file directly to Bunny Stream (resumable,
+// so flaky mobile connections don't restart from zero), and Bunny does
+// the transcoding + adaptive delivery for us -- no worker, no jobs
+// table, no polling.
+//
+// The one thing that still has to happen server-side is signing the
+// upload: Bunny's API key can never live in this file, so a small
+// Supabase Edge Function (bunny-upload-credentials) creates the video
+// object and hands back a short-lived signed credential.
 //
 // Duration limits here are informational/UX only -- the real backstop
-// against abuse is server-side (the worker + the Storage bucket's
-// file_size_limit), since nothing in the browser can be trusted to
-// enforce a real cap.
+// against abuse is whatever limits you configure in Bunny, since
+// nothing in the browser can be trusted to enforce a real cap.
 const VIDEO_DURATION_LIMITS = { normal: 180, premium: 300 }; // seconds
 const VIDEO_HARD_DURATION_CAP = 1200; // 20 min -- absolute ceiling, even for Business/admins
-const VIDEO_JOB_POLL_MS = 3000;
-const VIDEO_JOB_POLL_MAX_MS = 10 * 60 * 1000; // stop polling (not the job itself) after 10 min
+
+const BUNNY_LIBRARY_ID = "762944";
+const BUNNY_PULL_ZONE = "vz-d687329c-e9a.b-cdn.net";
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -7248,61 +7253,63 @@ function captureVideoPosterFrame(file) {
   });
 }
 
-// Uploads the raw file to the TEMPORARY video-processing bucket and
-// creates the video_jobs row the worker will pick up. Never touches
-// post-videos -- that only ever receives the worker's compressed output.
-async function uploadOriginalVideoForProcessing(file) {
+// Uploads the raw file directly to Bunny Stream via resumable TUS.
+// Returns Bunny's videoId once the upload (not the transcode) finishes.
+// onProgress(percent) is optional, for driving a progress label.
+async function uploadVideoToBunny(file, onProgress) {
   if (!sb || !telegramUser) throw new Error("Not connected");
-  const jobId = crypto.randomUUID();
-  const ext = file.name && file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase() : "mp4";
-  const originalPath = `${telegramUser.id}/${jobId}.${ext}`;
 
-  await withTimeout(
-    sb.storage.from("video-processing").upload(originalPath, file, { contentType: file.type || "video/mp4", upsert: false })
-      .then(({ error }) => { if (error) throw error; }),
-    120000,
-    "Uploading your video took too long. Check your connection and try again."
+  const { data: sessionData } = await sb.auth.getSession();
+  const accessToken = sessionData && sessionData.session && sessionData.session.access_token;
+  if (!accessToken) throw new Error("You need to be logged in to upload video.");
+
+  const credRes = await withTimeout(
+    fetch(`${SUPABASE_URL}/functions/v1/bunny-upload-credentials`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: file.name || `video-${Date.now()}` })
+    }),
+    15000,
+    "Couldn't start the upload. Check your connection and try again."
   );
+  if (!credRes.ok) throw new Error("Couldn't start the upload. Please try again.");
+  const { videoId, libraryId, expirationTime, signature } = await credRes.json();
 
-  const { error: jobError } = await sb.from("video_jobs").insert({
-    id: jobId,
-    telegram_id: String(telegramUser.id),
-    original_path: originalPath,
-    original_size: file.size,
-    status: "pending"
+  await new Promise((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: "https://video.bunnycdn.com/tusupload",
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        AuthorizationSignature: signature,
+        AuthorizationExpire: expirationTime,
+        VideoId: videoId,
+        LibraryId: libraryId
+      },
+      metadata: {
+        filetype: file.type || "video/mp4",
+        title: file.name || `video-${Date.now()}`
+      },
+      onError: error => reject(error),
+      onProgress: (bytesUploaded, bytesTotal) => {
+        if (onProgress) onProgress(Math.round((bytesUploaded / bytesTotal) * 100));
+      },
+      onSuccess: () => resolve()
+    });
+    upload.start();
   });
-  if (jobError) {
-    // Don't leave an orphaned original sitting in storage with no job
-    // row to ever pick it up and clean it up later.
-    try { await sb.storage.from("video-processing").remove([originalPath]); } catch (e) {}
-    throw jobError;
-  }
 
-  return jobId;
+  return videoId;
 }
 
-// Polls the video_jobs row until the worker marks it completed or
-// failed. onTick lets the caller update the "Processing…" label as time
-// passes. Returns the completed row; throws with the worker's own
-// error_message on failure.
-async function pollVideoJob(jobId, onTick) {
-  const startedAt = Date.now();
-  while (true) {
-    if (Date.now() - startedAt > VIDEO_JOB_POLL_MAX_MS) {
-      throw new Error("Still processing your video. This can happen with longer clips -- check back in a bit, it'll post automatically once it's ready.");
-    }
-    const { data, error } = await sb.from("video_jobs").select("*").eq("id", jobId).single();
-    if (error) throw error;
-    if (data.status === "completed") return data;
-    if (data.status === "failed") throw new Error(data.error_message || "Video processing failed.");
-    if (onTick) onTick(Math.floor((Date.now() - startedAt) / 1000));
-    await new Promise(resolve => setTimeout(resolve, VIDEO_JOB_POLL_MS));
-  }
+// Bunny's hosted player handles HLS playback across every browser
+// (plain <video> tags can't play .m3u8 outside Safari), so posts store
+// this embed URL directly.
+function getVideoPublicUrl(videoId) {
+  return `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${videoId}?autoplay=false`;
 }
 
-function getVideoPublicUrl(path) {
-  const { data } = sb.storage.from("post-videos").getPublicUrl(path);
-  return data.publicUrl;
+function getVideoThumbnailUrl(videoId) {
+  return `https://${BUNNY_PULL_ZONE}/${videoId}/thumbnail.jpg`;
 }
 
 function handleQuestCreateImageSelect(input) {
@@ -8352,6 +8359,18 @@ function renderEventPost(post) {
 
 function renderVideoPost(post) {
   if (!post.videoUrl) return "";
+  // Bunny-hosted videos go through their embeddable player (handles HLS
+  // across every browser -- a plain <video> tag can't play .m3u8 outside
+  // Safari). Any older post still pointing at a raw .mp4 from the retired
+  // Supabase-storage pipeline keeps working via the plain <video> tag.
+  if (post.videoUrl.indexOf("iframe.mediadelivery.net") !== -1) {
+    return `<div class="video-post-wrap">
+        <iframe class="video-post-player" src="${escapeAttr(post.videoUrl)}"
+          loading="lazy" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+          allowfullscreen frameborder="0"
+          onclick="event.stopPropagation()"></iframe>
+      </div>`;
+  }
   return `<div class="video-post-wrap">
       <video class="video-post-player" controls preload="metadata" playsinline
         ${post.image ? `poster="${escapeAttr(post.image)}"` : ""}
@@ -9787,22 +9806,17 @@ async function handleComposeVideoSelect(input) {
       })
       .catch(() => {}); // thumbnail is best-effort, never blocks the upload
 
-    progressEl.textContent = "Uploading video\u2026";
-    const jobId = await uploadOriginalVideoForProcessing(file);
-    if (myToken !== composeVideoPollToken) return; // superseded while uploading
-    composeVideoJobId = jobId;
-
-    progressEl.textContent = "Processing video\u2026 this can take a minute";
-    const job = await pollVideoJob(jobId, secondsElapsed => {
+    progressEl.textContent = "Uploading video\u2026 0%";
+    const videoId = await uploadVideoToBunny(file, pct => {
       if (myToken !== composeVideoPollToken) return;
-      if (secondsElapsed > 45) progressEl.textContent = "Still processing\u2026 longer videos take a bit longer";
+      progressEl.textContent = `Uploading video\u2026 ${pct}%`;
     });
-    if (myToken !== composeVideoPollToken) return; // superseded while polling
+    if (myToken !== composeVideoPollToken) return; // superseded while uploading
+    composeVideoJobId = videoId;
 
-    composeVideoUrl = getVideoPublicUrl(job.processed_path);
+    composeVideoUrl = getVideoPublicUrl(videoId);
     progressEl.style.display = "none";
-    const mb = job.processed_size ? (job.processed_size / (1024 * 1024)).toFixed(1) : null;
-    sizeEl.textContent = mb ? `${mb} MB \u2014 ready to post` : "Ready to post";
+    sizeEl.textContent = "Ready to post";
   } catch (e) {
     if (myToken !== composeVideoPollToken) return; // a newer selection already replaced this attempt
     console.error("Video processing failed:", e);
