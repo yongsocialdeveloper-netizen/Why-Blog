@@ -7248,7 +7248,7 @@ async function getFFmpeg() {
   // on screen forever with no error to act on.
   ffmpegLoadPromise = withTimeout(
     instance.load(),
-    25000,
+    60000,
     "Video processing took too long to start. Check your connection and try again."
   ).then(() => {
     ffmpegInstance = instance;
@@ -8725,6 +8725,16 @@ function openCompose() {
   syncBackButton();
   attachMentionAutocomplete(document.getElementById("composeTextarea"));
   setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
+  // Speculatively start fetching the ~25MB ffmpeg-core the moment the
+  // composer opens, well before the user has picked a video. If they
+  // never pick a video, this cost was already going to be paid on first
+  // video-post anyway (getFFmpeg() is memoized/singleton -- see
+  // ffmpegInstance/ffmpegLoadPromise above), so starting it early just
+  // moves the wait earlier and off the critical path. Errors here are
+  // intentionally swallowed: if this fails, compressVideoForUpload()
+  // will call getFFmpeg() again for real when they actually post and
+  // surface the error there.
+  getFFmpeg().catch(() => {});
 }
 
 function resetComposeUI() {
