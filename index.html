@@ -10,6 +10,7 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 <script src="https://unpkg.com/tonweb/dist/web/index.js"></script>
 <style>
@@ -1710,6 +1711,10 @@
     border: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; font-weight: 600; white-space: nowrap;
   }
   .event-free-badge { display: inline-block; margin-top: 12px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+  .compose-video-progress { padding: 14px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .compose-video-size-label { padding: 0 14px 10px; text-align: center; font-size: 12px; color: var(--ink-faint); }
+  .video-post-wrap { border-radius: 12px; overflow: hidden; margin-bottom: 8px; background: #000; }
+  .video-post-player { width: 100%; max-height: 480px; display: block; }
 
   .compose-reply-row {
     display: flex;
@@ -3888,6 +3893,14 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
             </button>
           </div>
+          <div class="compose-image-preview" id="composeVideoPreview" style="display:none">
+            <img id="composeVideoPreviewImg" src="" alt="" style="display:none" />
+            <div class="compose-video-progress" id="composeVideoProgress" style="display:none">Processing video…</div>
+            <div class="compose-video-size-label" id="composeVideoSizeLabel"></div>
+            <button class="compose-image-remove" onclick="removeComposeVideo()" aria-label="Remove video">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="compose-poll-block" id="composePollBlock" style="display:none">
@@ -3916,12 +3929,16 @@
       <button class="compose-tool-btn" id="composeImageToolBtn" onclick="document.getElementById('composeFile').click()" aria-label="Add image">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
       </button>
+      <button class="compose-tool-btn" id="composeVideoToolBtn" onclick="document.getElementById('composeVideoFile').click()" aria-label="Add video">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="15" height="12" rx="2"/><path d="M17 10l5-3v10l-5-3"/></svg>
+      </button>
       <button class="compose-tool-btn" id="composePollToolBtn" onclick="togglePollMode()" aria-label="Poll">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="2"/><path d="M11 7h10"/><circle cx="6" cy="14" r="2"/><path d="M11 14h10"/><circle cx="6" cy="21" r="2"/><path d="M11 21h10"/></svg>
       </button>
     </div>
     <input type="file" id="composeFile" accept="image/*" style="display:none" onchange="handleComposeImageSelect(this)" />
     <input type="file" id="composeCameraFile" accept="image/*" capture="environment" style="display:none" onchange="handleComposeImageSelect(this)" />
+    <input type="file" id="composeVideoFile" accept="video/*" style="display:none" onchange="handleComposeVideoSelect(this)" />
   </div>
 
   <div class="discard-overlay" id="discardOverlay" onclick="cancelDiscardPost()"></div>
@@ -4448,7 +4465,7 @@ function profilePostCardHTML(post, isPinned) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -4534,7 +4551,7 @@ function postDetailCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? `<div class="post-text"><span class="excerpt">${linkifyMentions(escapeHtml(post.text))}</span></div>` : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}
+        ${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -5022,6 +5039,7 @@ function mapPostRow(row) {
     questWinnerCount: row.quest_winner_count || null,
     questEndsAt: row.quest_ends_at || null,
     category: row.category || null,
+    videoUrl: row.video_url || null,
     eventTitle: row.event_title || null,
     eventFormat: row.event_format || null,
     eventLocation: row.event_location || null,
@@ -7152,6 +7170,172 @@ async function processImageForUpload(file) {
   return blobToDataURL(compressed);
 }
 
+// ---- Video compression (ffmpeg.wasm) ------------------------------------
+//
+// Unlike images, there's no simple byte-shrinking trick for video -- it
+// needs real transcoding. ffmpeg.wasm's core (~25MB) is only fetched the
+// first time someone actually picks a video in this session (see
+// getFFmpeg below), never on page load, so people who never post video
+// pay nothing for this.
+//
+// Unlike compressed images (base64 in a Postgres column), compressed
+// video is uploaded as a real file to Supabase Storage (bucket:
+// post-videos) -- a few MB of base64 text per row would be a very fast
+// way to blow through database size limits. Only the video's URL and a
+// small poster-frame thumbnail (reusing the same image pipeline/column
+// as every other post) are stored in the posts row.
+//
+// Duration limits are informational/UX only -- like_count-style
+// enforcement of "you can't lie about your plan" happens server-side for
+// things Postgres *can* check (see events/ads), but nothing here can
+// verify a video's real length without decoding it, so the hard backstop
+// against abuse is the Storage bucket's file_size_limit (see
+// video_uploads.sql), not the duration check below.
+const VIDEO_DURATION_LIMITS = { normal: 180, premium: 300 }; // seconds
+const VIDEO_HARD_DURATION_CAP = 1200; // 20 min -- absolute ceiling, even for Business/admins
+const VIDEO_MAX_OUTPUT_BYTES = 80 * 1024 * 1024; // also enforced server-side via the storage bucket
+const VIDEO_MAX_DIMENSION = 1280; // longest side, ~720p-class
+
+let ffmpegInstance = null;
+let ffmpegFetchFile = null;
+async function getFFmpeg() {
+  if (ffmpegInstance) return ffmpegInstance;
+  if (typeof FFmpeg === "undefined") {
+    throw new Error("Video processing isn't available right now. Please try again.");
+  }
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  ffmpegFetchFile = fetchFile;
+  ffmpegInstance = createFFmpeg({
+    log: false,
+    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+  });
+  await ffmpegInstance.load();
+  return ffmpegInstance;
+}
+
+function getVideoDurationLimitSeconds() {
+  if (isBusinessUser()) return VIDEO_HARD_DURATION_CAP;
+  if (isPremiumUser()) return VIDEO_DURATION_LIMITS.premium;
+  return VIDEO_DURATION_LIMITS.normal;
+}
+
+function probeVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const url = URL.createObjectURL(file);
+    video.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(video.duration); };
+    video.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that video file.")); };
+    video.src = url;
+  });
+}
+
+// Best-effort poster frame, piped through the same compressImageTo630KB
+// guarantee as every other image on the app before it's stored in the
+// post's `image` column.
+function captureVideoPosterFrame(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    const url = URL.createObjectURL(file);
+    const cleanup = () => URL.revokeObjectURL(url);
+    video.onloadedmetadata = () => { video.currentTime = Math.min(0.5, (video.duration || 1) / 2); };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => { cleanup(); blob ? resolve(blob) : reject(new Error("Couldn't generate a thumbnail.")); }, "image/jpeg", 0.8);
+      } catch (e) { cleanup(); reject(e); }
+    };
+    video.onerror = () => { cleanup(); reject(new Error("Couldn't read that video file.")); };
+    video.src = url;
+  });
+}
+
+async function compressVideoForUpload(file, onProgress) {
+  const duration = await probeVideoDuration(file);
+  if (!duration || !isFinite(duration)) throw new Error("Couldn't read that video's length.");
+  if (duration > VIDEO_HARD_DURATION_CAP) throw new Error("Videos are limited to 20 minutes.");
+  const limit = getVideoDurationLimitSeconds();
+  if (duration > limit) {
+    throw new Error(`Videos are limited to ${Math.round(limit / 60)} minute${limit >= 120 ? "s" : ""} on your plan.`);
+  }
+
+  const ffmpeg = await getFFmpeg();
+
+  // Bitrate sized to this video's own length so a 4-minute clip and a
+  // 30-second clip both land under the same absolute output cap, rather
+  // than a fixed bitrate that would blow way past it for anything long.
+  const targetTotalBits = VIDEO_MAX_OUTPUT_BYTES * 8 * 0.85; // headroom for container/moov overhead
+  let videoBitrateKbps = Math.floor((targetTotalBits / duration) * 0.88 / 1000);
+  videoBitrateKbps = Math.max(250, Math.min(2500, videoBitrateKbps));
+  const audioBitrateKbps = videoBitrateKbps > 600 ? 128 : 96;
+  const attempts = [videoBitrateKbps, Math.round(videoBitrateKbps * 0.65)];
+
+  const inputName = "input" + (file.name && file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : ".mp4");
+  ffmpeg.setProgress(({ ratio }) => {
+    if (onProgress && ratio >= 0 && ratio <= 1) onProgress(Math.round(ratio * 100));
+  });
+  ffmpeg.FS("writeFile", inputName, await ffmpegFetchFile(file));
+
+  let outputBlob = null;
+  try {
+    for (const vBitrate of attempts) {
+      await ffmpeg.run(
+        "-i", inputName,
+        "-vf", `scale='min(${VIDEO_MAX_DIMENSION},iw)':'min(${VIDEO_MAX_DIMENSION},ih)':force_original_aspect_ratio=decrease`,
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-b:v", `${vBitrate}k`,
+        "-maxrate", `${Math.round(vBitrate * 1.2)}k`,
+        "-bufsize", `${vBitrate * 2}k`,
+        "-c:a", "aac",
+        "-b:a", `${audioBitrateKbps}k`,
+        "-movflags", "+faststart",
+        "output.mp4"
+      );
+      const data = ffmpeg.FS("readFile", "output.mp4");
+      outputBlob = new Blob([data.buffer], { type: "video/mp4" });
+      ffmpeg.FS("unlink", "output.mp4");
+      if (outputBlob.size <= VIDEO_MAX_OUTPUT_BYTES) break;
+    }
+  } finally {
+    try { ffmpeg.FS("unlink", inputName); } catch (e) {}
+  }
+
+  if (!outputBlob || outputBlob.size > VIDEO_MAX_OUTPUT_BYTES) {
+    throw new Error("This video could not be compressed to a reasonable size. Please choose a shorter or smaller video.");
+  }
+  return outputBlob;
+}
+
+async function processVideoForUpload(file, onProgress) {
+  if (!file || !file.type || !file.type.startsWith("video/")) {
+    throw new Error("Please choose a video file.");
+  }
+  const posterPromise = captureVideoPosterFrame(file)
+    .then(blob => compressImageTo630KB(blob))
+    .then(blob => blobToDataURL(blob))
+    .catch(() => null); // thumbnail is best-effort, never blocks the upload
+  const videoBlob = await compressVideoForUpload(file, onProgress);
+  const posterDataUrl = await posterPromise;
+  return { videoBlob, posterDataUrl };
+}
+
+async function uploadVideoToStorage(blob) {
+  if (!sb || !telegramUser) throw new Error("Not connected");
+  const path = `${telegramUser.id}/${Date.now()}.mp4`;
+  const { error } = await sb.storage.from("post-videos").upload(path, blob, { contentType: "video/mp4", upsert: false });
+  if (error) throw error;
+  const { data } = sb.storage.from("post-videos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function handleQuestCreateImageSelect(input) {
   const file = input.files && input.files[0];
   input.value = "";
@@ -8197,6 +8381,18 @@ function renderEventPost(post) {
     </div>`;
 }
 
+function renderVideoPost(post) {
+  if (!post.videoUrl) return "";
+  return `<div class="video-post-wrap">
+      <video class="video-post-player" controls preload="metadata" playsinline
+        ${post.image ? `poster="${escapeAttr(post.image)}"` : ""}
+        onclick="event.stopPropagation()">
+        <source src="${escapeAttr(post.videoUrl)}" type="video/mp4" />
+        Your browser doesn't support video playback.
+      </video>
+    </div>`;
+}
+
 function userPostCardHTML(post) {
   const s = userPostState[post.id];
   if (!s) return "";
@@ -8218,7 +8414,7 @@ function userPostCardHTML(post) {
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
         ${post.text ? renderPostText(post.id, post.text, s.textExpanded) : ""}
         ${post.image ? `<img class="user-post-image" src="${post.image}" alt="" />` : ""}
-        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : renderLinkPreviewCard(post))))}</div>
+        <div class="post-embed-slot">${post.type === "quest" ? renderQuestPostCard(post) : (post.type === "quest_submission" ? renderQuestSubmissionPostCard(post) : (post.type === "poll" ? renderPollPost(post, s) : (post.type === "event" ? renderEventPost(post) : (post.type === "video" ? renderVideoPost(post) : renderLinkPreviewCard(post)))))}</div>
         ${isAdCurrentlyActive(post) && post.adButtonText && post.adButtonUrl ? `
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
@@ -8247,6 +8443,9 @@ function userPostCardHTML(post) {
 }
 
 let composeImage = null;
+let composeVideoBlob = null;
+let composeVideoPoster = null;
+let composeVideoProcessing = false;
 function getComposeMax() {
   return isPremiumUser() ? 1000 : 500;
 }
@@ -8476,12 +8675,14 @@ function resetComposeUI() {
   document.getElementById("composePage").classList.remove("open");
   document.getElementById("composeTextarea").value = "";
   removeComposeImage();
+  removeComposeVideo();
   composeMode = "text";
   pollOptions = ["", ""];
   document.getElementById("pollQuestionInput").value = "";
   document.getElementById("pollEndsInput").value = "";
   document.getElementById("composePollBlock").style.display = "none";
   document.getElementById("composeImageToolBtn").classList.remove("disabled");
+  document.getElementById("composeVideoToolBtn").classList.remove("disabled");
   document.getElementById("composePollToolBtn").classList.remove("active");
   document.getElementById("composeTextarea").style.display = "";
   document.getElementById("composePostBtn").textContent = "Post";
@@ -8496,12 +8697,15 @@ function togglePollMode() {
   const pollBlock = document.getElementById("composePollBlock");
   const textarea = document.getElementById("composeTextarea");
   const imageBtn = document.getElementById("composeImageToolBtn");
+  const videoBtn = document.getElementById("composeVideoToolBtn");
   const pollBtn = document.getElementById("composePollToolBtn");
   if (composeMode === "poll") {
     pollBlock.style.display = "";
     textarea.style.display = "none";
     removeComposeImage();
+    removeComposeVideo();
     imageBtn.classList.add("disabled");
+    videoBtn.classList.add("disabled");
     pollBtn.classList.add("active");
     if (!pollOptions.length) pollOptions = ["", ""];
     renderPollOptions();
@@ -8510,6 +8714,7 @@ function togglePollMode() {
     pollBlock.style.display = "none";
     textarea.style.display = "";
     imageBtn.classList.remove("disabled");
+    videoBtn.classList.remove("disabled");
     pollBtn.classList.remove("active");
     document.getElementById("pollQuestionInput").value = "";
     document.getElementById("pollEndsInput").value = "";
@@ -9477,7 +9682,7 @@ async function submitPostEdit() {
     const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
     if (error) throw error;
     showPostedSuccessToast();
-    if (post.type !== "poll" && post.type !== "event") syncLinkPreviewForPost(post);
+    if (post.type !== "poll" && post.type !== "event" && post.type !== "video") syncLinkPreviewForPost(post);
   } catch (e) {
     showToast("Couldn't save changes. Please try again.");
   }
@@ -9536,13 +9741,14 @@ function updateComposeState() {
   if (weighted >= composeMax) counter.classList.add("limit");
   else if (weighted >= composeMax - 40) counter.classList.add("warn");
 
-  btn.classList.toggle("enabled", textarea.value.trim().length > 0 || !!composeImage);
+  btn.classList.toggle("enabled", !composeVideoProcessing && (textarea.value.trim().length > 0 || !!composeImage || !!composeVideoBlob));
 }
 
 function handleComposeImageSelect(input) {
   const file = input.files && input.files[0];
   input.value = "";
   if (!file) return;
+  if (composeVideoBlob || composeVideoProcessing) removeComposeVideo();
   processImageForUpload(file).then(dataUrl => {
     composeImage = dataUrl;
     document.getElementById("composeImagePreviewImg").src = composeImage;
@@ -9558,6 +9764,67 @@ function removeComposeImage() {
   composeImage = null;
   document.getElementById("composeImagePreviewImg").src = "";
   document.getElementById("composeImagePreview").style.display = "none";
+  updateComposeState();
+}
+
+function handleComposeVideoSelect(input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  if (composeImage) removeComposeImage();
+
+  const previewEl = document.getElementById("composeVideoPreview");
+  const progressEl = document.getElementById("composeVideoProgress");
+  const imgEl = document.getElementById("composeVideoPreviewImg");
+  const sizeEl = document.getElementById("composeVideoSizeLabel");
+  const imageBtn = document.getElementById("composeImageToolBtn");
+  const videoBtn = document.getElementById("composeVideoToolBtn");
+
+  composeVideoProcessing = true;
+  previewEl.style.display = "block";
+  progressEl.style.display = "block";
+  progressEl.textContent = "Processing video\u2026";
+  imgEl.style.display = "none";
+  sizeEl.textContent = "";
+  imageBtn.classList.add("disabled");
+  videoBtn.classList.add("disabled");
+  updateComposeState();
+
+  processVideoForUpload(file, pct => {
+    progressEl.textContent = `Processing video\u2026 ${pct}%`;
+  }).then(({ videoBlob, posterDataUrl }) => {
+    composeVideoBlob = videoBlob;
+    composeVideoPoster = posterDataUrl;
+    progressEl.style.display = "none";
+    if (posterDataUrl) {
+      imgEl.src = posterDataUrl;
+      imgEl.style.display = "block";
+    }
+    sizeEl.textContent = `${(videoBlob.size / (1024 * 1024)).toFixed(1)} MB \u2014 ready to post`;
+  }).catch(e => {
+    console.error("Video processing failed:", e);
+    alert(e && e.message ? e.message : "Unable to process this video. Please choose another video.");
+    removeComposeVideo();
+  }).finally(() => {
+    composeVideoProcessing = false;
+    imageBtn.classList.remove("disabled");
+    videoBtn.classList.remove("disabled");
+    updateComposeState();
+  });
+}
+
+function removeComposeVideo() {
+  composeVideoBlob = null;
+  composeVideoPoster = null;
+  composeVideoProcessing = false;
+  const previewEl = document.getElementById("composeVideoPreview");
+  const progressEl = document.getElementById("composeVideoProgress");
+  const imgEl = document.getElementById("composeVideoPreviewImg");
+  const sizeEl = document.getElementById("composeVideoSizeLabel");
+  if (previewEl) previewEl.style.display = "none";
+  if (progressEl) { progressEl.style.display = "none"; progressEl.textContent = "Processing video\u2026"; }
+  if (imgEl) { imgEl.src = ""; imgEl.style.display = "none"; }
+  if (sizeEl) sizeEl.textContent = "";
   updateComposeState();
 }
 
@@ -9606,6 +9873,48 @@ async function submitCompose() {
       console.error("submitCompose (poll) failed:", e);
       haptic("medium");
       showToast("Couldn't save your post. Please try again.");
+    }
+    return;
+  }
+
+  if (composeVideoBlob) {
+    const pendingVideoBlob = composeVideoBlob;
+    const pendingPoster = composeVideoPoster;
+    const pendingText = document.getElementById("composeTextarea").value.trim();
+    const pendingDraftId = currentDraftId;
+
+    resetComposeUI();
+    showPostingProgressToast();
+
+    try {
+      const videoUrl = await uploadVideoToStorage(pendingVideoBlob);
+      const mentionedIds = await resolveMentionIds(pendingText, telegramUser.id);
+      const { data, error } = await sb.from("posts").insert({
+        type: "video",
+        text: pendingText || null,
+        image: pendingPoster,
+        video_url: videoUrl,
+        name: PROFILES.you.name,
+        username: PROFILES.you.username,
+        telegram_id: String(telegramUser.id),
+        photo_url: PROFILES.you.photoUrl,
+        initials: PROFILES.you.initials,
+        color: PROFILES.you.color,
+        like_count: 0,
+        mentioned_ids: mentionedIds.length ? mentionedIds : null
+      }).select().single();
+      if (error) throw error;
+      triggerPostCategorization(data.id);
+      const newPost = mapPostRow(data);
+      newPost.profileId = "you";
+      queueOwnPostAsPending(newPost, { liked: false, likeCount: 0, bookmarked: false, gifted: false, comments: [], showComments: false, textExpanded: false, draftImage: null });
+      haptic("medium");
+      if (pendingDraftId) removeDraft(pendingDraftId);
+      showPostedSuccessToast();
+    } catch (e) {
+      console.error("submitCompose (video) failed:", e);
+      haptic("medium");
+      showToast("Couldn't post your video. Please try again.");
     }
     return;
   }
