@@ -7228,6 +7228,17 @@ async function getFFmpeg() {
     // hangs trying to use worker threads it can't have -- exactly the
     // "stuck on Processing video forever" symptom. core-st needs none of
     // that.
+    //
+    // IMPORTANT: mainName must be set alongside corePath. Internally
+    // createFFmpeg does `Core.cwrap(options.mainName || 'proxy_main', ...)`
+    // -- it defaults to looking up 'proxy_main' no matter which core you
+    // point it at. 'proxy_main' is the pthread-proxy entry point that only
+    // exists in the multi-threaded core; core-st only exports 'main'.
+    // Without this, ffmpeg.load() succeeds (the file itself loads fine)
+    // but the first ffmpeg.run() hard-aborts with "Assertion failed:
+    // Cannot call unknown function proxy_main" -- exactly the reported
+    // "didn't even compress" abort.
+    mainName: "main",
     corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js"
   });
 
