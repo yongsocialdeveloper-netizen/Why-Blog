@@ -5048,6 +5048,7 @@ function mapPostRow(row) {
     questEndsAt: row.quest_ends_at || null,
     category: row.category || null,
     videoUrl: row.video_url || null,
+    videoStatus: row.video_status || null, // "failed" once the bunny-webhook Edge Function reports an encoding failure; null/"processing" otherwise
     eventTitle: row.event_title || null,
     eventFormat: row.event_format || null,
     eventLocation: row.event_location || null,
@@ -7263,7 +7264,14 @@ function captureVideoPosterFrame(file) {
 // Uploads the raw file directly to Bunny Stream via resumable TUS.
 // Returns Bunny's videoId once the upload (not the transcode) finishes.
 // onProgress(percent) is optional, for driving a progress label.
-async function uploadVideoToBunny(file, onProgress) {
+// onVideoId(id) is optional, and fires as soon as Bunny hands back the
+// video's GUID -- well before the TUS upload itself finishes -- so the
+// caller can stamp it onto the post row immediately. That's what lets
+// the bunny-webhook Edge Function find and finish this post later even
+// if the tab closes mid-upload or mid-encode: the webhook only ever
+// gets Bunny's VideoGuid, never our post id, so a post has to carry
+// the GUID *before* Bunny's async processing can catch up to it.
+async function uploadVideoToBunny(file, onProgress, onVideoId) {
   if (!sb || !telegramUser) throw new Error("Not connected");
 
   const { data: sessionData } = await sb.auth.getSession();
@@ -7281,6 +7289,7 @@ async function uploadVideoToBunny(file, onProgress) {
   );
   if (!credRes.ok) throw new Error("Couldn't start the upload. Please try again.");
   const { videoId, libraryId, expirationTime, signature } = await credRes.json();
+  if (onVideoId) onVideoId(videoId);
 
   await new Promise((resolve, reject) => {
     const upload = new tus.Upload(file, {
@@ -8378,7 +8387,10 @@ function renderVideoPost(post) {
     // Posted before the upload finished (X-style): show a processing
     // placeholder now, and patchVisiblePostVideo() swaps this out for
     // the real player once the background upload resolves.
-    const knownFailed = failedVideoPostIds.has(post.id);
+    // video_status: "failed" comes from bunny-webhook when Bunny reports
+    // an encoding failure server-side (Status 5) -- catches failures that
+    // happen after the byte-upload, which the tab may not be open to see.
+    const knownFailed = failedVideoPostIds.has(post.id) || post.videoStatus === "failed";
     const stale = Date.now() - (post.createdAtMillis || Date.now()) > 10 * 60 * 1000;
     const failed = knownFailed || stale;
     const pct = failed ? null : getPendingUploadPercent(post.id);
@@ -9876,6 +9888,13 @@ async function handleComposeVideoSelect(input) {
       if (mappedPostId) patchVisiblePostVideo(mappedPostId); // already posted -- keep its feed card's % live too
       if (myToken !== composeVideoPollToken) return;
       progressEl.textContent = `Uploading video\u2026 ${pct}%`;
+    }, id => {
+      // Known almost immediately -- long before the TUS upload finishes.
+      // Stamped onto composeVideoJobId now (not after await uploadPromise
+      // below) so that if the person taps Post while this is still
+      // uploading, the post row goes out already carrying the Bunny
+      // video id for bunny-webhook to match against.
+      if (myToken === composeVideoPollToken) composeVideoJobId = id;
     });
     composeVideoUploadPromise = uploadPromise;
     composeVideoUploadToken = myToken;
@@ -9981,6 +10000,7 @@ async function submitCompose() {
 
   if (composeVideoUrl || composeVideoSelected) {
     const pendingVideoUrl = composeVideoUrl; // may still be null -- upload might not be done yet
+    const pendingBunnyVideoId = composeVideoJobId; // usually known well before the upload finishes -- see uploadVideoToBunny's onVideoId
     const pendingUploadPromise = composeVideoUploadPromise;
     const pendingUploadToken = composeVideoUploadToken;
     const pendingPoster = composeVideoPoster;
@@ -9997,6 +10017,7 @@ async function submitCompose() {
         text: pendingText || null,
         image: pendingPoster,
         video_url: pendingVideoUrl, // null is fine -- renderVideoPost shows a processing state until this is filled in
+        bunny_video_id: pendingBunnyVideoId, // lets bunny-webhook finish this post server-side even if the tab closes mid-upload/encode
         name: PROFILES.you.name,
         username: PROFILES.you.username,
         telegram_id: String(telegramUser.id),
@@ -10026,9 +10047,13 @@ async function submitCompose() {
         if (pendingUploadToken != null) uploadTokenToPostId.set(pendingUploadToken, postId);
         patchVisiblePostVideo(postId); // show current % immediately, don't wait for the next progress tick
         pendingUploadPromise
-          .then(videoId => getVideoPublicUrl(videoId))
-          .then(async url => {
-            const { error: updateError } = await sb.from("posts").update({ video_url: url }).eq("id", postId);
+          .then(async videoId => {
+            const url = getVideoPublicUrl(videoId);
+            // bunny_video_id is included again here as a safety net for the
+            // rare case where composeVideoJobId wasn't yet known at insert
+            // time (Post tapped in the instant before Bunny's credentials
+            // call returned) -- harmless to (re)write it now regardless.
+            const { error: updateError } = await sb.from("posts").update({ video_url: url, bunny_video_id: videoId }).eq("id", postId);
             if (updateError) { console.error("Failed to save finished video URL:", updateError); markPostVideoFailed(postId); return; }
             const livePost = findUserPostById(postId);
             if (livePost) livePost.videoUrl = url;
