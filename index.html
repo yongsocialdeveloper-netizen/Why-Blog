@@ -7198,19 +7198,58 @@ const VIDEO_MAX_DIMENSION = 1280; // longest side, ~720p-class
 
 let ffmpegInstance = null;
 let ffmpegFetchFile = null;
+let ffmpegLoadPromise = null; // guards against a second call starting a second load while the first is still in flight
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function getFFmpeg() {
   if (ffmpegInstance) return ffmpegInstance;
+  if (ffmpegLoadPromise) return ffmpegLoadPromise; // already loading -- wait on that instead of starting a second one
   if (typeof FFmpeg === "undefined") {
     throw new Error("Video processing isn't available right now. Please try again.");
   }
+
   const { createFFmpeg, fetchFile } = FFmpeg;
   ffmpegFetchFile = fetchFile;
-  ffmpegInstance = createFFmpeg({
-    log: false,
-    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+  const instance = createFFmpeg({
+    log: true, // surfaces real ffmpeg/worker errors in the console instead of a silent hang
+    // IMPORTANT: this must be @ffmpeg/core-st (single-threaded), not
+    // @ffmpeg/core. The plain @ffmpeg/core package is the multi-threaded
+    // build, which requires SharedArrayBuffer -- only available when the
+    // page is served with Cross-Origin-Embedder-Policy: require-corp and
+    // Cross-Origin-Opener-Policy: same-origin. Without those headers
+    // (the default here, and inside Telegram's WebView), the mt core
+    // hangs trying to use worker threads it can't have -- exactly the
+    // "stuck on Processing video forever" symptom. core-st needs none of
+    // that.
+    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js"
   });
-  await ffmpegInstance.load();
-  return ffmpegInstance;
+
+  // load() can hang indefinitely (blocked CDN, a Worker/wasm restriction
+  // in the host WebView, a stalled fetch of the ~25MB core) rather than
+  // ever rejecting -- without a timeout, that leaves "Processing video..."
+  // on screen forever with no error to act on.
+  ffmpegLoadPromise = withTimeout(
+    instance.load(),
+    25000,
+    "Video processing took too long to start. Check your connection and try again."
+  ).then(() => {
+    ffmpegInstance = instance;
+    ffmpegLoadPromise = null;
+    return ffmpegInstance;
+  }).catch(e => {
+    ffmpegLoadPromise = null; // let the next attempt retry from scratch rather than staying stuck on a failed load
+    console.error("ffmpeg.load() failed:", e);
+    throw e;
+  });
+
+  return ffmpegLoadPromise;
 }
 
 function getVideoDurationLimitSeconds() {
@@ -7286,18 +7325,26 @@ async function compressVideoForUpload(file, onProgress) {
   let outputBlob = null;
   try {
     for (const vBitrate of attempts) {
-      await ffmpeg.run(
-        "-i", inputName,
-        "-vf", `scale='min(${VIDEO_MAX_DIMENSION},iw)':'min(${VIDEO_MAX_DIMENSION},ih)':force_original_aspect_ratio=decrease`,
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-b:v", `${vBitrate}k`,
-        "-maxrate", `${Math.round(vBitrate * 1.2)}k`,
-        "-bufsize", `${vBitrate * 2}k`,
-        "-c:a", "aac",
-        "-b:a", `${audioBitrateKbps}k`,
-        "-movflags", "+faststart",
-        "output.mp4"
+      // Transcoding time varies wildly by device (ffmpeg.wasm 0.11.x is
+      // single-threaded), but it shouldn't run forever -- if it does,
+      // something's actually stuck rather than just being slow.
+      const runTimeoutMs = Math.max(90000, duration * 6000);
+      await withTimeout(
+        ffmpeg.run(
+          "-i", inputName,
+          "-vf", `scale='min(${VIDEO_MAX_DIMENSION},iw)':'min(${VIDEO_MAX_DIMENSION},ih)':force_original_aspect_ratio=decrease`,
+          "-c:v", "libx264",
+          "-preset", "veryfast",
+          "-b:v", `${vBitrate}k`,
+          "-maxrate", `${Math.round(vBitrate * 1.2)}k`,
+          "-bufsize", `${vBitrate * 2}k`,
+          "-c:a", "aac",
+          "-b:a", `${audioBitrateKbps}k`,
+          "-movflags", "+faststart",
+          "output.mp4"
+        ),
+        runTimeoutMs,
+        "Video processing is taking too long on this device. Try a shorter or lower-resolution video."
       );
       const data = ffmpeg.FS("readFile", "output.mp4");
       outputBlob = new Blob([data.buffer], { type: "video/mp4" });
