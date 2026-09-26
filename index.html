@@ -8435,6 +8435,7 @@ let composeVideoUrl = null;
 let composeVideoPoster = null;
 let composeVideoProcessing = false;
 let composeVideoJobId = null;
+let submitComposeInFlight = false;
 let composeVideoPollToken = 0; // bumped on remove/reselect so a stale poll loop stops updating the UI
 function getComposeMax() {
   return isPremiumUser() ? 1000 : 500;
@@ -9856,6 +9857,15 @@ async function submitCompose() {
 
   if (editingPostId) return submitPostEdit();
 
+  // Guards against a second tap landing before the composer closes and
+  // firing a second insert -- this is what was causing duplicate posts.
+  if (submitComposeInFlight) return;
+  submitComposeInFlight = true;
+  const composePostBtnEl = document.getElementById("composePostBtn");
+  if (composePostBtnEl) composePostBtnEl.disabled = true;
+
+  try {
+
   if (composeMode === "poll") {
     const question = document.getElementById("pollQuestionInput").value.trim();
     const options = pollOptions.map(o => o.trim()).filter(Boolean);
@@ -9978,6 +9988,10 @@ async function submitCompose() {
     console.error("submitCompose (post) failed:", e);
     haptic("medium");
     showToast("Couldn't save your post. Please try again.");
+  }
+  } finally {
+    submitComposeInFlight = false;
+    if (composePostBtnEl) composePostBtnEl.disabled = false;
   }
 }
 
