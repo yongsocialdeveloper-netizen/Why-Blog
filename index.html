@@ -10,7 +10,6 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 <script src="https://unpkg.com/tonweb/dist/web/index.js"></script>
 <style>
@@ -7170,35 +7169,31 @@ async function processImageForUpload(file) {
   return blobToDataURL(compressed);
 }
 
-// ---- Video compression (ffmpeg.wasm) ------------------------------------
+// ---- Video upload + server-side processing ------------------------------
 //
-// Unlike images, there's no simple byte-shrinking trick for video -- it
-// needs real transcoding. ffmpeg.wasm's core (~25MB) is only fetched the
-// first time someone actually picks a video in this session (see
-// getFFmpeg below), never on page load, so people who never post video
-// pay nothing for this.
+// Client-side ffmpeg.wasm compression was dropped: loading a ~25MB WASM
+// core inside Telegram's in-app WebView is unreliable -- it can fail
+// fast, fail slow, or (worst case) just hang forever with no error and
+// no progress ever reported. Real transcoding now happens on a separate
+// always-on server (see the video-worker repo / video_jobs.sql), not in
+// the browser.
 //
-// Unlike compressed images (base64 in a Postgres column), compressed
-// video is uploaded as a real file to Supabase Storage (bucket:
-// post-videos) -- a few MB of base64 text per row would be a very fast
-// way to blow through database size limits. Only the video's URL and a
-// small poster-frame thumbnail (reusing the same image pipeline/column
-// as every other post) are stored in the posts row.
+// The original file is uploaded as-is to a TEMPORARY bucket
+// (video-processing), never to the permanent post-videos bucket -- the
+// worker downloads it from there, transcodes it with real ffmpeg, and
+// uploads only the compressed result to post-videos, then deletes the
+// temp original. This file just: uploads the original, writes a
+// video_jobs row, and polls that row until the worker marks it
+// completed (or failed).
 //
-// Duration limits are informational/UX only -- like_count-style
-// enforcement of "you can't lie about your plan" happens server-side for
-// things Postgres *can* check (see events/ads), but nothing here can
-// verify a video's real length without decoding it, so the hard backstop
-// against abuse is the Storage bucket's file_size_limit (see
-// video_uploads.sql), not the duration check below.
+// Duration limits here are informational/UX only -- the real backstop
+// against abuse is server-side (the worker + the Storage bucket's
+// file_size_limit), since nothing in the browser can be trusted to
+// enforce a real cap.
 const VIDEO_DURATION_LIMITS = { normal: 180, premium: 300 }; // seconds
 const VIDEO_HARD_DURATION_CAP = 1200; // 20 min -- absolute ceiling, even for Business/admins
-const VIDEO_MAX_OUTPUT_BYTES = 80 * 1024 * 1024; // also enforced server-side via the storage bucket
-const VIDEO_MAX_DIMENSION = 1280; // longest side, ~720p-class
-
-let ffmpegInstance = null;
-let ffmpegFetchFile = null;
-let ffmpegLoadPromise = null; // guards against a second call starting a second load while the first is still in flight
+const VIDEO_JOB_POLL_MS = 3000;
+const VIDEO_JOB_POLL_MAX_MS = 10 * 60 * 1000; // stop polling (not the job itself) after 10 min
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -7206,61 +7201,6 @@ function withTimeout(promise, ms, message) {
     timer = setTimeout(() => reject(new Error(message)), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-async function getFFmpeg() {
-  if (ffmpegInstance) return ffmpegInstance;
-  if (ffmpegLoadPromise) return ffmpegLoadPromise; // already loading -- wait on that instead of starting a second one
-  if (typeof FFmpeg === "undefined") {
-    throw new Error("Video processing isn't available right now. Please try again.");
-  }
-
-  const { createFFmpeg, fetchFile } = FFmpeg;
-  ffmpegFetchFile = fetchFile;
-  const instance = createFFmpeg({
-    log: true, // surfaces real ffmpeg/worker errors in the console instead of a silent hang
-    // IMPORTANT: this must be @ffmpeg/core-st (single-threaded), not
-    // @ffmpeg/core. The plain @ffmpeg/core package is the multi-threaded
-    // build, which requires SharedArrayBuffer -- only available when the
-    // page is served with Cross-Origin-Embedder-Policy: require-corp and
-    // Cross-Origin-Opener-Policy: same-origin. Without those headers
-    // (the default here, and inside Telegram's WebView), the mt core
-    // hangs trying to use worker threads it can't have -- exactly the
-    // "stuck on Processing video forever" symptom. core-st needs none of
-    // that.
-    //
-    // IMPORTANT: mainName must be set alongside corePath. Internally
-    // createFFmpeg does `Core.cwrap(options.mainName || 'proxy_main', ...)`
-    // -- it defaults to looking up 'proxy_main' no matter which core you
-    // point it at. 'proxy_main' is the pthread-proxy entry point that only
-    // exists in the multi-threaded core; core-st only exports 'main'.
-    // Without this, ffmpeg.load() succeeds (the file itself loads fine)
-    // but the first ffmpeg.run() hard-aborts with "Assertion failed:
-    // Cannot call unknown function proxy_main" -- exactly the reported
-    // "didn't even compress" abort.
-    mainName: "main",
-    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js"
-  });
-
-  // load() can hang indefinitely (blocked CDN, a Worker/wasm restriction
-  // in the host WebView, a stalled fetch of the ~25MB core) rather than
-  // ever rejecting -- without a timeout, that leaves "Processing video..."
-  // on screen forever with no error to act on.
-  ffmpegLoadPromise = withTimeout(
-    instance.load(),
-    60000,
-    "Video processing took too long to start. Check your connection and try again."
-  ).then(() => {
-    ffmpegInstance = instance;
-    ffmpegLoadPromise = null;
-    return ffmpegInstance;
-  }).catch(e => {
-    ffmpegLoadPromise = null; // let the next attempt retry from scratch rather than staying stuck on a failed load
-    console.error("ffmpeg.load() failed:", e);
-    throw e;
-  });
-
-  return ffmpegLoadPromise;
 }
 
 function getVideoDurationLimitSeconds() {
@@ -7282,7 +7222,8 @@ function probeVideoDuration(file) {
 
 // Best-effort poster frame, piped through the same compressImageTo630KB
 // guarantee as every other image on the app before it's stored in the
-// post's `image` column.
+// post's `image` column. Pure canvas -- no ffmpeg involved, so this
+// still works even while the real video is off being transcoded.
 function captureVideoPosterFrame(file) {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
@@ -7307,89 +7248,59 @@ function captureVideoPosterFrame(file) {
   });
 }
 
-async function compressVideoForUpload(file, onProgress) {
-  const duration = await probeVideoDuration(file);
-  if (!duration || !isFinite(duration)) throw new Error("Couldn't read that video's length.");
-  if (duration > VIDEO_HARD_DURATION_CAP) throw new Error("Videos are limited to 20 minutes.");
-  const limit = getVideoDurationLimitSeconds();
-  if (duration > limit) {
-    throw new Error(`Videos are limited to ${Math.round(limit / 60)} minute${limit >= 120 ? "s" : ""} on your plan.`);
-  }
-
-  const ffmpeg = await getFFmpeg();
-
-  // Bitrate sized to this video's own length so a 4-minute clip and a
-  // 30-second clip both land under the same absolute output cap, rather
-  // than a fixed bitrate that would blow way past it for anything long.
-  const targetTotalBits = VIDEO_MAX_OUTPUT_BYTES * 8 * 0.85; // headroom for container/moov overhead
-  let videoBitrateKbps = Math.floor((targetTotalBits / duration) * 0.88 / 1000);
-  videoBitrateKbps = Math.max(250, Math.min(2500, videoBitrateKbps));
-  const audioBitrateKbps = videoBitrateKbps > 600 ? 128 : 96;
-  const attempts = [videoBitrateKbps, Math.round(videoBitrateKbps * 0.65)];
-
-  const inputName = "input" + (file.name && file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : ".mp4");
-  ffmpeg.setProgress(({ ratio }) => {
-    if (onProgress && ratio >= 0 && ratio <= 1) onProgress(Math.round(ratio * 100));
-  });
-  ffmpeg.FS("writeFile", inputName, await ffmpegFetchFile(file));
-
-  let outputBlob = null;
-  try {
-    for (const vBitrate of attempts) {
-      // Transcoding time varies wildly by device (ffmpeg.wasm 0.11.x is
-      // single-threaded), but it shouldn't run forever -- if it does,
-      // something's actually stuck rather than just being slow.
-      const runTimeoutMs = Math.max(90000, duration * 6000);
-      await withTimeout(
-        ffmpeg.run(
-          "-i", inputName,
-          "-vf", `scale='min(${VIDEO_MAX_DIMENSION},iw)':'min(${VIDEO_MAX_DIMENSION},ih)':force_original_aspect_ratio=decrease`,
-          "-c:v", "libx264",
-          "-preset", "veryfast",
-          "-b:v", `${vBitrate}k`,
-          "-maxrate", `${Math.round(vBitrate * 1.2)}k`,
-          "-bufsize", `${vBitrate * 2}k`,
-          "-c:a", "aac",
-          "-b:a", `${audioBitrateKbps}k`,
-          "-movflags", "+faststart",
-          "output.mp4"
-        ),
-        runTimeoutMs,
-        "Video processing is taking too long on this device. Try a shorter or lower-resolution video."
-      );
-      const data = ffmpeg.FS("readFile", "output.mp4");
-      outputBlob = new Blob([data.buffer], { type: "video/mp4" });
-      ffmpeg.FS("unlink", "output.mp4");
-      if (outputBlob.size <= VIDEO_MAX_OUTPUT_BYTES) break;
-    }
-  } finally {
-    try { ffmpeg.FS("unlink", inputName); } catch (e) {}
-  }
-
-  if (!outputBlob || outputBlob.size > VIDEO_MAX_OUTPUT_BYTES) {
-    throw new Error("This video could not be compressed to a reasonable size. Please choose a shorter or smaller video.");
-  }
-  return outputBlob;
-}
-
-async function processVideoForUpload(file, onProgress) {
-  if (!file || !file.type || !file.type.startsWith("video/")) {
-    throw new Error("Please choose a video file.");
-  }
-  const posterPromise = captureVideoPosterFrame(file)
-    .then(blob => compressImageTo630KB(blob))
-    .then(blob => blobToDataURL(blob))
-    .catch(() => null); // thumbnail is best-effort, never blocks the upload
-  const videoBlob = await compressVideoForUpload(file, onProgress);
-  const posterDataUrl = await posterPromise;
-  return { videoBlob, posterDataUrl };
-}
-
-async function uploadVideoToStorage(blob) {
+// Uploads the raw file to the TEMPORARY video-processing bucket and
+// creates the video_jobs row the worker will pick up. Never touches
+// post-videos -- that only ever receives the worker's compressed output.
+async function uploadOriginalVideoForProcessing(file) {
   if (!sb || !telegramUser) throw new Error("Not connected");
-  const path = `${telegramUser.id}/${Date.now()}.mp4`;
-  const { error } = await sb.storage.from("post-videos").upload(path, blob, { contentType: "video/mp4", upsert: false });
-  if (error) throw error;
+  const jobId = crypto.randomUUID();
+  const ext = file.name && file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase() : "mp4";
+  const originalPath = `${telegramUser.id}/${jobId}.${ext}`;
+
+  await withTimeout(
+    sb.storage.from("video-processing").upload(originalPath, file, { contentType: file.type || "video/mp4", upsert: false })
+      .then(({ error }) => { if (error) throw error; }),
+    120000,
+    "Uploading your video took too long. Check your connection and try again."
+  );
+
+  const { error: jobError } = await sb.from("video_jobs").insert({
+    id: jobId,
+    telegram_id: String(telegramUser.id),
+    original_path: originalPath,
+    original_size: file.size,
+    status: "pending"
+  });
+  if (jobError) {
+    // Don't leave an orphaned original sitting in storage with no job
+    // row to ever pick it up and clean it up later.
+    try { await sb.storage.from("video-processing").remove([originalPath]); } catch (e) {}
+    throw jobError;
+  }
+
+  return jobId;
+}
+
+// Polls the video_jobs row until the worker marks it completed or
+// failed. onTick lets the caller update the "Processing…" label as time
+// passes. Returns the completed row; throws with the worker's own
+// error_message on failure.
+async function pollVideoJob(jobId, onTick) {
+  const startedAt = Date.now();
+  while (true) {
+    if (Date.now() - startedAt > VIDEO_JOB_POLL_MAX_MS) {
+      throw new Error("Still processing your video. This can happen with longer clips -- check back in a bit, it'll post automatically once it's ready.");
+    }
+    const { data, error } = await sb.from("video_jobs").select("*").eq("id", jobId).single();
+    if (error) throw error;
+    if (data.status === "completed") return data;
+    if (data.status === "failed") throw new Error(data.error_message || "Video processing failed.");
+    if (onTick) onTick(Math.floor((Date.now() - startedAt) / 1000));
+    await new Promise(resolve => setTimeout(resolve, VIDEO_JOB_POLL_MS));
+  }
+}
+
+function getVideoPublicUrl(path) {
   const { data } = sb.storage.from("post-videos").getPublicUrl(path);
   return data.publicUrl;
 }
@@ -8501,9 +8412,11 @@ function userPostCardHTML(post) {
 }
 
 let composeImage = null;
-let composeVideoBlob = null;
+let composeVideoUrl = null;
 let composeVideoPoster = null;
 let composeVideoProcessing = false;
+let composeVideoJobId = null;
+let composeVideoPollToken = 0; // bumped on remove/reselect so a stale poll loop stops updating the UI
 function getComposeMax() {
   return isPremiumUser() ? 1000 : 500;
 }
@@ -8725,16 +8638,6 @@ function openCompose() {
   syncBackButton();
   attachMentionAutocomplete(document.getElementById("composeTextarea"));
   setTimeout(() => document.getElementById("composeTextarea").focus(), 200);
-  // Speculatively start fetching the ~25MB ffmpeg-core the moment the
-  // composer opens, well before the user has picked a video. If they
-  // never pick a video, this cost was already going to be paid on first
-  // video-post anyway (getFFmpeg() is memoized/singleton -- see
-  // ffmpegInstance/ffmpegLoadPromise above), so starting it early just
-  // moves the wait earlier and off the critical path. Errors here are
-  // intentionally swallowed: if this fails, compressVideoForUpload()
-  // will call getFFmpeg() again for real when they actually post and
-  // surface the error there.
-  getFFmpeg().catch(() => {});
 }
 
 function resetComposeUI() {
@@ -9809,14 +9712,14 @@ function updateComposeState() {
   if (weighted >= composeMax) counter.classList.add("limit");
   else if (weighted >= composeMax - 40) counter.classList.add("warn");
 
-  btn.classList.toggle("enabled", !composeVideoProcessing && (textarea.value.trim().length > 0 || !!composeImage || !!composeVideoBlob));
+  btn.classList.toggle("enabled", !composeVideoProcessing && (textarea.value.trim().length > 0 || !!composeImage || !!composeVideoUrl));
 }
 
 function handleComposeImageSelect(input) {
   const file = input.files && input.files[0];
   input.value = "";
   if (!file) return;
-  if (composeVideoBlob || composeVideoProcessing) removeComposeVideo();
+  if (composeVideoUrl || composeVideoProcessing) removeComposeVideo();
   processImageForUpload(file).then(dataUrl => {
     composeImage = dataUrl;
     document.getElementById("composeImagePreviewImg").src = composeImage;
@@ -9835,7 +9738,7 @@ function removeComposeImage() {
   updateComposeState();
 }
 
-function handleComposeVideoSelect(input) {
+async function handleComposeVideoSelect(input) {
   const file = input.files && input.files[0];
   input.value = "";
   if (!file) return;
@@ -9848,43 +9751,79 @@ function handleComposeVideoSelect(input) {
   const imageBtn = document.getElementById("composeImageToolBtn");
   const videoBtn = document.getElementById("composeVideoToolBtn");
 
+  const myToken = ++composeVideoPollToken; // invalidates any earlier poll loop still running
+  composeVideoJobId = null;
+  composeVideoUrl = null;
   composeVideoProcessing = true;
   previewEl.style.display = "block";
   progressEl.style.display = "block";
-  progressEl.textContent = "Processing video\u2026";
+  progressEl.textContent = "Checking video\u2026";
   imgEl.style.display = "none";
   sizeEl.textContent = "";
   imageBtn.classList.add("disabled");
   videoBtn.classList.add("disabled");
   updateComposeState();
 
-  processVideoForUpload(file, pct => {
-    progressEl.textContent = `Processing video\u2026 ${pct}%`;
-  }).then(({ videoBlob, posterDataUrl }) => {
-    composeVideoBlob = videoBlob;
-    composeVideoPoster = posterDataUrl;
-    progressEl.style.display = "none";
-    if (posterDataUrl) {
-      imgEl.src = posterDataUrl;
-      imgEl.style.display = "block";
+  try {
+    if (!file.type || !file.type.startsWith("video/")) throw new Error("Please choose a video file.");
+
+    const duration = await probeVideoDuration(file);
+    if (!duration || !isFinite(duration)) throw new Error("Couldn't read that video's length.");
+    if (duration > VIDEO_HARD_DURATION_CAP) throw new Error("Videos are limited to 20 minutes.");
+    const limit = getVideoDurationLimitSeconds();
+    if (duration > limit) {
+      throw new Error(`Videos are limited to ${Math.round(limit / 60)} minute${limit >= 120 ? "s" : ""} on your plan.`);
     }
-    sizeEl.textContent = `${(videoBlob.size / (1024 * 1024)).toFixed(1)} MB \u2014 ready to post`;
-  }).catch(e => {
+
+    // Best-effort local poster frame -- shown immediately, independent of
+    // how long the real (server-side) processing takes.
+    captureVideoPosterFrame(file)
+      .then(blob => compressImageTo630KB(blob))
+      .then(blob => blobToDataURL(blob))
+      .then(posterDataUrl => {
+        if (myToken !== composeVideoPollToken) return; // a newer selection/removal happened -- drop this stale result
+        composeVideoPoster = posterDataUrl;
+        if (posterDataUrl) { imgEl.src = posterDataUrl; imgEl.style.display = "block"; }
+      })
+      .catch(() => {}); // thumbnail is best-effort, never blocks the upload
+
+    progressEl.textContent = "Uploading video\u2026";
+    const jobId = await uploadOriginalVideoForProcessing(file);
+    if (myToken !== composeVideoPollToken) return; // superseded while uploading
+    composeVideoJobId = jobId;
+
+    progressEl.textContent = "Processing video\u2026 this can take a minute";
+    const job = await pollVideoJob(jobId, secondsElapsed => {
+      if (myToken !== composeVideoPollToken) return;
+      if (secondsElapsed > 45) progressEl.textContent = "Still processing\u2026 longer videos take a bit longer";
+    });
+    if (myToken !== composeVideoPollToken) return; // superseded while polling
+
+    composeVideoUrl = getVideoPublicUrl(job.processed_path);
+    progressEl.style.display = "none";
+    const mb = job.processed_size ? (job.processed_size / (1024 * 1024)).toFixed(1) : null;
+    sizeEl.textContent = mb ? `${mb} MB \u2014 ready to post` : "Ready to post";
+  } catch (e) {
+    if (myToken !== composeVideoPollToken) return; // a newer selection already replaced this attempt
     console.error("Video processing failed:", e);
     alert(e && e.message ? e.message : "Unable to process this video. Please choose another video.");
     removeComposeVideo();
-  }).finally(() => {
-    composeVideoProcessing = false;
-    imageBtn.classList.remove("disabled");
-    videoBtn.classList.remove("disabled");
-    updateComposeState();
-  });
+  } finally {
+    if (myToken === composeVideoPollToken) {
+      composeVideoProcessing = false;
+      imageBtn.classList.remove("disabled");
+      videoBtn.classList.remove("disabled");
+      updateComposeState();
+    }
+  }
 }
 
 function removeComposeVideo() {
-  composeVideoBlob = null;
+  composeVideoPollToken++; // stop any in-flight upload/poll loop from touching the UI after this
+  composeVideoUrl = null;
   composeVideoPoster = null;
   composeVideoProcessing = false;
+  composeVideoJobId = null;
   const previewEl = document.getElementById("composeVideoPreview");
   const progressEl = document.getElementById("composeVideoProgress");
   const imgEl = document.getElementById("composeVideoPreviewImg");
@@ -9945,8 +9884,8 @@ async function submitCompose() {
     return;
   }
 
-  if (composeVideoBlob) {
-    const pendingVideoBlob = composeVideoBlob;
+  if (composeVideoUrl) {
+    const pendingVideoUrl = composeVideoUrl;
     const pendingPoster = composeVideoPoster;
     const pendingText = document.getElementById("composeTextarea").value.trim();
     const pendingDraftId = currentDraftId;
@@ -9955,13 +9894,12 @@ async function submitCompose() {
     showPostingProgressToast();
 
     try {
-      const videoUrl = await uploadVideoToStorage(pendingVideoBlob);
       const mentionedIds = await resolveMentionIds(pendingText, telegramUser.id);
       const { data, error } = await sb.from("posts").insert({
         type: "video",
         text: pendingText || null,
         image: pendingPoster,
-        video_url: videoUrl,
+        video_url: pendingVideoUrl,
         name: PROFILES.you.name,
         username: PROFILES.you.username,
         telegram_id: String(telegramUser.id),
