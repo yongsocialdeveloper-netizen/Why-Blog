@@ -2355,6 +2355,10 @@
 
   .post {
     display: flex;
+    align-items: flex-start; /* without this, flex's default "stretch" makes the avatar's
+      wrapping div (which is onclick=openProfile) tall as the WHOLE card -- so tapping
+      anywhere down the left-hand side, next to the text/image/video, was hitting that
+      invisible stretched div and opening the profile instead of the post */
     gap: 10px;
     padding: 12px 14px;
     border-bottom: 1px solid var(--line);
@@ -4513,6 +4517,21 @@ function findUserPostById(id) {
 function openPostDetail(id) {
   const post = findUserPostById(id);
   if (!post || !userPostState[post.id]) return;
+
+  // Without this, a playing video kept running unseen behind the feed
+  // (still using bandwidth/battery, its audio still mixed in) while the
+  // detail view spun up a second, separate instance of the same video
+  // starting over from 0:00 -- two players for one video. Stop the
+  // feed's copy now, and flag its replacement (about to mount in the
+  // detail view via renderPostDetail() below) to resume from the same
+  // spot instead of sitting paused there the way a restore normally would.
+  const feedIframe = postIdToFeedIframe.get(id);
+  if (feedIframe && currentlyPlayingVideoIframe === feedIframe) {
+    const feedPlayer = activeBunnyVideoPlayers.get(feedIframe);
+    if (feedPlayer) feedPlayer.pause();
+    resumePlaybackForPostId = id;
+  }
+
   currentPostDetailId = id;
   renderPostDetail();
   document.getElementById("postDetailPage").classList.add("open");
@@ -4520,6 +4539,30 @@ function openPostDetail(id) {
 }
 
 function closePostDetail() {
+  // Symmetric hand-off to openPostDetail()'s: if this post's video was
+  // playing in the detail view, hand it back to the feed's copy (which was
+  // never torn down, just left paused this whole time) so it picks up
+  // right where the detail view left it, rather than either sitting mute
+  // at its old position or both copies going silent.
+  const id = currentPostDetailId;
+  if (id) {
+    const detailIframe = postIdToDetailIframe.get(id);
+    const wasPlayingInDetail = !!detailIframe && currentlyPlayingVideoIframe === detailIframe;
+    if (wasPlayingInDetail) {
+      const detailPlayer = activeBunnyVideoPlayers.get(detailIframe);
+      if (detailPlayer) detailPlayer.pause();
+      const feedIframe = postIdToFeedIframe.get(id);
+      const feedPlayer = feedIframe && activeBunnyVideoPlayers.get(feedIframe);
+      // The feed iframe already exists and is already "ready" (it was
+      // never removed), so there's no ready event left to hook -- just
+      // seek and play it directly, right now.
+      if (feedPlayer && lastKnownVideoTime.has(id)) {
+        feedPlayer.setCurrentTime(lastKnownVideoTime.get(id));
+        feedPlayer.play();
+      }
+    }
+  }
+
   document.getElementById("postDetailPage").classList.remove("open");
   currentPostDetailId = null;
   syncBackButton();
@@ -8455,16 +8498,16 @@ function userPostCardHTML(post) {
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
 
   return `
-    <article class="post" data-post-id="${post.id}">
-      <div onclick="openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
+    <article class="post" data-post-id="${post.id}" onclick="openPostDetail('${post.id}')">
+      <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
-          <span class="post-source" style="cursor:pointer" onclick="openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
+          <span class="post-source" style="cursor:pointer" onclick="event.stopPropagation(); openProfile('${post.profileId}')">${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}
           ${post.username ? `<span class="post-handle">@${escapeHtml(post.username)}</span>` : ""}
           <span class="post-dot">·</span>
           <span class="post-time" data-ts="${post.createdAtMillis || Date.now()}" title="${new Date(post.createdAtMillis || Date.now()).toLocaleString()}">${formatRelativeTime(post.createdAtMillis)}</span>
           ${editedTagHTML(post)}
-          <button class="post-more-btn" onclick="openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
+          <button class="post-more-btn" onclick="event.stopPropagation(); openPostOptions('${post.id}')" aria-label="Post options">${moreIcon()}</button>
         </div>
         ${categoryBadgeHTML(post)}
         ${isAdCurrentlyActive(post) ? `<div class="ad-sponsored-label">Sponsored</div>` : ""}
@@ -8475,21 +8518,21 @@ function userPostCardHTML(post) {
           <a class="ad-action-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(post.adButtonText)}</a>
         ` : ""}
         <div class="stat-row">
-          <button class="stat reply" onclick="openPostDetail('${post.id}')">
+          <button class="stat reply" onclick="event.stopPropagation(); openPostDetail('${post.id}')">
             ${replyIcon()}<span class="stat-reply-count">${s.comments.length || ""}</span>
           </button>
-          <button class="stat like ${s.liked ? 'active' : ''}" onclick="toggleUserPostLike('${post.id}')">
+          <button class="stat like ${s.liked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostLike('${post.id}')">
             ${heartIcon(s.liked)}<span class="stat-like-count">${fmt(s.likeCount)}</span>
           </button>
-          <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="toggleUserPostBookmark('${post.id}')">
+          <button class="stat bookmark ${s.bookmarked ? 'active' : ''}" onclick="event.stopPropagation(); toggleUserPostBookmark('${post.id}')">
             ${bookmarkIcon(s.bookmarked)}
           </button>
           ${isAdCurrentlyActive(post) ? "" : `
-          <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="sendUserPostGift('${post.id}')" aria-label="Support creator">
+          <button class="stat gift ${s.gifted ? 'active' : ''}" onclick="event.stopPropagation(); sendUserPostGift('${post.id}')" aria-label="Support creator">
             ${giftIcon(s.gifted)}
           </button>
           `}
-          <button class="stat share" onclick="sharePost('${post.id}', event)" aria-label="Share post">
+          <button class="stat share" onclick="event.stopPropagation(); sharePost('${post.id}', event)" aria-label="Share post">
             ${shareIcon()}
           </button>
         </div>
@@ -12800,32 +12843,83 @@ function attachVideoDwellTrackingToNewCards() {
   });
 }
 
-// Two behaviors for Bunny-hosted video posts (renderVideoPost's
-// [data-bunny-embed] iframes): (1) scrolling a playing video mostly out of
-// view pauses it, (2) playing one pauses whichever other one was playing.
+// Behaviors for Bunny-hosted video posts (renderVideoPost's
+// [data-bunny-embed] iframes):
+//   1. scrolling a playing video mostly out of view pauses it
+//   2. playing one pauses whichever other one was playing
+//   3. if a re-render (render()'s full innerHTML replace, most commonly)
+//      throws away and recreates a video's iframe while it had progressed
+//      partway through, the replacement resumes at that same position,
+//      paused, instead of resetting to 0:00
 // Bunny's player lives in a cross-origin iframe, so the only way to reach
 // into it is player.js's postMessage protocol (playerjs-latest.min.js,
 // loaded in <head>) -- there's no DOM <video> element here to call
-// .pause() on directly.
+// .pause()/.setCurrentTime() on directly.
 //
-// Keyed by the iframe DOM element itself (a WeakMap, so nothing needs
-// cleanup on GC) rather than by post id, since the same post's card can in
-// principle exist in more than one place at once (feed + post-detail view).
-const activeBunnyVideoPlayers = new WeakMap(); // iframe element -> playerjs.Player
+// Everything shared here is keyed by post id, not by the iframe DOM
+// element -- the element itself doesn't survive a re-render, but the post
+// (and the position it had reached) needs to.
+const activeBunnyVideoPlayers = new WeakMap(); // iframe element -> playerjs.Player, for the methods (pause/setCurrentTime) that need a specific instance
+// Split in two, rather than one postId->iframe map, because a post's video
+// can exist in two places in the DOM at once: its feed/profile card (never
+// torn down while post detail is open over it) and its post-detail card.
+// Keeping them apart is what lets closing post detail hand playback back to
+// the exact feed iframe it came from, instead of only being able to reach
+// whichever one mounted most recently.
+const postIdToFeedIframe = new Map();   // post id -> its iframe outside post detail (feed or profile), if any
+const postIdToDetailIframe = new Map(); // post id -> its iframe inside #postDetailPage, if any
+const lastKnownVideoTime = new Map();   // post id -> seconds, kept across re-renders/view-switches so a rebuilt or handed-off iframe can resume instead of restarting
+// The exact iframe instance currently playing (not just "which post" --
+// a post can briefly have two live iframes, feed + detail, and only one of
+// them is ever actually playing at a time). Used both for "pause whichever
+// other video was playing" and for "did *this* iframe specifically scroll
+// out of view".
 let currentlyPlayingVideoIframe = null;
+// Set by openPostDetail()/closePostDetail() for exactly one post id, right
+// before pausing whichever iframe was playing: tells the *next* iframe that
+// mounts for this post (the one about to appear in the view being switched
+// to) to pick up and keep playing from lastKnownVideoTime, instead of just
+// sitting there paused the way a re-render-triggered restore normally
+// would. One-shot -- it's consumed and cleared the first time it's used.
+let resumePlaybackForPostId = null;
 
 function attachBunnyVideoPlayersToNewCards() {
   if (typeof playerjs === "undefined") return; // player.js hasn't loaded yet -- the next render() picks it up
   document.querySelectorAll(".video-post-player[data-bunny-embed]").forEach(iframeEl => {
     if (activeBunnyVideoPlayers.has(iframeEl)) return; // already wired up
+    const card = iframeEl.closest("[data-post-id]");
+    const postId = card ? card.getAttribute("data-post-id") : null;
+    const isInDetailView = !!iframeEl.closest("#postDetailPage");
+    const contextMap = isInDetailView ? postIdToDetailIframe : postIdToFeedIframe;
+
     const player = new playerjs.Player(iframeEl);
     activeBunnyVideoPlayers.set(iframeEl, player);
+    if (postId) contextMap.set(postId, iframeEl);
 
     player.on("ready", () => {
+      // This is a brand-new iframe instance -- either the first time this
+      // post's video has been shown, a re-render replaced an earlier one,
+      // or it just appeared in the view being switched to (post detail
+      // opening/closing). If we've seen this post progress before, land it
+      // back there rather than leaving it at 0:00 -- playing if this is
+      // specifically the view being switched *to*, paused otherwise.
+      if (postId && lastKnownVideoTime.has(postId)) {
+        player.setCurrentTime(lastKnownVideoTime.get(postId));
+        if (postId === resumePlaybackForPostId) {
+          resumePlaybackForPostId = null;
+          player.play();
+        } else {
+          player.pause();
+        }
+      }
+
+      player.on("timeupdate", data => {
+        if (postId && data && typeof data.seconds === "number") lastKnownVideoTime.set(postId, data.seconds);
+      });
       player.on("play", () => {
         if (currentlyPlayingVideoIframe && currentlyPlayingVideoIframe !== iframeEl) {
-          const other = activeBunnyVideoPlayers.get(currentlyPlayingVideoIframe);
-          if (other) other.pause();
+          const otherPlayer = activeBunnyVideoPlayers.get(currentlyPlayingVideoIframe);
+          if (otherPlayer) otherPlayer.pause();
         }
         currentlyPlayingVideoIframe = iframeEl;
       });
@@ -12834,6 +12928,10 @@ function attachBunnyVideoPlayersToNewCards() {
       });
       player.on("ended", () => {
         if (currentlyPlayingVideoIframe === iframeEl) currentlyPlayingVideoIframe = null;
+        // Actually finished, as opposed to interrupted by a re-render or a
+        // feed/detail hand-off -- the next time this post is shown it
+        // should start over, not "resume" right at the very end.
+        if (postId) lastKnownVideoTime.delete(postId);
       });
     });
 
@@ -12849,14 +12947,20 @@ function attachBunnyVideoPlayersToNewCards() {
     }, { threshold: [0, CATEGORY_VISIBILITY_THRESHOLD, 1] });
     observer.observe(iframeEl);
 
-    // render() does a full innerHTML replace of #feed, which throws this
-    // iframe away wholesale rather than removing it via any hook we'd
-    // catch directly -- poll for that the same way attachVideoDwellTracking
-    // already does, so the observer doesn't linger on a detached element.
+    // render() does a full innerHTML replace of #feed (and closing/opening
+    // post detail removes/creates its card), which throws this iframe away
+    // wholesale rather than removing it via any hook we'd catch directly --
+    // poll for that the same way attachVideoDwellTracking already does, so
+    // the observer doesn't linger on a detached element.
     const cleanupInterval = setInterval(() => {
       if (!document.body.contains(iframeEl)) {
         observer.disconnect();
         clearInterval(cleanupInterval);
+        // A re-render (or reopening the same view) can create this post's
+        // replacement iframe before this poll even notices the old one is
+        // gone -- only clear shared state if nothing newer has already
+        // taken its place in this same context.
+        if (postId && contextMap.get(postId) === iframeEl) contextMap.delete(postId);
         if (currentlyPlayingVideoIframe === iframeEl) currentlyPlayingVideoIframe = null;
       }
     }, 3000);
