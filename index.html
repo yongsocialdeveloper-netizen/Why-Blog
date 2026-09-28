@@ -2063,6 +2063,76 @@
   .post-preview { cursor: pointer; }
   .post-preview:active { background: rgba(255,255,255,0.03); }
 
+  /* ---- Full-screen video viewer (tap a video post) ---- */
+  .reels-page {
+    position: fixed; inset: 0; max-width: 600px; margin: 0 auto;
+    background: #000; color: #fff; z-index: 45;
+    transform: translateY(100%); visibility: hidden;
+    transition: transform 0.24s ease, visibility 0s linear 0.24s;
+  }
+  .reels-page.open { transform: translateY(0); visibility: visible; transition: transform 0.24s ease; }
+  .reels-scroller {
+    position: absolute; inset: 0; overflow-y: scroll;
+    scroll-snap-type: y mandatory; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .reels-scroller::-webkit-scrollbar { display: none; }
+  .reel-slide { position: relative; height: 100%; width: 100%; scroll-snap-align: start; scroll-snap-stop: always; background: #000; overflow: hidden; }
+  .reel-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0.6; }
+  .reel-media { position: absolute; inset: 0; }
+  .reel-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; object-fit: contain; }
+  .reel-tap { position: absolute; inset: 0; z-index: 2; -webkit-tap-highlight-color: transparent; }
+  .reel-scrim-top, .reel-scrim-bottom { position: absolute; left: 0; right: 0; z-index: 3; pointer-events: none; }
+  .reel-scrim-top { top: 0; height: 110px; background: linear-gradient(rgba(0,0,0,0.5), transparent); }
+  .reel-scrim-bottom { bottom: 0; height: 50%; background: linear-gradient(transparent, rgba(0,0,0,0.78)); }
+  .reel-pause-ind {
+    position: absolute; left: 50%; top: 50%; width: 68px; height: 68px; margin: -34px 0 0 -34px;
+    border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+    z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.15s ease;
+  }
+  .reel-slide.paused .reel-pause-ind { opacity: 1; }
+  .reels-topbtn {
+    position: absolute; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 12px);
+    width: 42px; height: 42px; border-radius: 50%; border: 0; color: #fff;
+    background: rgba(40,48,56,0.6); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .reels-topbtn.left { left: 12px; }
+  .reels-topbtn.right { right: 12px; }
+  .reel-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 0 14px calc(4px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
+  .reel-info > *, .reel-info button, .reel-info a { pointer-events: auto; }
+  .reel-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .reel-avatar .avatar { width: 40px; height: 40px; font-size: 14px; }
+  .reel-avatar .avatar.has-photo img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .reel-user-text { min-width: 0; cursor: pointer; }
+  .reel-name { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  .reel-handle { font-size: 13px; color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  .reel-star-btn {
+    margin-left: auto; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; color: #fff;
+    font-size: 14px; font-weight: 700; background: rgba(60,68,76,0.75); backdrop-filter: blur(8px); cursor: pointer;
+  }
+  .reel-star-btn.starred { background: var(--accent); }
+  .reel-sponsored { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .reel-caption { font-size: 14.5px; line-height: 1.35; margin-bottom: 10px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; word-break: break-word; cursor: pointer; }
+  .reel-caption.expanded { -webkit-line-clamp: unset; display: block; max-height: 30vh; overflow-y: auto; }
+  .reel-ad-btn { display: inline-block; margin-bottom: 10px; padding: 8px 16px; border-radius: 18px; background: var(--accent); color: #fff; font-weight: 700; font-size: 13.5px; text-decoration: none; }
+  .reel-actions { display: flex; align-items: center; gap: 8px; }
+  .reel-pill {
+    display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 20px; border: 0; color: #fff;
+    background: rgba(40,48,56,0.72); backdrop-filter: blur(8px); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .reel-pill.icon { width: 40px; padding: 0; justify-content: center; }
+  .reel-pill svg { width: 20px; height: 20px; }
+  .reel-pill.like.active { color: #ff3b6b; }
+  .reel-pill.bookmark.active, .reel-pill.gift.active { color: var(--accent); }
+  .reel-bar { height: 24px; margin: 6px -14px 0; display: flex; align-items: center; touch-action: none; cursor: pointer; }
+  .reel-bar-track { height: 3px; width: 100%; background: rgba(255,255,255,0.3); }
+  .reel-bar-fill { height: 100%; width: 0; background: #fff; }
+  .reel-controls { display: flex; align-items: center; gap: 14px; height: 40px; }
+  .reel-ctl { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; background: none; color: #fff; cursor: pointer; padding: 0; }
+  .reel-time { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .reel-controls .spacer { flex: 1; }
+
   .post-detail-page {
     position: fixed;
     inset: 0;
@@ -3389,6 +3459,16 @@
     <div class="profile-posts" id="profilePosts"></div>
   </div>
 
+  <div class="reels-page" id="reelsPage">
+    <div class="reels-scroller" id="reelsScroller"></div>
+    <button class="reels-topbtn left" onclick="closeReels()" aria-label="Back">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </button>
+    <button class="reels-topbtn right" onclick="reelsMore()" aria-label="Post options">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+    </button>
+  </div>
+
   <div class="post-detail-page" id="postDetailPage">
     <div class="bookmarks-header">
       <button class="bookmarks-back" onclick="closePostDetail()" aria-label="Back">
@@ -4313,6 +4393,7 @@ function setProfileBanner(p) {
 function openProfile(id) {
   const p = PROFILES[id];
   if (!p) return;
+  if (reelsOpen) closeReels();
 
   const postDetailPage = document.getElementById("postDetailPage");
   if (postDetailPage.classList.contains("open")) {
@@ -4462,7 +4543,7 @@ function profilePostCardHTML(post, isPinned) {
   if (!s) return "";
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
   return `
-    <article class="post post-preview" data-post-id="${post.id}" onclick="openPostDetail('${post.id}')">
+    <article class="post post-preview" data-post-id="${post.id}" onclick="openPostTap('${post.id}')">
       <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         ${isPinned ? `<div class="post-pinned-label">${pinIcon()} Pinned</div>` : ""}
@@ -4514,9 +4595,375 @@ function findUserPostById(id) {
   return USER_POSTS.find(p => String(p.id) === String(id));
 }
 
+// ---- Full-screen video viewer ---------------------------------------------
+// Tapping a video post's body opens this instead of post detail: a vertical,
+// snap-scrolling feed of video posts (starting with the tapped one, then the
+// rest in feed order) that autoplays whichever slide is on screen. Only the
+// active slide and its immediate neighbours have a live player -- the rest
+// are just posters -- so memory/bandwidth stay flat however long the list is.
+// The comment button opens the normal post detail page over it.
+let reelsOpen = false;
+let reelsList = [];
+let reelsActiveId = null;
+let reelsMuted = false;
+let reelsObserver = null;
+let reelsScrubbing = false;
+let reelsCloseToken = 0;
+const reelsSlides = new Map(); // post id (string) -> slide state
+
+function isReelPost(p) { return !!p && p.type === "video" && !!p.videoUrl && !!userPostState[p.id]; }
+
+function openPostTap(id) {
+  const post = findUserPostById(id);
+  if (isReelPost(post)) openReels(id); else openPostDetail(id);
+}
+
+function reelFmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+
+function reelSlideHTML(post) {
+  const id = String(post.id);
+  const s = userPostState[post.id];
+  const ad = isAdCurrentlyActive(post);
+  const isOwn = telegramUser && String(post.userId) === String(telegramUser.id);
+  const prof = PROFILES[post.profileId];
+  const canStar = !isOwn && prof && prof.telegramId !== null && prof.telegramId !== undefined;
+  return `
+    <section class="reel-slide" data-reel-id="${id}">
+      ${post.image ? `<img class="reel-poster" src="${escapeAttr(post.image)}" alt="" />` : ""}
+      <div class="reel-media"></div>
+      <div class="reel-tap" onclick="reelTap('${id}')"></div>
+      <div class="reel-scrim-top"></div>
+      <div class="reel-scrim-bottom"></div>
+      <div class="reel-pause-ind"><svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="reel-info">
+        <div class="reel-user">
+          <div class="reel-avatar" onclick="reelOpenProfile('${id}')">${avatarMarkup(post, "avatar", post.color)}</div>
+          <div class="reel-user-text" onclick="reelOpenProfile('${id}')">
+            <div class="reel-name"><span>${escapeHtml(post.name || "Telegram user")}</span>${inlineVerifiedBadge(post.userId)}</div>
+            ${post.username ? `<div class="reel-handle">@${escapeHtml(post.username)}</div>` : ""}
+          </div>
+          ${canStar ? `<button class="reel-star-btn" onclick="reelStar('${id}')"></button>` : ""}
+        </div>
+        ${ad ? `<div class="reel-sponsored">Sponsored</div>` : ""}
+        ${post.text ? `<div class="reel-caption" onclick="this.classList.toggle('expanded')">${escapeHtml(post.text)}</div>` : ""}
+        ${ad && post.adButtonText && post.adButtonUrl ? `<a class="reel-ad-btn" href="${escapeAttr(post.adButtonUrl)}" target="_blank" rel="noopener">${escapeHtml(post.adButtonText)}</a>` : ""}
+        <div class="reel-actions">
+          <button class="reel-pill reel-comment" onclick="reelComments('${id}')" aria-label="Comments"></button>
+          <button class="reel-pill reel-like like" onclick="reelLike('${id}')" aria-label="Like"></button>
+          <button class="reel-pill icon reel-bookmark bookmark" onclick="reelBookmark('${id}')" aria-label="Bookmark"></button>
+          ${ad ? "" : `<button class="reel-pill icon reel-gift gift" onclick="reelGift('${id}')" aria-label="Support creator"></button>`}
+          <button class="reel-pill icon" onclick="sharePost('${id}', event)" aria-label="Share">${shareIcon()}</button>
+        </div>
+        <div class="reel-bar" onpointerdown="reelBarDown(event,'${id}')" onpointermove="reelBarMove(event,'${id}')" onpointerup="reelBarUp(event)" onpointercancel="reelBarUp(event)">
+          <div class="reel-bar-track"><div class="reel-bar-fill"></div></div>
+        </div>
+        <div class="reel-controls">
+          <button class="reel-ctl reel-playbtn" onclick="reelTap('${id}')" aria-label="Play or pause"></button>
+          <span class="reel-time">-0:00</span>
+          <span class="spacer"></span>
+          <button class="reel-ctl reel-mutebtn" onclick="reelToggleMute()" aria-label="Sound"></button>
+        </div>
+      </div>
+    </section>`;
+}
+
+function openReels(id) {
+  const start = findUserPostById(id);
+  if (!isReelPost(start)) return;
+
+  // Silence whatever feed video is playing before this takes over.
+  if (currentlyPlayingVideoIframe) {
+    const pl = activeBunnyVideoPlayers.get(currentlyPlayingVideoIframe);
+    if (pl) pl.pause();
+  }
+  document.querySelectorAll("video").forEach(v => { try { v.pause(); } catch (e) {} });
+
+  const source = (currentRankedFeedPosts && currentRankedFeedPosts.length) ? currentRankedFeedPosts : USER_POSTS;
+  const startIdx = source.findIndex(p => String(p.id) === String(start.id));
+  const after = (startIdx >= 0 ? source.slice(startIdx + 1) : source).filter(isReelPost);
+  const before = (startIdx >= 0 ? source.slice(0, startIdx) : []).filter(isReelPost);
+  const seen = new Set();
+  reelsList = [start, ...after, ...before].filter(p => {
+    const k = String(p.id);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, 60);
+
+  reelsCloseToken++;
+  reelsSlides.clear();
+  reelsActiveId = null;
+  const scroller = document.getElementById("reelsScroller");
+  scroller.innerHTML = reelsList.map(reelSlideHTML).join("");
+  scroller.scrollTop = 0;
+  scroller.querySelectorAll(".reel-slide").forEach(el => {
+    const key = el.getAttribute("data-reel-id");
+    reelsSlides.set(key, {
+      id: key, post: findUserPostById(key), el, media: el.querySelector(".reel-media"),
+      mounted: false, ready: false, wantPlay: false, userPaused: false, playing: false,
+      kind: null, player: null, video: null, time: 0, dur: 0
+    });
+  });
+
+  if (reelsObserver) reelsObserver.disconnect();
+  reelsObserver = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting && en.intersectionRatio >= 0.6) reelActivate(en.target.getAttribute("data-reel-id"));
+    });
+  }, { root: scroller, threshold: [0.6] });
+  scroller.querySelectorAll(".reel-slide").forEach(el => reelsObserver.observe(el));
+
+  reelsOpen = true;
+  document.getElementById("reelsPage").classList.add("open");
+  syncReelsActions();
+  reelActivate(String(start.id));
+  syncBackButton();
+}
+
+function closeReels() {
+  if (!reelsOpen) return;
+  reelsOpen = false;
+  if (reelsObserver) { reelsObserver.disconnect(); reelsObserver = null; }
+  reelsSlides.forEach((st, id) => reelUnmount(id)); // kills audio right away
+  document.getElementById("reelsPage").classList.remove("open");
+  syncBackButton();
+  const token = ++reelsCloseToken;
+  setTimeout(() => {
+    if (token !== reelsCloseToken) return; // reopened in the meantime
+    document.getElementById("reelsScroller").innerHTML = "";
+    reelsSlides.clear();
+    reelsList = [];
+    reelsActiveId = null;
+  }, 300);
+}
+
+function reelMount(id) {
+  const st = reelsSlides.get(id);
+  if (!st || st.mounted) return;
+  st.mounted = true;
+  st.time = 0;
+  const post = st.post;
+  const isActive = id === reelsActiveId;
+  if (post.videoUrl.indexOf("iframe.mediadelivery.net") !== -1) {
+    st.kind = "bunny";
+    const f = document.createElement("iframe");
+    f.className = "reel-frame";
+    f.allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;";
+    f.setAttribute("allowfullscreen", "");
+    f.setAttribute("frameborder", "0");
+    const q = "autoplay=" + (isActive ? "true" : "false") + "&loop=true&preload=true&playsinline=true&muted=" + (reelsMuted ? "true" : "false");
+    f.src = post.videoUrl + (post.videoUrl.indexOf("?") === -1 ? "?" : "&") + q;
+    st.media.appendChild(f);
+    if (typeof playerjs !== "undefined") {
+      const pl = new playerjs.Player(f);
+      st.player = pl;
+      pl.on("ready", () => {
+        if (st.player !== pl) return; // unmounted meanwhile
+        st.ready = true;
+        if (reelsMuted) pl.mute(); else pl.unmute();
+        pl.on("timeupdate", d => {
+          if (!d || typeof d.seconds !== "number") return;
+          st.time = d.seconds;
+          if (d.duration) st.dur = d.duration;
+          if (id === reelsActiveId) reelUpdateProgress(st);
+        });
+        pl.on("play", () => { st.playing = true; if (id === reelsActiveId) reelUpdatePlayState(st); });
+        pl.on("pause", () => { st.playing = false; if (id === reelsActiveId) reelUpdatePlayState(st); });
+        pl.getDuration(d => { if (d) { st.dur = d; if (id === reelsActiveId) reelUpdateProgress(st); } });
+        if (st.wantPlay) reelPlay(st); else pl.pause();
+      });
+    }
+  } else {
+    st.kind = "video";
+    const v = document.createElement("video");
+    v.className = "reel-frame";
+    v.playsInline = true;
+    v.loop = true;
+    v.preload = "auto";
+    v.muted = reelsMuted;
+    if (post.image) v.poster = post.image;
+    v.src = post.videoUrl;
+    v.addEventListener("timeupdate", () => {
+      st.time = v.currentTime;
+      if (v.duration && isFinite(v.duration)) st.dur = v.duration;
+      if (id === reelsActiveId) reelUpdateProgress(st);
+    });
+    v.addEventListener("play", () => { st.playing = true; if (id === reelsActiveId) reelUpdatePlayState(st); });
+    v.addEventListener("pause", () => { st.playing = false; if (id === reelsActiveId) reelUpdatePlayState(st); });
+    st.media.appendChild(v);
+    st.video = v;
+    st.ready = true;
+    if (st.wantPlay) reelPlay(st);
+  }
+}
+
+function reelUnmount(id) {
+  const st = reelsSlides.get(id);
+  if (!st || !st.mounted) return;
+  if (st.video) { try { st.video.pause(); st.video.removeAttribute("src"); st.video.load(); } catch (e) {} }
+  st.media.innerHTML = "";
+  st.mounted = false; st.ready = false; st.player = null; st.video = null;
+  st.playing = false; st.wantPlay = false; st.time = 0;
+}
+
+function reelPlay(st) {
+  st.wantPlay = true;
+  if (!st.mounted || !st.ready) return; // starts as soon as the player reports ready
+  if (st.kind === "bunny" && st.player) {
+    const pl = st.player;
+    pl.play();
+    // Sound-on autoplay can be refused; fall back to muted rather than sitting frozen.
+    setTimeout(() => {
+      if (!st.wantPlay || st.player !== pl) return;
+      pl.getPaused(paused => {
+        if (paused && st.wantPlay && st.player === pl) {
+          reelsMuted = true; pl.mute(); reelUpdateMute(); pl.play();
+        }
+      });
+    }, 900);
+  } else if (st.video) {
+    const pr = st.video.play();
+    if (pr && pr.catch) pr.catch(() => {
+      reelsMuted = true; st.video.muted = true; reelUpdateMute();
+      st.video.play().catch(() => {});
+    });
+  }
+}
+
+function reelPause(st) {
+  st.wantPlay = false;
+  if (!st.mounted || !st.ready) return;
+  if (st.kind === "bunny" && st.player) st.player.pause();
+  else if (st.video) st.video.pause();
+}
+
+function reelSeek(st, t) {
+  if (!st.mounted || !st.ready) return;
+  if (st.kind === "bunny" && st.player) st.player.setCurrentTime(t);
+  else if (st.video) st.video.currentTime = t;
+}
+
+function reelActivate(id) {
+  if (!reelsOpen || id === reelsActiveId || !reelsSlides.has(id)) return;
+  const prev = reelsSlides.get(reelsActiveId);
+  if (prev) reelPause(prev);
+  reelsActiveId = id;
+  const idx = reelsList.findIndex(p => String(p.id) === id);
+  reelsList.forEach((p, i) => {
+    const k = String(p.id);
+    if (Math.abs(i - idx) <= 1) reelMount(k); else reelUnmount(k);
+  });
+  const st = reelsSlides.get(id);
+  st.userPaused = false;
+  reelPlay(st);
+  reelUpdateProgress(st);
+  reelUpdatePlayState(st);
+  reelUpdateMute();
+  markPostsSeen([st.post]);
+}
+
+function reelTap(id) {
+  const st = reelsSlides.get(id);
+  if (!st) return;
+  haptic("light");
+  if (st.wantPlay) { st.userPaused = true; reelPause(st); }
+  else { st.userPaused = false; reelPlay(st); }
+  reelUpdatePlayState(st);
+}
+
+function reelUpdatePlayState(st) {
+  const paused = !st.wantPlay;
+  st.el.classList.toggle("paused", paused);
+  const btn = st.el.querySelector(".reel-playbtn");
+  if (btn) btn.innerHTML = paused
+    ? `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
+    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1"/><rect x="13.8" y="5" width="4.2" height="14" rx="1"/></svg>`;
+}
+
+function reelUpdateProgress(st) {
+  const fill = st.el.querySelector(".reel-bar-fill");
+  const label = st.el.querySelector(".reel-time");
+  const ratio = st.dur ? Math.min(1, st.time / st.dur) : 0;
+  if (fill) fill.style.width = (ratio * 100) + "%";
+  if (label) label.textContent = "-" + reelFmtTime(st.dur ? st.dur - st.time : 0);
+}
+
+function reelUpdateMute() {
+  const icon = reelsMuted
+    ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>`
+    : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/></svg>`;
+  reelsSlides.forEach(st => { const b = st.el.querySelector(".reel-mutebtn"); if (b) b.innerHTML = icon; });
+}
+
+function reelToggleMute() {
+  reelsMuted = !reelsMuted;
+  haptic("light");
+  reelsSlides.forEach(st => {
+    if (!st.mounted || !st.ready) return;
+    if (st.kind === "bunny" && st.player) { if (reelsMuted) st.player.mute(); else st.player.unmute(); }
+    else if (st.video) st.video.muted = reelsMuted;
+  });
+  reelUpdateMute();
+}
+
+function reelBarSeekFromEvent(e, id) {
+  const st = reelsSlides.get(id);
+  if (!st || !st.dur) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  st.time = ratio * st.dur;
+  reelSeek(st, st.time);
+  reelUpdateProgress(st);
+}
+function reelBarDown(e, id) { reelsScrubbing = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} reelBarSeekFromEvent(e, id); }
+function reelBarMove(e, id) { if (reelsScrubbing) reelBarSeekFromEvent(e, id); }
+function reelBarUp(e) { reelsScrubbing = false; }
+
+function syncReelsActions() {
+  reelsSlides.forEach((st, id) => {
+    const s = userPostState[id];
+    if (!s) return;
+    const q = sel => st.el.querySelector(sel);
+    const c = q(".reel-comment"); if (c) c.innerHTML = replyIcon() + (s.comments.length ? `<span>${fmt(s.comments.length)}</span>` : "");
+    const l = q(".reel-like"); if (l) { l.classList.toggle("active", !!s.liked); l.innerHTML = heartIcon(!!s.liked) + `<span>${fmt(s.likeCount)}</span>`; }
+    const b = q(".reel-bookmark"); if (b) { b.classList.toggle("active", !!s.bookmarked); b.innerHTML = bookmarkIcon(!!s.bookmarked); }
+    const g = q(".reel-gift"); if (g) { g.classList.toggle("active", !!s.gifted); g.innerHTML = giftIcon(!!s.gifted); }
+    const sb = q(".reel-star-btn");
+    if (sb) {
+      const prof = PROFILES[st.post.profileId];
+      const starred = !!prof && myStarredIds.has(String(prof.telegramId));
+      sb.classList.toggle("starred", starred);
+      sb.textContent = starred ? "Starred" : "Star";
+    }
+  });
+}
+
+function reelLike(id) { toggleUserPostLike(id); syncReelsActions(); }
+function reelBookmark(id) { toggleUserPostBookmark(id); syncReelsActions(); }
+function reelGift(id) { sendUserPostGift(id); }
+function reelStar(id) { const st = reelsSlides.get(id); if (!st) return; toggleStar(st.post.profileId); syncReelsActions(); }
+function reelComments(id) { openPostDetail(id); }
+function reelOpenProfile(id) { const st = reelsSlides.get(id); if (!st) return; const pid = st.post.profileId; closeReels(); openProfile(pid); }
+function reelsMore() { if (reelsActiveId) openPostOptions(reelsActiveId); }
+
+// Post detail (comments) opens over the viewer: hold playback while it's up,
+// and pick it back up on return unless the person had paused it themselves.
+function reelsSuspend(on) {
+  if (!reelsOpen) return;
+  const st = reelsSlides.get(reelsActiveId);
+  if (!st) return;
+  if (on) reelPause(st);
+  else if (!st.userPaused) reelPlay(st);
+  reelUpdatePlayState(st);
+}
+
 function openPostDetail(id) {
   const post = findUserPostById(id);
   if (!post || !userPostState[post.id]) return;
+  if (reelsOpen) reelsSuspend(true);
 
   // Without this, a playing video kept running unseen behind the feed
   // (still using bandwidth/battery, its audio still mixed in) while the
@@ -4567,6 +5014,7 @@ function closePostDetail() {
   document.getElementById("postDetailPage").classList.remove("open");
   currentPostDetailId = null;
   syncBackButton();
+  if (reelsOpen) reelsSuspend(false);
 }
 
 function renderPostDetail() {
@@ -8499,7 +8947,7 @@ function userPostCardHTML(post) {
   const isOwnPost = telegramUser && String(post.userId) === String(telegramUser.id);
 
   return `
-    <article class="post" data-post-id="${post.id}" onclick="openPostDetail('${post.id}')">
+    <article class="post" data-post-id="${post.id}" onclick="openPostTap('${post.id}')">
       <div onclick="event.stopPropagation(); openProfile('${post.profileId}')">${avatarMarkup(post, "avatar", post.color)}</div>
       <div class="post-body">
         <div class="post-meta">
@@ -11396,6 +11844,7 @@ function anyOverlayOpen() {
     || document.getElementById("inviteModal").classList.contains("open")
     || document.getElementById("profilePage").classList.contains("open")
     || document.getElementById("postDetailPage").classList.contains("open")
+    || document.getElementById("reelsPage").classList.contains("open")
     || document.getElementById("bookmarksPage").classList.contains("open")
     || document.getElementById("starrersPage").classList.contains("open")
     || document.getElementById("editProfileSheet").classList.contains("open")
@@ -11469,6 +11918,8 @@ function closeTopOverlay() {
     closeStarrersPage();
   } else if (document.getElementById("postDetailPage").classList.contains("open")) {
     closePostDetail();
+  } else if (document.getElementById("reelsPage").classList.contains("open")) {
+    closeReels();
   } else if (document.getElementById("bookmarksPage").classList.contains("open")) {
     closeBookmarksPage();
   } else if (document.getElementById("profilePage").classList.contains("open")) {
@@ -13340,6 +13791,7 @@ async function loadOlderFeedPosts() {
 }
 
 function render() {
+  if (reelsOpen) syncReelsActions();
   const feed = document.getElementById("feed");
   const isStarsFeed = activeFeedTab === "stars";
   const isOffInterestFeed = activeFeedTab === "offinterest";
