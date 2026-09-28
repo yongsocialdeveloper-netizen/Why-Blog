@@ -9,6 +9,9 @@
 <link rel="apple-touch-icon" href="https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- Lets us play()/pause() the Bunny Stream iframe player from outside it --
+     it's the only way in, since it's a cross-origin iframe, not a <video> tag. -->
+<script src="https://assets.mediadelivery.net/playerjs/playerjs-latest.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
@@ -4531,6 +4534,7 @@ function renderPostDetail() {
   body.innerHTML = postDetailCardHTML(post);
   replyBar.innerHTML = postDetailReplyBarHTML(post);
   attachVideoDwellTrackingToNewCards();
+  attachBunnyVideoPlayersToNewCards();
   attachMentionAutocomplete(document.getElementById(`detail-upinput-${post.id}`));
 }
 
@@ -8411,7 +8415,7 @@ function renderVideoPost(post) {
   // Supabase-storage pipeline keeps working via the plain <video> tag.
   if (post.videoUrl.indexOf("iframe.mediadelivery.net") !== -1) {
     return `<div class="video-post-wrap">
-        <iframe class="video-post-player" src="${escapeAttr(post.videoUrl)}"
+        <iframe class="video-post-player" data-bunny-embed src="${escapeAttr(post.videoUrl)}"
           loading="lazy" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
           allowfullscreen frameborder="0"
           onclick="event.stopPropagation()"></iframe>
@@ -8437,6 +8441,7 @@ function patchVisiblePostVideo(postId) {
   document.querySelectorAll(`[data-post-id="${postId}"] .post-embed-slot`).forEach(slot => {
     slot.innerHTML = renderVideoPost(post);
   });
+  attachBunnyVideoPlayersToNewCards(); // this can introduce a brand-new Bunny iframe without going through render()
 }
 
 function markPostVideoFailed(postId) {
@@ -12795,6 +12800,69 @@ function attachVideoDwellTrackingToNewCards() {
   });
 }
 
+// Two behaviors for Bunny-hosted video posts (renderVideoPost's
+// [data-bunny-embed] iframes): (1) scrolling a playing video mostly out of
+// view pauses it, (2) playing one pauses whichever other one was playing.
+// Bunny's player lives in a cross-origin iframe, so the only way to reach
+// into it is player.js's postMessage protocol (playerjs-latest.min.js,
+// loaded in <head>) -- there's no DOM <video> element here to call
+// .pause() on directly.
+//
+// Keyed by the iframe DOM element itself (a WeakMap, so nothing needs
+// cleanup on GC) rather than by post id, since the same post's card can in
+// principle exist in more than one place at once (feed + post-detail view).
+const activeBunnyVideoPlayers = new WeakMap(); // iframe element -> playerjs.Player
+let currentlyPlayingVideoIframe = null;
+
+function attachBunnyVideoPlayersToNewCards() {
+  if (typeof playerjs === "undefined") return; // player.js hasn't loaded yet -- the next render() picks it up
+  document.querySelectorAll(".video-post-player[data-bunny-embed]").forEach(iframeEl => {
+    if (activeBunnyVideoPlayers.has(iframeEl)) return; // already wired up
+    const player = new playerjs.Player(iframeEl);
+    activeBunnyVideoPlayers.set(iframeEl, player);
+
+    player.on("ready", () => {
+      player.on("play", () => {
+        if (currentlyPlayingVideoIframe && currentlyPlayingVideoIframe !== iframeEl) {
+          const other = activeBunnyVideoPlayers.get(currentlyPlayingVideoIframe);
+          if (other) other.pause();
+        }
+        currentlyPlayingVideoIframe = iframeEl;
+      });
+      player.on("pause", () => {
+        if (currentlyPlayingVideoIframe === iframeEl) currentlyPlayingVideoIframe = null;
+      });
+      player.on("ended", () => {
+        if (currentlyPlayingVideoIframe === iframeEl) currentlyPlayingVideoIframe = null;
+      });
+    });
+
+    // Same visibility threshold as attachVideoDwellTracking above, so a
+    // video counts as "scrolled past" at the same point dwell time would
+    // stop accruing for it.
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.intersectionRatio < CATEGORY_VISIBILITY_THRESHOLD && currentlyPlayingVideoIframe === iframeEl) {
+          player.pause();
+        }
+      });
+    }, { threshold: [0, CATEGORY_VISIBILITY_THRESHOLD, 1] });
+    observer.observe(iframeEl);
+
+    // render() does a full innerHTML replace of #feed, which throws this
+    // iframe away wholesale rather than removing it via any hook we'd
+    // catch directly -- poll for that the same way attachVideoDwellTracking
+    // already does, so the observer doesn't linger on a detached element.
+    const cleanupInterval = setInterval(() => {
+      if (!document.body.contains(iframeEl)) {
+        observer.disconnect();
+        clearInterval(cleanupInterval);
+        if (currentlyPlayingVideoIframe === iframeEl) currentlyPlayingVideoIframe = null;
+      }
+    }, 3000);
+  });
+}
+
 function commentVideoHTML() {
   const category = weightedRandomCategory();
   const dwellId = `cv-${++videoDwellCounter}`;
@@ -13067,6 +13135,7 @@ function loadMoreFeedPosts() {
     }
 
     attachVideoDwellTrackingToNewCards();
+  attachBunnyVideoPlayersToNewCards();
     setupFeedInfiniteScroll();
     feedIsLoadingMore = false;
   }, 300);
@@ -13198,6 +13267,7 @@ function render() {
   feed.innerHTML = feedHtml + feedTailHTML(feedPosts.length);
 
   attachVideoDwellTrackingToNewCards();
+  attachBunnyVideoPlayersToNewCards();
   setupFeedInfiniteScroll();
 
   if (document.getElementById("profilePage").classList.contains("open")) {
