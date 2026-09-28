@@ -2081,16 +2081,10 @@
   .reel-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0.6; }
   .reel-media { position: absolute; inset: 0; }
   .reel-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; object-fit: contain; }
-  .reel-tap { position: absolute; inset: 0; z-index: 2; -webkit-tap-highlight-color: transparent; }
+  .reel-tap { position: absolute; left: 0; right: 0; top: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 2; -webkit-tap-highlight-color: transparent; }
   .reel-scrim-top, .reel-scrim-bottom { position: absolute; left: 0; right: 0; z-index: 3; pointer-events: none; }
   .reel-scrim-top { top: 0; height: 110px; background: linear-gradient(rgba(0,0,0,0.5), transparent); }
-  .reel-scrim-bottom { bottom: 0; height: 50%; background: linear-gradient(transparent, rgba(0,0,0,0.78)); }
-  .reel-pause-ind {
-    position: absolute; left: 50%; top: 50%; width: 68px; height: 68px; margin: -34px 0 0 -34px;
-    border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
-    z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.15s ease;
-  }
-  .reel-slide.paused .reel-pause-ind { opacity: 1; }
+  .reel-scrim-bottom { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); height: 45%; background: linear-gradient(transparent, rgba(0,0,0,0.78)); }
   .reels-topbtn {
     position: absolute; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 12px);
     width: 42px; height: 42px; border-radius: 50%; border: 0; color: #fff;
@@ -2099,7 +2093,7 @@
   }
   .reels-topbtn.left { left: 12px; }
   .reels-topbtn.right { right: 12px; }
-  .reel-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 0 14px calc(4px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
+  .reel-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 0 14px calc(68px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
   .reel-info > *, .reel-info button, .reel-info a { pointer-events: auto; }
   .reel-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .reel-avatar .avatar { width: 40px; height: 40px; font-size: 14px; }
@@ -2125,13 +2119,6 @@
   .reel-pill svg { width: 20px; height: 20px; }
   .reel-pill.like.active { color: #ff3b6b; }
   .reel-pill.bookmark.active, .reel-pill.gift.active { color: var(--accent); }
-  .reel-bar { height: 24px; margin: 6px -14px 0; display: flex; align-items: center; touch-action: none; cursor: pointer; }
-  .reel-bar-track { height: 3px; width: 100%; background: rgba(255,255,255,0.3); }
-  .reel-bar-fill { height: 100%; width: 0; background: #fff; }
-  .reel-controls { display: flex; align-items: center; gap: 14px; height: 40px; }
-  .reel-ctl { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; background: none; color: #fff; cursor: pointer; padding: 0; }
-  .reel-time { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .reel-controls .spacer { flex: 1; }
 
   .post-detail-page {
     position: fixed;
@@ -4607,7 +4594,6 @@ let reelsList = [];
 let reelsActiveId = null;
 let reelsMuted = false;
 let reelsObserver = null;
-let reelsScrubbing = false;
 let reelsCloseToken = 0;
 const reelsSlides = new Map(); // post id (string) -> slide state
 
@@ -4616,11 +4602,6 @@ function isReelPost(p) { return !!p && p.type === "video" && !!p.videoUrl && !!u
 function openPostTap(id) {
   const post = findUserPostById(id);
   if (isReelPost(post)) openReels(id); else openPostDetail(id);
-}
-
-function reelFmtTime(sec) {
-  sec = Math.max(0, Math.floor(sec || 0));
-  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
 }
 
 function reelSlideHTML(post) {
@@ -4637,7 +4618,6 @@ function reelSlideHTML(post) {
       <div class="reel-tap" onclick="reelTap('${id}')"></div>
       <div class="reel-scrim-top"></div>
       <div class="reel-scrim-bottom"></div>
-      <div class="reel-pause-ind"><svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
       <div class="reel-info">
         <div class="reel-user">
           <div class="reel-avatar" onclick="reelOpenProfile('${id}')">${avatarMarkup(post, "avatar", post.color)}</div>
@@ -4656,15 +4636,6 @@ function reelSlideHTML(post) {
           <button class="reel-pill icon reel-bookmark bookmark" onclick="reelBookmark('${id}')" aria-label="Bookmark"></button>
           ${ad ? "" : `<button class="reel-pill icon reel-gift gift" onclick="reelGift('${id}')" aria-label="Support creator"></button>`}
           <button class="reel-pill icon" onclick="sharePost('${id}', event)" aria-label="Share">${shareIcon()}</button>
-        </div>
-        <div class="reel-bar" onpointerdown="reelBarDown(event,'${id}')" onpointermove="reelBarMove(event,'${id}')" onpointerup="reelBarUp(event)" onpointercancel="reelBarUp(event)">
-          <div class="reel-bar-track"><div class="reel-bar-fill"></div></div>
-        </div>
-        <div class="reel-controls">
-          <button class="reel-ctl reel-playbtn" onclick="reelTap('${id}')" aria-label="Play or pause"></button>
-          <span class="reel-time">-0:00</span>
-          <span class="spacer"></span>
-          <button class="reel-ctl reel-mutebtn" onclick="reelToggleMute()" aria-label="Sound"></button>
         </div>
       </div>
     </section>`;
@@ -4704,7 +4675,7 @@ function openReels(id) {
     reelsSlides.set(key, {
       id: key, post: findUserPostById(key), el, media: el.querySelector(".reel-media"),
       mounted: false, ready: false, wantPlay: false, userPaused: false, playing: false,
-      kind: null, player: null, video: null, time: 0, dur: 0
+      kind: null, player: null, video: null
     });
   });
 
@@ -4744,7 +4715,6 @@ function reelMount(id) {
   const st = reelsSlides.get(id);
   if (!st || st.mounted) return;
   st.mounted = true;
-  st.time = 0;
   const post = st.post;
   const isActive = id === reelsActiveId;
   if (post.videoUrl.indexOf("iframe.mediadelivery.net") !== -1) {
@@ -4754,7 +4724,7 @@ function reelMount(id) {
     f.allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;";
     f.setAttribute("allowfullscreen", "");
     f.setAttribute("frameborder", "0");
-    const q = "autoplay=" + (isActive ? "true" : "false") + "&loop=true&preload=true&playsinline=true&muted=" + (reelsMuted ? "true" : "false");
+    const q = "autoplay=" + (isActive ? "true" : "false") + "&loop=true&preload=true&playsinline=true&controls=true&muted=" + (reelsMuted ? "true" : "false");
     f.src = post.videoUrl + (post.videoUrl.indexOf("?") === -1 ? "?" : "&") + q;
     st.media.appendChild(f);
     if (typeof playerjs !== "undefined") {
@@ -4764,15 +4734,8 @@ function reelMount(id) {
         if (st.player !== pl) return; // unmounted meanwhile
         st.ready = true;
         if (reelsMuted) pl.mute(); else pl.unmute();
-        pl.on("timeupdate", d => {
-          if (!d || typeof d.seconds !== "number") return;
-          st.time = d.seconds;
-          if (d.duration) st.dur = d.duration;
-          if (id === reelsActiveId) reelUpdateProgress(st);
-        });
-        pl.on("play", () => { st.playing = true; if (id === reelsActiveId) reelUpdatePlayState(st); });
-        pl.on("pause", () => { st.playing = false; if (id === reelsActiveId) reelUpdatePlayState(st); });
-        pl.getDuration(d => { if (d) { st.dur = d; if (id === reelsActiveId) reelUpdateProgress(st); } });
+        pl.on("play", () => { st.playing = true; });
+        pl.on("pause", () => { st.playing = false; });
         if (st.wantPlay) reelPlay(st); else pl.pause();
       });
     }
@@ -4783,16 +4746,12 @@ function reelMount(id) {
     v.playsInline = true;
     v.loop = true;
     v.preload = "auto";
+    v.controls = true;
     v.muted = reelsMuted;
     if (post.image) v.poster = post.image;
     v.src = post.videoUrl;
-    v.addEventListener("timeupdate", () => {
-      st.time = v.currentTime;
-      if (v.duration && isFinite(v.duration)) st.dur = v.duration;
-      if (id === reelsActiveId) reelUpdateProgress(st);
-    });
-    v.addEventListener("play", () => { st.playing = true; if (id === reelsActiveId) reelUpdatePlayState(st); });
-    v.addEventListener("pause", () => { st.playing = false; if (id === reelsActiveId) reelUpdatePlayState(st); });
+    v.addEventListener("play", () => { st.playing = true; });
+    v.addEventListener("pause", () => { st.playing = false; });
     st.media.appendChild(v);
     st.video = v;
     st.ready = true;
@@ -4806,7 +4765,7 @@ function reelUnmount(id) {
   if (st.video) { try { st.video.pause(); st.video.removeAttribute("src"); st.video.load(); } catch (e) {} }
   st.media.innerHTML = "";
   st.mounted = false; st.ready = false; st.player = null; st.video = null;
-  st.playing = false; st.wantPlay = false; st.time = 0;
+  st.playing = false; st.wantPlay = false;
 }
 
 function reelPlay(st) {
@@ -4820,14 +4779,14 @@ function reelPlay(st) {
       if (!st.wantPlay || st.player !== pl) return;
       pl.getPaused(paused => {
         if (paused && st.wantPlay && st.player === pl) {
-          reelsMuted = true; pl.mute(); reelUpdateMute(); pl.play();
+          reelsMuted = true; pl.mute(); pl.play();
         }
       });
     }, 900);
   } else if (st.video) {
     const pr = st.video.play();
     if (pr && pr.catch) pr.catch(() => {
-      reelsMuted = true; st.video.muted = true; reelUpdateMute();
+      reelsMuted = true; st.video.muted = true;
       st.video.play().catch(() => {});
     });
   }
@@ -4840,16 +4799,16 @@ function reelPause(st) {
   else if (st.video) st.video.pause();
 }
 
-function reelSeek(st, t) {
-  if (!st.mounted || !st.ready) return;
-  if (st.kind === "bunny" && st.player) st.player.setCurrentTime(t);
-  else if (st.video) st.video.currentTime = t;
-}
-
 function reelActivate(id) {
   if (!reelsOpen || id === reelsActiveId || !reelsSlides.has(id)) return;
   const prev = reelsSlides.get(reelsActiveId);
-  if (prev) reelPause(prev);
+  if (prev) {
+    // Sound is toggled in Bunny's own controls now -- read it back so the
+    // next video keeps the same choice.
+    if (prev.kind === "bunny" && prev.player && prev.ready) prev.player.getMuted(m => { if (typeof m === "boolean") reelApplyMuted(m); });
+    else if (prev.video) reelApplyMuted(prev.video.muted);
+    reelPause(prev);
+  }
   reelsActiveId = id;
   const idx = reelsList.findIndex(p => String(p.id) === id);
   reelsList.forEach((p, i) => {
@@ -4859,9 +4818,6 @@ function reelActivate(id) {
   const st = reelsSlides.get(id);
   st.userPaused = false;
   reelPlay(st);
-  reelUpdateProgress(st);
-  reelUpdatePlayState(st);
-  reelUpdateMute();
   markPostsSeen([st.post]);
 }
 
@@ -4871,56 +4827,17 @@ function reelTap(id) {
   haptic("light");
   if (st.wantPlay) { st.userPaused = true; reelPause(st); }
   else { st.userPaused = false; reelPlay(st); }
-  reelUpdatePlayState(st);
 }
 
-function reelUpdatePlayState(st) {
-  const paused = !st.wantPlay;
-  st.el.classList.toggle("paused", paused);
-  const btn = st.el.querySelector(".reel-playbtn");
-  if (btn) btn.innerHTML = paused
-    ? `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
-    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1"/><rect x="13.8" y="5" width="4.2" height="14" rx="1"/></svg>`;
-}
-
-function reelUpdateProgress(st) {
-  const fill = st.el.querySelector(".reel-bar-fill");
-  const label = st.el.querySelector(".reel-time");
-  const ratio = st.dur ? Math.min(1, st.time / st.dur) : 0;
-  if (fill) fill.style.width = (ratio * 100) + "%";
-  if (label) label.textContent = "-" + reelFmtTime(st.dur ? st.dur - st.time : 0);
-}
-
-function reelUpdateMute() {
-  const icon = reelsMuted
-    ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>`
-    : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/></svg>`;
-  reelsSlides.forEach(st => { const b = st.el.querySelector(".reel-mutebtn"); if (b) b.innerHTML = icon; });
-}
-
-function reelToggleMute() {
-  reelsMuted = !reelsMuted;
-  haptic("light");
+function reelApplyMuted(m) {
+  if (m === reelsMuted) return;
+  reelsMuted = m;
   reelsSlides.forEach(st => {
     if (!st.mounted || !st.ready) return;
-    if (st.kind === "bunny" && st.player) { if (reelsMuted) st.player.mute(); else st.player.unmute(); }
-    else if (st.video) st.video.muted = reelsMuted;
+    if (st.kind === "bunny" && st.player) { if (m) st.player.mute(); else st.player.unmute(); }
+    else if (st.video) st.video.muted = m;
   });
-  reelUpdateMute();
 }
-
-function reelBarSeekFromEvent(e, id) {
-  const st = reelsSlides.get(id);
-  if (!st || !st.dur) return;
-  const r = e.currentTarget.getBoundingClientRect();
-  const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-  st.time = ratio * st.dur;
-  reelSeek(st, st.time);
-  reelUpdateProgress(st);
-}
-function reelBarDown(e, id) { reelsScrubbing = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} reelBarSeekFromEvent(e, id); }
-function reelBarMove(e, id) { if (reelsScrubbing) reelBarSeekFromEvent(e, id); }
-function reelBarUp(e) { reelsScrubbing = false; }
 
 function syncReelsActions() {
   reelsSlides.forEach((st, id) => {
@@ -4957,7 +4874,6 @@ function reelsSuspend(on) {
   if (!st) return;
   if (on) reelPause(st);
   else if (!st.userPaused) reelPlay(st);
-  reelUpdatePlayState(st);
 }
 
 function openPostDetail(id) {
