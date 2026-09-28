@@ -4526,10 +4526,11 @@ function openPostDetail(id) {
   // detail view via renderPostDetail() below) to resume from the same
   // spot instead of sitting paused there the way a restore normally would.
   const feedIframe = postIdToFeedIframe.get(id);
-  if (feedIframe && currentlyPlayingVideoIframe === feedIframe) {
-    const feedPlayer = activeBunnyVideoPlayers.get(feedIframe);
-    if (feedPlayer) feedPlayer.pause();
-    resumePlaybackForPostId = id;
+  const feedPlayer = feedIframe && activeBunnyVideoPlayers.get(feedIframe);
+  if (feedPlayer) {
+    const stopFeed = () => { feedPlayer.pause(); resumePlaybackForPostId = id; };
+    if (currentlyPlayingVideoIframe === feedIframe) stopFeed();
+    else feedPlayer.getPaused(paused => { if (!paused) stopFeed(); }); // tracked state can be stale -- ask the player
   }
 
   currentPostDetailId = id;
@@ -12897,6 +12898,22 @@ function attachBunnyVideoPlayersToNewCards() {
     if (postId) contextMap.set(postId, iframeEl);
 
     player.on("ready", () => {
+      // Detail copy mounting while the feed copy is still audibly playing
+      // (openPostDetail's pause missed it): take over -- pause the feed
+      // copy and continue from where it was.
+      if (isInDetailView && postId) {
+        const feedEl = postIdToFeedIframe.get(postId);
+        const feedP = feedEl && activeBunnyVideoPlayers.get(feedEl);
+        if (feedP) feedP.getPaused(paused => {
+          if (paused) return;
+          feedP.getCurrentTime(t => {
+            feedP.pause();
+            if (typeof t === "number") lastKnownVideoTime.set(postId, t);
+            player.setCurrentTime(lastKnownVideoTime.get(postId) || 0);
+            player.play();
+          });
+        });
+      }
       // This is a brand-new iframe instance -- either the first time this
       // post's video has been shown, a re-render replaced an earlier one,
       // or it just appeared in the view being switched to (post detail
