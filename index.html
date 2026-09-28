@@ -2111,7 +2111,12 @@
   .reels-topbtn.left { left: 12px; }
   .reels-topbtn.right { right: 12px; }
   .reel-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 0 14px calc(68px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
-  .reel-info > *, .reel-info button, .reel-info a { pointer-events: auto; }
+  /* Only the actual interactive bits catch taps -- not the rows around them.
+     A row like .reel-actions is only as wide as its buttons visually, but a
+     flex div still claims its full container width as a hit box, and that
+     empty space is exactly where Bunny's own quality/speed popup opens. */
+  .reel-info button, .reel-info a { pointer-events: auto; }
+  .reel-avatar, .reel-user-text, .reel-caption { pointer-events: auto; }
   .reel-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .reel-avatar .avatar { width: 40px; height: 40px; font-size: 14px; }
   .reel-avatar .avatar.has-photo img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
