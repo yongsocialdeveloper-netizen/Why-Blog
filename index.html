@@ -10328,6 +10328,14 @@ function updateComposeState() {
   const textarea = document.getElementById("composeTextarea");
   const btn = document.getElementById("composePostBtn");
 
+  // Poll wipes any attached image/video, so make that impossible to miss --
+  // once media is attached, grey out Poll instead of leaving it tappable.
+  const pollBtn = document.getElementById("composePollToolBtn");
+  if (pollBtn && composeMode !== "poll") {
+    const hasMedia = !!composeImage || !!composeVideoUrl || composeVideoProcessing || composeVideoSelected;
+    pollBtn.classList.toggle("disabled", hasMedia);
+  }
+
   if (composeMode === "poll") {
     const questionInput = document.getElementById("pollQuestionInput");
     const counter = document.getElementById("pollQuestionCount");
@@ -10498,6 +10506,8 @@ function removeComposeVideo() {
   if (progressEl) { progressEl.style.display = "none"; progressEl.textContent = "Processing video\u2026"; }
   if (imgEl) { imgEl.src = ""; imgEl.style.display = "none"; }
   if (sizeEl) sizeEl.textContent = "";
+  document.getElementById("composeImageToolBtn").classList.remove("disabled");
+  document.getElementById("composeVideoToolBtn").classList.remove("disabled");
   updateComposeState();
 }
 
