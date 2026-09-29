@@ -11466,7 +11466,44 @@ let aiSending = false;
 let aiActionSeq = 0;
 const aiPendingActions = {};
 
+// The chat sits under the create-post screen and the draft viewer, so opening it
+// from there has to leave them first. Anything typed is kept as a draft.
+// Returns false if the person chose to stay (e.g. declined to discard edits).
+function leaveScreensForAI() {
+  const draftView = document.getElementById("draftViewPage");
+  if (draftView && draftView.classList.contains("open")) closeDraftView(); // the draft itself stays saved
+
+  const compose = document.getElementById("composePage");
+  if (!compose || !compose.classList.contains("open")) return true;
+
+  if (editingPostId) {
+    const post = USER_POSTS.find(p => p.id === editingPostId);
+    let changed = true;
+    if (post && post.type === "poll") {
+      changed = document.getElementById("pollQuestionInput").value.trim() !== (post.question || "")
+        || pollOptions.some((v, i) => v.trim() !== ((post.options[i] && post.options[i].text) || ""));
+    } else if (post) {
+      changed = document.getElementById("composeTextarea").value.trim() !== (post.text || "")
+        || composeImage !== (post.image || null);
+    }
+    // Edits to a published post can't become a draft, so ask before dropping them.
+    if (changed && !confirm("Discard your changes to this post?")) return false;
+    resetComposeUI();
+    return true;
+  }
+
+  const hasPollContent = composeMode === "poll"
+    && (document.getElementById("pollQuestionInput").value.trim() || pollOptions.some(o => o.trim()));
+  if (document.getElementById("composeTextarea").value.trim() || composeImage || hasPollContent) {
+    saveComposeDraft(); // saves, closes the screen and shows "Saved to Drafts"
+  } else {
+    resetComposeUI();
+  }
+  return true;
+}
+
 function openAI() {
+  if (!leaveScreensForAI()) return;
   document.getElementById("aiPage").classList.add("open");
   syncBackButton();
   renderAIBody();
