@@ -14078,7 +14078,6 @@ setInterval(refreshRelativeTimes, 30000);
   var eR = document.getElementById("whyBotEyeR");
   if (!btn || !svg || !eyes || !eL || !eR) return;
 
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var tx = 0, ty = 0, cx = 0, cy = 0, idle = true, idleTimer, t = 0;
 
   function setLook(x, y) {
@@ -14097,7 +14096,7 @@ setInterval(refreshRelativeTimes, 30000);
       var r = btn.getBoundingClientRect(), bx = r.left + r.width / 2, by = r.top + r.height / 2;
       var dx, dy;
       if (idle) {
-        if (!reduceMotion) t += 0.02;
+        t += 0.02;
         dx = Math.cos(t) * 120 + 60;
         dy = Math.sin(t * 0.8) * 80 - 70;
       } else {
@@ -14130,7 +14129,7 @@ setInterval(refreshRelativeTimes, 30000);
     setTimeout(function () { eyes.style.transform = "scaleY(1)"; }, 110);
     setTimeout(blink, 2500 + Math.random() * 3000);
   }
-  if (!reduceMotion) setTimeout(blink, 2500);
+  setTimeout(blink, 1200);
 
   tick();
 })();
