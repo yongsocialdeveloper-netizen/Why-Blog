@@ -2823,25 +2823,27 @@
     50% { opacity: 0.6; box-shadow: 0 0 0 2px var(--card), 0 0 4px 1px rgba(47,163,147,0.6); }
   }
 
-  .nav-btn-ai {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: #000;
-    color: #0d1116;
-    margin-top: -22px;
-    box-shadow: 0 6px 18px rgba(47,125,255,0.45);
-    flex-shrink: 0;
-    overflow: visible;
-    align-items: center;
-    justify-content: center;
+  /* empty slot in the nav; the bot itself floats above it (see .why-bot) */
+  .nav-btn-ai-slot { width: 64px; height: 24px; flex-shrink: 0; pointer-events: none; }
+
+  /* Same construction as the demo: free-floating sphere, soft drop shadow only */
+  .why-bot {
+    position: fixed;
+    left: 50%;
+    margin-left: -36px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    width: 72px;
+    height: 72px;
+    padding: 0;
+    border: 0;
+    background: none;
     cursor: pointer;
+    z-index: 10;
+    filter: drop-shadow(0 8px 10px rgba(0,0,0,.25));
     -webkit-tap-highlight-color: transparent;
   }
-  .nav-btn-ai:active { transform: scale(.94); }
-  .nav-btn-ai svg { display: block; width: 100%; height: 100%; transition: transform .12s ease-out; pointer-events: none; }
-  .nav-btn-ai:hover { filter: brightness(1.05); }
-  .nav-btn-ai.active { color: #0d1116; }
+  .why-bot svg { display: block; width: 100%; height: 100%; transition: transform .12s ease-out; pointer-events: none; }
+  .why-bot:active svg { transform: scale(.94) !important; }
 
   .ai-page {
     position: fixed;
@@ -3292,19 +3294,21 @@
     <div class="nav-btn active">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12l9-9 9 9"/><path d="M9 21V12h6v9"/></svg>
     </div>
-    <button class="nav-btn nav-btn-ai" id="whyBotBtn" onclick="openAI()" aria-label="Ask Why">
-      <svg viewBox="0 0 100 100" id="whyBotSvg" aria-hidden="true">
-        <circle cx="50" cy="50" r="48" fill="#000" stroke="#333" stroke-width="1"/>
-        <g id="whyBotEyes">
-          <g id="whyBotEyeL"><rect x="-6" y="-9.5" width="12" height="19" rx="6" fill="#fff"/></g>
-          <g id="whyBotEyeR"><rect x="-6" y="-9.5" width="12" height="19" rx="6" fill="#fff"/></g>
-        </g>
-      </svg>
-    </button>
+    <div class="nav-btn-ai-slot" aria-hidden="true"></div>
     <button class="nav-btn" onclick="openSearch()" aria-label="Search">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </button>
   </nav>
+
+  <button class="why-bot" id="whyBotBtn" onclick="openAI()" aria-label="Ask Why">
+    <svg viewBox="0 0 100 100" id="whyBotSvg" aria-hidden="true">
+      <circle cx="50" cy="50" r="48" fill="#000" stroke="#333" stroke-width="1"/>
+      <g id="whyBotEyes">
+        <g id="whyBotEyeL"><rect x="-6" y="-9.5" width="12" height="19" rx="6" fill="#fff"/></g>
+        <g id="whyBotEyeR"><rect x="-6" y="-9.5" width="12" height="19" rx="6" fill="#fff"/></g>
+      </g>
+    </svg>
+  </button>
 
   <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu(false)"></div>
 
@@ -14084,7 +14088,7 @@ setInterval(refreshRelativeTimes, 30000);
     var oy = y + 2;
     eL.setAttribute("transform", "translate(" + (50 + x - gap / 2) + "," + (50 + oy) + ") scale(" + sx + "," + sy + ")");
     eR.setAttribute("transform", "translate(" + (50 + x + gap / 2) + "," + (50 + oy) + ") scale(" + sx + "," + sy + ")");
-    svg.style.transform = "translate(" + (x * 0.2) + "px," + (y * 0.2) + "px)";
+    svg.style.transform = "translate(" + (x * 0.3) + "px," + (y * 0.3) + "px)";
   }
 
   function tick() {
