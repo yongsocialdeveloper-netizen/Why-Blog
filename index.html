@@ -5347,7 +5347,7 @@ async function submitPostDetailComment(id) {
   if (!sb) { commentSubmitInFlight[id] = false; return; }
   try {
     const mentionedIds = await resolveMentionIds(text, telegramUser.id);
-    const { data, error } = await sb.from("comments").insert({
+    const { data, error } = await apiWrite("comments", "insert", { values: {
       post_id: id,
       telegram_id: String(telegramUser.id),
       author: PROFILES.you.name,
@@ -5356,7 +5356,7 @@ async function submitPostDetailComment(id) {
       text,
       image: image || null,
       mentioned_ids: mentionedIds.length ? mentionedIds : null
-    }).select().single();
+    }, select:true, single:true });
     if (!error && data) { comment.id = data.id; render(); }
   } catch (e) {
   } finally {
@@ -5415,9 +5415,9 @@ function toggleStar(id) {
   if (!sb) return;
   const fromId = String(telegramUser.id);
   if (s.starred) {
-    sb.from("stars").insert({ from_telegram_id: fromId, to_telegram_id: toId }).then(() => {});
+    apiWrite("stars", "insert", { values: { from_telegram_id: fromId, to_telegram_id: toId } }).then(() => {});
   } else {
-    sb.from("stars").delete().eq("from_telegram_id", fromId).eq("to_telegram_id", toId).then(() => {});
+    apiWrite("stars", "delete", { match: {["from_telegram_id"]: fromId, ["to_telegram_id"]: toId} }).then(() => {});
   }
 }
 
@@ -5678,7 +5678,7 @@ async function toggleCommentReaction(postId, commentId, type) {
 
   if (!sb) return;
   try {
-    await sb.rpc("set_comment_reaction", {
+    await apiRpc("set_comment_reaction", {
       p_comment_id: commentId,
       p_telegram_id: String(telegramUser.id),
       p_reaction: newReaction
@@ -6387,7 +6387,7 @@ function toggleUserPostLike(id) {
       // update, so we only call it here — no separate client-side write to
       // the likes table, which previously caused a duplicate-key error once
       // the likes_post_telegram_unique constraint was added.
-      const { error: rpcError } = await sb.rpc("increment_like_count", {
+      const { error: rpcError } = await apiRpc("increment_like_count", {
         p_post_id: id, p_telegram_id: telegramId, p_delta: delta
       });
       if (rpcError) throw rpcError;
@@ -6435,12 +6435,12 @@ function toggleUserPostBookmark(id) {
   const chain = prevChain.catch(() => {}).then(async () => {
     try {
       const writeResult = nextBookmarked
-        ? await sb.from("bookmarks").insert({
+        ? await apiWrite("bookmarks", "insert", { values: {
             telegram_id: telegramId,
             post_id: id,
             user_id: currentSupabaseUser ? currentSupabaseUser.id : null
-          })
-        : await sb.from("bookmarks").delete().eq("telegram_id", telegramId).eq("post_id", id);
+          } })
+        : await apiWrite("bookmarks", "delete", { match: {["telegram_id"]: telegramId, ["post_id"]: id} });
       if (writeResult.error) throw writeResult.error;
     } catch (e) {
       console.error("Bookmark update failed, rolling back", e);
@@ -6683,7 +6683,7 @@ async function submitGift() {
 
     let giftId = null;
     if (sb) {
-      const { data: giftRow } = await sb.from("gifts").insert({
+      const { data: giftRow } = await apiWrite("gifts", "insert", { values: {
         post_id: String(post.id),
         from_telegram_id: String(telegramUser.id),
         to_telegram_id: String(profile.telegramId || ""),
@@ -6692,7 +6692,7 @@ async function submitGift() {
         memo: memo,
         tx_hash: txHash,
         status: "pending"
-      }).select().maybeSingle();
+      }, select:true, single:true });
       giftId = giftRow ? giftRow.id : null;
     }
 
@@ -6743,8 +6743,8 @@ function pollTonConfirmation(recipientAddress, txHash, memo, onConfirmed, onTime
 function pollGiftConfirmation(giftId, recipientAddress, txHash, memo) {
   pollTonConfirmation(
     recipientAddress, txHash, memo,
-    () => { if (giftId && sb) sb.from("gifts").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", giftId).then(() => {}); },
-    () => { if (giftId && sb) sb.from("gifts").update({ status: "timeout" }).eq("id", giftId).then(() => {}); }
+    () => { if (giftId && sb) apiWrite("gifts", "update", { values: { status: "confirmed", confirmed_at: new Date().toISOString() }, match: {["id"]: giftId} }).then(() => {}); },
+    () => { if (giftId && sb) apiWrite("gifts", "update", { values: { status: "timeout" }, match: {["id"]: giftId} }).then(() => {}); }
   );
 }
 
@@ -7158,6 +7158,30 @@ async function generateWebsiteVerification() {
   }
 }
 
+// All Supabase writes go through the "api" edge function, which validates Telegram
+// initData and applies per-table ownership rules. Same {data, error} shape as supabase-js.
+async function apiCall(body) {
+  try {
+    const { data, error } = await sb.functions.invoke("api", { body: Object.assign({ init_data: tgInitData() }, body) });
+    if (error) return { data: null, error };
+    if (!data || !data.ok) {
+      const err = new Error((data && data.error) || "Request failed");
+      err.code = data && data.code;
+      return { data: null, error: err };
+    }
+    return { data: data.data === undefined ? null : data.data, error: null, raw: data };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+function apiWrite(table, op, o) {
+  o = o || {};
+  return apiCall({ action: "write", table, op, values: o.values, match: o.match, select: !!o.select, single: !!o.single });
+}
+function apiRpc(name, args) {
+  return apiCall({ action: "rpc", name, args });
+}
+
 function tgInitData() {
   return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
 }
@@ -7312,12 +7336,12 @@ async function saveQuestProfile() {
   statusEl.className = "gift-status-line";
 
   try {
-    const { error } = await sb.from("profiles").update({
+    const { error } = await apiWrite("profiles", "update", { values: {
       quest_telegram: telegram,
       quest_x: x,
       quest_youtube: youtube,
       quest_tiktok: tiktok
-    }).eq("telegram_id", String(telegramUser.id));
+    }, match: {["telegram_id"]: String(telegramUser.id)} });
     if (error) throw error;
 
     PROFILES.you.questTelegram = telegram;
@@ -7479,9 +7503,7 @@ async function toggleNotificationPref(key) {
 
   if (!sb || !telegramUser.id) return;
   try {
-    const { error } = await sb.from("profiles")
-      .update({ notification_prefs: prefs })
-      .eq("telegram_id", String(telegramUser.id));
+    const { error } = await apiWrite("profiles", "update", { values: { notification_prefs: prefs }, match: {["telegram_id"]: String(telegramUser.id)} });
     if (error) throw error;
   } catch (e) {
     console.error("toggleNotificationPref failed:", e);
@@ -7612,7 +7634,7 @@ async function openReportedContent(targetType, postId) {
 
 async function dismissReport(reportId) {
   try {
-    await sb.from("reports").update({ status: "reviewed", reviewed_at: new Date().toISOString(), reviewed_by: String(telegramUser.id) }).eq("id", reportId);
+    await apiWrite("reports", "update", { values: { status: "reviewed", reviewed_at: new Date().toISOString(), reviewed_by: String(telegramUser.id) }, match: {["id"]: reportId} });
     renderReportsPage();
   } catch (e) {
     alert("Couldn't dismiss report. Please try again.");
@@ -7623,11 +7645,11 @@ async function removeReportedContent(reportId, targetType, targetId) {
   if (!confirm("Remove this content? This can't be undone.")) return;
   try {
     if (targetType === "post") {
-      await sb.from("posts").delete().eq("id", targetId);
+      await apiWrite("posts", "delete", { match: {["id"]: targetId} });
     } else if (targetType === "comment") {
-      await sb.from("comments").delete().eq("id", targetId);
+      await apiWrite("comments", "delete", { match: {["id"]: targetId} });
     }
-    await sb.from("reports").update({ status: "actioned", reviewed_at: new Date().toISOString(), reviewed_by: String(telegramUser.id) }).eq("id", reportId);
+    await apiWrite("reports", "update", { values: { status: "actioned", reviewed_at: new Date().toISOString(), reviewed_by: String(telegramUser.id) }, match: {["id"]: reportId} });
     renderReportsPage();
     loadUserPosts();
   } catch (e) {
@@ -7717,7 +7739,7 @@ function renderQuestCard(q) {
 async function deleteQuest(questId) {
   if (!confirm("Delete this quest and all its submissions? This can't be undone.")) return;
   try {
-    const { error } = await sb.from("quests").delete().eq("id", questId);
+    const { error } = await apiWrite("quests", "delete", { match: {["id"]: questId} });
     if (error) throw error;
     renderQuestsPage();
   } catch (e) {
@@ -7755,7 +7777,7 @@ async function postQuestSubmissionAnnouncement(questId, link) {
   try {
     const quest = questsCache.find(q => q.id === questId);
     const questTitle = quest ? quest.title : "a WhyQuest";
-    const { data, error } = await sb.from("posts").insert({
+    const { data, error } = await apiWrite("posts", "insert", { values: {
       type: "quest_submission",
       text: `Check out my WhyQuest submission on ${questTitle}!\n\n${link}`,
       name: PROFILES.you.name,
@@ -7767,7 +7789,7 @@ async function postQuestSubmissionAnnouncement(questId, link) {
       like_count: 0,
       quest_id: questId,
       quest_title: questTitle
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
     triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
@@ -8182,7 +8204,7 @@ async function submitQuestCreate() {
   btn.disabled = true;
 
   try {
-    const { data: questRow, error } = await sb.from("quests").insert({
+    const { data: questRow, error } = await apiWrite("quests", "insert", { values: {
       title, description,
       total_reward: totalReward,
       winner_count: winnerCount,
@@ -8191,11 +8213,11 @@ async function submitQuestCreate() {
       image: questCreateImage,
       ends_at: endsAt,
       created_by: String(telegramUser.id)
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
 
     try {
-      const { data: postRow, error: postError } = await sb.from("posts").insert({
+      const { data: postRow, error: postError } = await apiWrite("posts", "insert", { values: {
         type: "quest",
         text: description,
         image: questCreateImage,
@@ -8212,7 +8234,7 @@ async function submitQuestCreate() {
         quest_reward: totalReward,
         quest_winner_count: winnerCount,
         quest_ends_at: endsAt
-      }).select().single();
+      }, select:true, single:true });
       if (postError) throw postError;
       triggerPostCategorization(postRow.id);
 
@@ -8428,7 +8450,7 @@ function openQuestSubmitterProfile(profileId) {
 
 async function markQuestSubmission(submissionId, status) {
   try {
-    const { data, error } = await sb.from("quest_submissions").update({ status }).eq("id", submissionId).select();
+    const { data, error } = await apiWrite("quest_submissions", "update", { values: { status }, match: {["id"]: submissionId}, select:true });
     if (error) throw error;
     // Supabase can return no error but 0 affected rows when a row-level
     // security policy silently excludes the row — catch that explicitly
@@ -8471,7 +8493,7 @@ async function maybeFinalizeQuestPayouts(questId) {
   // is automatically rejected.
   if (pending.length) {
     await Promise.all(pending.map(s =>
-      sb.from("quest_submissions").update({ status: "rejected" }).eq("id", s.id)
+      apiWrite("quest_submissions", "update", { values: { status: "rejected" }, match: {["id"]: s.id} })
     ));
   }
 
@@ -8486,18 +8508,18 @@ async function maybeFinalizeQuestPayouts(questId) {
   }
 
   await Promise.all(winners.map((w, i) =>
-    sb.from("quest_submissions").update({
+    apiWrite("quest_submissions", "update", { values: {
       reward_amount: Math.round(shares[i] * 1e6) / 1e6,
       rank: quest.distribution === "diversify" ? i + 1 : null
-    }).eq("id", w.id)
+    }, match: {["id"]: w.id} })
   ));
 
-  await sb.from("quests").update({ status: "reviewing" }).eq("id", questId);
+  await apiWrite("quests", "update", { values: { status: "reviewing" }, match: {["id"]: questId} });
 }
 
 async function markQuestRewardPaid(submissionId) {
   try {
-    const { data, error } = await sb.from("quest_submissions").update({ paid_status: "confirmed" }).eq("id", submissionId).select();
+    const { data, error } = await apiWrite("quest_submissions", "update", { values: { paid_status: "confirmed" }, match: {["id"]: submissionId}, select:true });
     if (error) throw error;
     if (!data || !data.length) throw new Error("Nothing was updated — you may not have admin permission for this action.");
     await renderQuestReview();
@@ -8671,7 +8693,7 @@ function deleteUserComment(postId, commentId) {
   s.comments = s.comments.filter(c => c.id !== commentId);
   render();
   if (!sb) return;
-  sb.from("comments").delete().eq("id", commentId).then(() => {});
+  apiWrite("comments", "delete", { match: {["id"]: commentId} }).then(() => {});
 }
 
 const POST_TEXT_LIMIT = 200;
@@ -8920,9 +8942,9 @@ async function syncLinkPreviewForPost(post) {
     if (post.linkUrl) {
       post.linkUrl = post.linkTitle = post.linkDescription = post.linkImage = post.linkSite = null;
       render();
-      if (sb) sb.from("posts").update({
+      if (sb) apiWrite("posts", "update", { values: {
         link_url: null, link_title: null, link_description: null, link_image: null, link_site: null
-      }).eq("id", post.id).then(() => {});
+      }, match: {["id"]: post.id} }).then(() => {});
     }
     return;
   }
@@ -8938,9 +8960,9 @@ async function syncLinkPreviewForPost(post) {
     post.linkImage = null;
     post.linkSite = "youtube.com";
     render();
-    if (sb) sb.from("posts").update({
+    if (sb) apiWrite("posts", "update", { values: {
       link_url: url, link_title: post.linkTitle, link_description: null, link_image: null, link_site: "youtube.com"
-    }).eq("id", post.id).then(() => {});
+    }, match: {["id"]: post.id} }).then(() => {});
 
     try {
       const controller = new AbortController();
@@ -8952,7 +8974,7 @@ async function syncLinkPreviewForPost(post) {
         if (json && json.title && post.linkUrl === url) {
           post.linkTitle = json.title;
           render();
-          if (sb) sb.from("posts").update({ link_title: json.title }).eq("id", post.id).then(() => {});
+          if (sb) apiWrite("posts", "update", { values: { link_title: json.title }, match: {["id"]: post.id} }).then(() => {});
         }
       }
     } catch (e) {
@@ -8970,7 +8992,7 @@ async function syncLinkPreviewForPost(post) {
   post.linkSite = preview.link_site;
   render();
   if (sb) {
-    try { await sb.from("posts").update(preview).eq("id", post.id); }
+    try { await apiWrite("posts", "update", { values: preview, match: {["id"]: post.id} }); }
     catch (e) { console.warn("Saving link preview failed:", e); }
   }
 }
@@ -9097,7 +9119,7 @@ async function voteOnPoll(postId, optionIndex) {
 
   if (!sb) return;
   try {
-    const { data, error } = await sb.rpc("cast_poll_vote", {
+    const { data, error } = await apiRpc("cast_poll_vote", {
       p_post_id: postId,
       p_telegram_id: String(telegramUser.id),
       p_option_index: optionIndex
@@ -9777,13 +9799,13 @@ async function submitReport() {
   statusEl.className = "gift-status-line";
 
   try {
-    const { error } = await sb.from("reports").insert({
+    const { error } = await apiWrite("reports", "insert", { values: {
       reporter_telegram_id: String(telegramUser.id),
       target_type: reportTarget.type,
       target_id: reportTarget.id,
       reason: reportTarget.reason,
       details: details || null
-    });
+    } });
     if (error) throw error;
     closeReportSheet();
     showToast("Report submitted");
@@ -9916,7 +9938,7 @@ async function submitAdRequest() {
         // cancelled / failed / pending -> release the lock so they aren't
         // stuck unable to edit a post that was never actually paid for.
         try {
-          await sb.from("posts").update({ ad_status: null, ad_invoice_payload: null }).eq("id", postId);
+          await apiWrite("posts", "update", { values: { ad_status: null, ad_invoice_payload: null }, match: {["id"]: postId} });
         } catch (e) {}
         if (post) post.adStatus = null;
         render();
@@ -10368,7 +10390,7 @@ async function submitEventPost() {
   statusEl.className = "gift-status-line";
 
   try {
-    const { data, error } = await sb.from("posts").insert({
+    const { data, error } = await apiWrite("posts", "insert", { values: {
       type: "event",
       image: eventImage,
       event_title: title,
@@ -10386,7 +10408,7 @@ async function submitEventPost() {
       initials: PROFILES.you.initials,
       color: PROFILES.you.color,
       like_count: 0
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
 
     triggerPostCategorization(data.id);
@@ -10410,7 +10432,7 @@ async function togglePinPost(postId) {
   PROFILES.you.pinnedPostId = postId;
   if (currentProfileId === "you") renderProfilePosts();
   try {
-    await sb.from("profiles").update({ pinned_post_id: postId }).eq("telegram_id", String(telegramUser.id));
+    await apiWrite("profiles", "update", { values: { pinned_post_id: postId }, match: {["telegram_id"]: String(telegramUser.id)} });
   } catch (e) {
     console.error("Could not update pinned post", e);
   }
@@ -10512,7 +10534,7 @@ async function submitPostEdit() {
     if ("text" in updateData) dbUpdate.text = updateData.text;
     if ("image" in updateData) dbUpdate.image = updateData.image;
     dbUpdate.edited_at = new Date().toISOString();
-    const { error } = await sb.from("posts").update(dbUpdate).eq("id", id);
+    const { error } = await apiWrite("posts", "update", { values: dbUpdate, match: {["id"]: id} });
     if (error) throw error;
     showPostedSuccessToast();
     if (post.type !== "poll" && post.type !== "event" && post.type !== "video") syncLinkPreviewForPost(post);
@@ -10529,7 +10551,7 @@ async function deleteUserPost(postId) {
   haptic("medium");
   if (!sb) return;
   try {
-    const { error } = await sb.from("posts").delete().eq("id", postId);
+    const { error } = await apiWrite("posts", "delete", { match: {["id"]: postId} });
     if (error) throw error;
     showToast("Post deleted");
   } catch (e) {
@@ -10753,7 +10775,7 @@ async function submitCompose() {
     showPostingProgressToast();
 
     try {
-      const { data, error } = await sb.from("posts").insert({
+      const { data, error } = await apiWrite("posts", "insert", { values: {
         type: "poll",
         question,
         options: options.map(text => ({ text, votes: 0 })),
@@ -10765,7 +10787,7 @@ async function submitCompose() {
         initials: PROFILES.you.initials,
         color: PROFILES.you.color,
         like_count: 0
-      }).select().single();
+      }, select:true, single:true });
       if (error) throw error;
       triggerPostCategorization(data.id);
       const newPost = mapPostRow(data);
@@ -10796,7 +10818,7 @@ async function submitCompose() {
 
     try {
       const mentionedIds = await resolveMentionIds(pendingText, telegramUser.id);
-      const { data, error } = await sb.from("posts").insert({
+      const { data, error } = await apiWrite("posts", "insert", { values: {
         type: "video",
         text: pendingText || null,
         image: pendingPoster,
@@ -10810,7 +10832,7 @@ async function submitCompose() {
         color: PROFILES.you.color,
         like_count: 0,
         mentioned_ids: mentionedIds.length ? mentionedIds : null
-      }).select().single();
+      }, select:true, single:true });
       if (error) throw error;
       triggerPostCategorization(data.id);
       const newPost = mapPostRow(data);
@@ -10837,7 +10859,7 @@ async function submitCompose() {
             // rare case where composeVideoJobId wasn't yet known at insert
             // time (Post tapped in the instant before Bunny's credentials
             // call returned) -- harmless to (re)write it now regardless.
-            const { error: updateError } = await sb.from("posts").update({ video_url: url, bunny_video_id: videoId }).eq("id", postId);
+            const { error: updateError } = await apiWrite("posts", "update", { values: { video_url: url, bunny_video_id: videoId }, match: {["id"]: postId} });
             if (updateError) { console.error("Failed to save finished video URL:", updateError); markPostVideoFailed(postId); return; }
             const livePost = findUserPostById(postId);
             if (livePost) livePost.videoUrl = url;
@@ -10872,7 +10894,7 @@ async function submitCompose() {
 
   try {
     const mentionedIds = await resolveMentionIds(pendingText, telegramUser.id);
-    const { data, error } = await sb.from("posts").insert({
+    const { data, error } = await apiWrite("posts", "insert", { values: {
       type: "text",
       text: pendingText || null,
       image: pendingImage,
@@ -10884,7 +10906,7 @@ async function submitCompose() {
       color: PROFILES.you.color,
       like_count: 0,
       mentioned_ids: mentionedIds.length ? mentionedIds : null
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
     triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
@@ -11258,10 +11280,7 @@ async function refreshTelegramLinkSnapshot() {
 
   updates.updated_at = new Date().toISOString();
   try {
-    const { error } = await sb.from("telegram_links")
-      .update(updates)
-      .eq("telegram_id", String(telegramUser.id))
-      .eq("user_id", currentSupabaseUser.id);
+    const { error } = await apiWrite("telegram_links", "update", { values: updates, match: {["telegram_id"]: String(telegramUser.id), ["user_id"]: currentSupabaseUser.id} });
     if (error) throw error;
   } catch (e) {
     console.error("Telegram link refresh failed:", e);
@@ -11286,8 +11305,8 @@ async function pushIdentityToOwnContent() {
 
   try {
     await Promise.all([
-      sb.from("posts").update(postFields).eq("telegram_id", telegramId),
-      sb.from("comments").update(commentFields).eq("telegram_id", telegramId)
+      apiWrite("posts", "update", { values: postFields, match: {["telegram_id"]: telegramId} }),
+      apiWrite("comments", "update", { values: commentFields, match: {["telegram_id"]: telegramId} })
     ]);
   } catch (e) {
     console.error("Identity backfill failed:", e);
@@ -11394,7 +11413,7 @@ async function linkTelegramIdentity(user) {
   }
 
   try {
-    const { error } = await sb.from("telegram_links").upsert({
+    const { error } = await apiWrite("telegram_links", "upsert", { values: {
       telegram_id: telegramId,
       user_id: user.id,
       email: user.email || "",
@@ -11402,7 +11421,7 @@ async function linkTelegramIdentity(user) {
       telegram_name: telegramUser.name,
       telegram_photo_url: telegramUser.photoUrl || "",
       updated_at: new Date().toISOString()
-    });
+    } });
     if (error) throw error;
     await sb.auth.updateUser({
       data: { display_name: telegramUser.name, avatar_url: telegramUser.photoUrl || null }
@@ -11868,7 +11887,7 @@ async function runCreatePostForAI(input) {
     truncated = true;
   }
   try {
-    const { data, error } = await sb.from("posts").insert({
+    const { data, error } = await apiWrite("posts", "insert", { values: {
       type: "text",
       text,
       image: null,
@@ -11879,7 +11898,7 @@ async function runCreatePostForAI(input) {
       initials: PROFILES.you.initials,
       color: PROFILES.you.color,
       like_count: 0
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
     triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
@@ -11928,7 +11947,7 @@ async function runCreatePollForAI(input) {
   const pollEndsAt = validateAIPollEndsAt(input && (input.ends_at || input.poll_ends_at));
   if (!pollEndsAt) return { success: false, error: "missing_expiry" };
   try {
-    const { data, error } = await sb.from("posts").insert({
+    const { data, error } = await apiWrite("posts", "insert", { values: {
       type: "poll",
       question,
       options: options.map(text => ({ text, votes: 0 })),
@@ -11940,7 +11959,7 @@ async function runCreatePollForAI(input) {
       initials: PROFILES.you.initials,
       color: PROFILES.you.color,
       like_count: 0
-    }).select().single();
+    }, select:true, single:true });
     if (error) throw error;
     triggerPostCategorization(data.id);
     const newPost = mapPostRow(data);
@@ -12701,11 +12720,13 @@ async function handleAvatarFileSelect(input) {
     // compressor as every other upload surface so it's enforced here too.
     const compressedBlob = await compressImageTo630KB(resizedBlob);
     note.textContent = "Uploading...";
-    const path = `${telegramUser.id}/${Date.now()}.jpg`;
     if (!sb) throw new Error("Not connected");
+    const signed = await apiCall({ action: "avatar_upload_url" });
+    if (signed.error || !signed.raw || !signed.raw.path) throw (signed.error || new Error("No upload URL"));
+    const path = signed.raw.path;
     const { error: uploadError } = await sb.storage
       .from("avatars")
-      .upload(path, compressedBlob, { contentType: "image/jpeg", upsert: true });
+      .uploadToSignedUrl(path, signed.raw.token, compressedBlob, { contentType: "image/jpeg", upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicData } = sb.storage.from("avatars").getPublicUrl(path);
@@ -12900,8 +12921,8 @@ async function saveEditProfile() {
     if (lookupError) throw lookupError;
 
     const { error } = existingRow
-      ? await sb.from("profiles").update(update).eq("telegram_id", telegramId)
-      : await sb.from("profiles").insert(update);
+      ? await apiWrite("profiles", "update", { values: update, match: {["telegram_id"]: telegramId} })
+      : await apiWrite("profiles", "insert", { values: update });
     if (error) throw error;
   } catch (e) {
     console.error("Profile save failed:", e);
@@ -13252,7 +13273,7 @@ async function removeDeletedBookmark(postId) {
   if (userPostState[postId]) userPostState[postId].bookmarked = false;
   if (sb) {
     try {
-      await sb.from("bookmarks").delete().eq("telegram_id", String(telegramUser.id)).eq("post_id", postId);
+      await apiWrite("bookmarks", "delete", { match: {["telegram_id"]: String(telegramUser.id), ["post_id"]: postId} });
     } catch (e) {}
   }
   renderBookmarksPage();
