@@ -2870,6 +2870,22 @@
     transform: translateX(-50%) rotate(45deg); border-radius: 0 0 3px 0;
   }
   .why-bubble.below::after { bottom: auto; top: -5px; border-radius: 3px 0 0 0; }
+  .why-bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: min(36vh, 200px); overflow-y: auto; }
+  .why-bubble.has-input { width: min(300px, calc(100vw - 16px)); max-width: none; }
+  .why-bubble.has-input .why-bubble-text { padding-right: 18px; }
+  .why-bubble-x { display: none; position: absolute; top: 5px; right: 7px; width: 22px; height: 22px; font-size: 19px; line-height: 20px; text-align: center; color: #0d1116; opacity: .5; }
+  .why-bubble.has-input .why-bubble-x { display: block; }
+  .why-bubble-input { display: none; gap: 6px; margin-top: 9px; }
+  .why-bubble.has-input .why-bubble-input { display: flex; }
+  .why-bubble-input input {
+    flex: 1; min-width: 0; border: 1px solid rgba(13,17,22,.25); border-radius: 999px;
+    padding: 8px 13px; font-size: 16px; font-family: inherit; background: #fff; color: #0d1116; outline: none;
+  }
+  .why-bubble-input input:focus { border-color: #2fa393; }
+  .why-bubble-input button {
+    width: 36px; height: 36px; border-radius: 50%; background: #2fa393; color: #06211d;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
   .why-bubble-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
   .wb-chip {
     font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px;
@@ -3374,7 +3390,12 @@
   </button>
 
   <div class="why-bubble" id="whyBubble" role="status" aria-live="polite">
+    <button class="why-bubble-x" id="whyBubbleX" type="button" aria-label="Close">&times;</button>
     <div class="why-bubble-text" id="whyBubbleText"></div>
+    <div class="why-bubble-input" id="whyBubbleInputRow">
+      <input id="whyBubbleInput" type="text" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Ask me anything…" />
+      <button id="whyBubbleSend" type="button" aria-label="Send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+    </div>
     <div class="why-bubble-chips" id="whyBubbleChips"></div>
   </div>
 
@@ -14354,6 +14375,9 @@ setInterval(refreshRelativeTimes, 30000);
   var bubble = document.getElementById("whyBubble");
   var bubbleText = document.getElementById("whyBubbleText");
   var bubbleChips = document.getElementById("whyBubbleChips");
+  var bIn = document.getElementById("whyBubbleInput");
+  var bSend = document.getElementById("whyBubbleSend");
+  var bX = document.getElementById("whyBubbleX");
   var composeEl = document.getElementById("composePage");
   var feedEl = document.getElementById("feed");
   var panel = document.getElementById("botPrivacyPanel");
@@ -14375,7 +14399,10 @@ setInterval(refreshRelativeTimes, 30000);
   var TRIG = {
     createIdle: { group: "create", label: "post ideas" },
     draft:      { group: "drafts", label: "draft reminders" },
-    skipTopic:  { group: "browse", label: "topic tips" }
+    skipTopic:  { group: "browse", label: "topic tips" },
+    search:     { group: "search", label: "search help" },
+    reply:      { group: "replies", label: "reply help" },
+    welcome:    { group: "welcome", label: "welcome-back messages" }
   };
 
   // ---- storage (this device only) ----------------------------------------
@@ -14384,12 +14411,12 @@ setInterval(refreshRelativeTimes, 30000);
   function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
   var settings = (function () {
-    var d = { nudges: true, freq: "sometimes", types: { create: true, drafts: true, browse: true }, learn: true, quiet: { on: false, from: "22:00", to: "08:00" } };
+    var d = { nudges: true, freq: "sometimes", types: { create: true, drafts: true, browse: true, search: true, replies: true, welcome: true }, learn: true, quiet: { on: false, from: "22:00", to: "08:00" } };
     var s = readJSON(SKEY) || {};
     if (typeof s.nudges === "boolean") d.nudges = s.nudges;
     if (FREQ[s.freq]) d.freq = s.freq;
     if (typeof s.learn === "boolean") d.learn = s.learn;
-    if (s.types) ["create", "drafts", "browse"].forEach(function (k) { if (typeof s.types[k] === "boolean") d.types[k] = s.types[k]; });
+    if (s.types) ["create", "drafts", "browse", "search", "replies", "welcome"].forEach(function (k) { if (typeof s.types[k] === "boolean") d.types[k] = s.types[k]; });
     if (s.quiet) {
       if (typeof s.quiet.on === "boolean") d.quiet.on = s.quiet.on;
       if (/^\d\d:\d\d$/.test(s.quiet.from)) d.quiet.from = s.quiet.from;
@@ -14421,6 +14448,7 @@ setInterval(refreshRelativeTimes, 30000);
   function tap() { if (typeof haptic === "function") haptic("light"); }
   function isFloating() { return btn.classList.contains("floating"); }
   function isHidden() { return btn.classList.contains("hidden"); }
+  function isOpen(id) { var el = document.getElementById(id); return !!el && el.classList.contains("open"); }
 
   function inQuiet() {
     if (!settings.quiet.on) return false;
@@ -14488,13 +14516,14 @@ setInterval(refreshRelativeTimes, 30000);
   function place() {
     if (!active) return;
     var b = btn.getBoundingClientRect();
-    var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var vv = window.visualViewport;
+    var vw = document.documentElement.clientWidth, vh = vv ? vv.height : window.innerHeight, oy = vv ? vv.offsetTop : 0;
     var w = bubble.offsetWidth, h = bubble.offsetHeight;
     var cx = b.left + b.width / 2;
     var left = Math.min(Math.max(8, cx - w / 2), Math.max(8, vw - w - 8));
-    var above = b.top - h - 12 >= 8;
+    var above = b.top - h - 12 >= oy + 8;
     var top = above ? b.top - h - 12 : b.bottom + 12;
-    top = Math.min(Math.max(8, top), Math.max(8, vh - h - 8));
+    top = Math.min(Math.max(oy + 8, top), Math.max(oy + 8, oy + vh - h - 8));
     bubble.style.left = left + "px";
     bubble.style.top = top + "px";
     bubble.classList.toggle("below", !above);
@@ -14513,10 +14542,20 @@ setInterval(refreshRelativeTimes, 30000);
   }
   function dismiss() {
     if (active) clearTimeout(active.timer);
+    var hadInput = !!(active && active.input);
     active = null;
-    bubble.classList.remove("show");
+    bubble.classList.remove("show", "has-input");
+    if (hadInput && bIn) { try { bIn.blur(); } catch (e) {} bIn.value = ""; bIn.readOnly = false; }
   }
-  // o: { text, chips:[{label,cls,title,onTap}], ttl, trigger, scope, onIgnore }
+  function armTimer() {
+    if (!active) return;
+    clearTimeout(active.timer);
+    if (!active.ttl) return;
+    active.timer = setTimeout(function () {
+      var a = active; dismiss(); if (a && a.onIgnore) a.onIgnore();
+    }, active.ttl);
+  }
+  // o: { text, chips:[{label,cls,title,onTap}], ttl, trigger, scope, onIgnore, input:{placeholder,busy,focus,onSubmit(text)} }
   function say(o) {
     if (active) clearTimeout(active.timer);
     var wasShown = !!active;
@@ -14536,17 +14575,58 @@ setInterval(refreshRelativeTimes, 30000);
       bubbleChips.appendChild(b);
     });
     bubbleChips.style.display = (o.chips && o.chips.length) ? "" : "none";
-    active = { trigger: o.trigger || null, scope: o.scope || null, onIgnore: o.onIgnore || null, timer: 0 };
-    if (o.ttl) active.timer = setTimeout(function () {
-      var a = active; dismiss(); if (a && a.onIgnore) a.onIgnore();
-    }, o.ttl);
+    active = { trigger: o.trigger || null, scope: o.scope || null, onIgnore: o.onIgnore || null, timer: 0, input: o.input || null, ttl: o.ttl || 0 };
+    armTimer();
+    bubble.classList.toggle("has-input", !!o.input);
+    if (o.input && bIn) {
+      bIn.placeholder = o.input.busy ? "Thinking\u2026" : (o.input.placeholder || "Ask me anything\u2026");
+      bIn.readOnly = !!o.input.busy;
+      if (o.input.focus) setTimeout(function () { try { bIn.focus(); } catch (e) {} }, 60);
+    }
     bubble.classList.add("show");
     place();
     if (!wasShown) bounce();
     if (!raf) raf = requestAnimationFrame(loop);
   }
   // Tapping the bot itself opens the chat: drop the bubble quietly.
-  btn.addEventListener("click", function () { if (active) dismiss(); }, true);
+  // A long press opens the quick-talk bubble instead, so that click is swallowed.
+  var lp = null, lpFired = false, LP_MS = 500;
+  btn.addEventListener("click", function (e) {
+    if (lpFired) { lpFired = false; e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (active) dismiss();
+  }, true);
+  btn.addEventListener("pointerdown", function (e) {
+    lpFired = false;
+    if (lp) clearTimeout(lp.t);
+    lp = { x: e.clientX, y: e.clientY, t: setTimeout(function () { lp = null; lpFired = true; tap(); openTalk(); }, LP_MS) };
+  });
+  btn.addEventListener("pointermove", function (e) {
+    if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 8) { clearTimeout(lp.t); lp = null; }
+  });
+  ["pointerup", "pointercancel"].forEach(function (n) {
+    btn.addEventListener(n, function () { if (lp) { clearTimeout(lp.t); lp = null; } });
+  });
+  btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  function submitBubbleInput() {
+    if (!active || !active.input || !bIn || bIn.readOnly) return;
+    var v = (bIn.value || "").trim();
+    if (!v) return;
+    var h = active.input.onSubmit;
+    bIn.value = "";
+    if (h) h(v);
+  }
+  if (bSend) bSend.addEventListener("click", function (e) { e.stopPropagation(); submitBubbleInput(); });
+  if (bIn) {
+    bIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitBubbleInput(); } });
+    bIn.addEventListener("input", function () { armTimer(); });
+  }
+  if (bX) bX.addEventListener("click", function (e) { e.stopPropagation(); dismiss(); });
+  // Tapping anywhere outside a typing bubble closes it.
+  document.addEventListener("pointerdown", function (e) {
+    if (active && active.input && !bubble.contains(e.target) && !btn.contains(e.target)) dismiss();
+  }, true);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", function () { if (active) place(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden && active) dismiss(); });
   window.addEventListener("resize", function () { if (active) place(); });
 
@@ -14596,21 +14676,14 @@ setInterval(refreshRelativeTimes, 30000);
     }
     return ideas.map(function (s) { return s.trim().slice(0, max); }).filter(Boolean).slice(0, 3);
   }
-  // Asks Why AI for ideas. Only reads text from the reply; never runs tool calls.
-  function fetchIdeas() {
+  // Asks Why AI for a short list. Only reads text from the reply; never runs tool calls.
+  function agentList(prompt, max) {
     return new Promise(function (resolve) {
       var done = false;
       function fin(v) { if (!done) { done = true; resolve(v); } }
       setTimeout(function () { fin(null); }, 14000);
       try {
         if (typeof sb === "undefined" || !sb || typeof aiMessagesRemainingToday !== "function" || aiMessagesRemainingToday() <= 0) return fin(null);
-        var max = Math.min(140, typeof getComposeMax === "function" ? getComposeMax() : 500);
-        var liked = [];
-        INTEREST_TOPICS.forEach(function (t) { if (interestState[t.key] !== false) liked.push(t.shortLabel || t.label); });
-        var prompt = "Suggest 3 different short post ideas for " + (firstName() || "me") + " to share on WhyBlog. " +
-          (liked.length && liked.length < INTEREST_TOPICS.length ? "Topics they like: " + liked.join(", ") + ". " : "") +
-          "Each idea is a ready-to-edit opening line or prompt under " + max + " characters, in a friendly first-person voice. " +
-          "Reply with ONLY a JSON array of 3 strings and nothing else.";
         sb.functions.invoke("ai-agent", { body: { messages: [{ role: "user", content: prompt }], context: buildAIContext(), init_data: tg && tg.initData } })
           .then(function (res) {
             if (!res || res.error || !res.data) return fin(null);
@@ -14619,6 +14692,18 @@ setInterval(refreshRelativeTimes, 30000);
           }).catch(function () { fin(null); });
       } catch (e) { fin(null); }
     });
+  }
+  function fetchIdeas() {
+    var max = 140, liked = [];
+    try {
+      max = Math.min(140, typeof getComposeMax === "function" ? getComposeMax() : 500);
+      INTEREST_TOPICS.forEach(function (t) { if (interestState[t.key] !== false) liked.push(t.shortLabel || t.label); });
+      var prompt = "Suggest 3 different short post ideas for " + (firstName() || "me") + " to share on WhyBlog. " +
+        (liked.length && liked.length < INTEREST_TOPICS.length ? "Topics they like: " + liked.join(", ") + ". " : "") +
+        "Each idea is a ready-to-edit opening line or prompt under " + max + " characters, in a friendly first-person voice. " +
+        "Reply with ONLY a JSON array of 3 strings and nothing else.";
+      return agentList(prompt, max);
+    } catch (e) { return Promise.resolve(null); }
   }
   function useIdea(t) {
     var ta = document.getElementById("composeTextarea");
@@ -14807,8 +14892,352 @@ setInterval(refreshRelativeTimes, 30000);
     scan();
   }
 
+  // ---- trigger D: search comes up empty / lots of searching ---------------
+  var S = { open: false, last: 0, dirty: false, committed: [], lastQ: "", clicked: false, fired: false };
+  var searchPageEl = document.getElementById("searchPage");
+  var searchInputEl = document.getElementById("searchInput");
+  var searchBodyEl = document.getElementById("searchBody");
+  var SEARCH_IDLE_MS = 2200;
+
+  if (searchInputEl) searchInputEl.addEventListener("input", function () {
+    S.last = Date.now(); S.dirty = true;
+    if (active && active.scope === "search") dismiss();
+  }, true);
+  if (searchBodyEl) searchBodyEl.addEventListener("click", function () { S.clicked = true; }, true);
+
+  function lev(a, b) {
+    var m = a.length, n = b.length, prev = [], cur, i, j;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur = [i];
+      for (j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      prev = cur;
+    }
+    return prev[n];
+  }
+  // Looks for people and hashtags close to what was typed (typos, partial names).
+  function suggestSearches(q) {
+    var raw = String(q).toLowerCase().replace(/^[#@]+/, "").trim();
+    if (raw.length < 2) return [];
+    var cands = [], seen = {};
+    function add(label, query, keys) {
+      var k = query.toLowerCase();
+      if (seen[k]) return; seen[k] = 1;
+      cands.push({ label: label, q: query, keys: keys });
+    }
+    try {
+      searchableProfiles().forEach(function (p) {
+        var name = (p.name || "").toLowerCase(), user = (p.username || "").toLowerCase(), keys = [];
+        if (name) { keys.push(name); name.split(/\s+/).forEach(function (w) { if (w) keys.push(w); }); }
+        if (user) keys.push(user);
+        if (name || user) add((p.name || ("@" + p.username)) + (p.name && p.username ? " @" + p.username : ""), p.username || p.name, keys);
+      });
+    } catch (e) {}
+    try {
+      USER_POSTS.forEach(function (p) {
+        if (!userPostState[p.id]) return;
+        extractHashtags(p.text).forEach(function (t) { add("#" + t, "#" + t, [t.toLowerCase()]); });
+      });
+    } catch (e) {}
+    var lim = Math.max(1, Math.floor(raw.length / 4)), scored = [];
+    cands.forEach(function (c) {
+      var best = 99;
+      c.keys.forEach(function (k) {
+        var d;
+        if (Math.min(k.length, raw.length) >= 3 && (k.indexOf(raw) === 0 || raw.indexOf(k) === 0)) d = 0.5;
+        else { d = lev(raw, k); if (d > lim) d = 99; }
+        if (d < best) best = d;
+      });
+      if (best < 99) scored.push({ c: c, d: best });
+    });
+    scored.sort(function (a, b) { return a.d - b.d; });
+    return scored.slice(0, 3).map(function (x) { return x.c; });
+  }
+  function askWhyToFind(q) {
+    dismiss();
+    try {
+      openAI();
+      var inp = document.getElementById("aiInput");
+      if (inp) { inp.value = ('Help me find this on WhyBlog: "' + q + '"').slice(0, 200); sendAIMessage(); }
+    } catch (e) {}
+  }
+  function offerFinds(q) {
+    var sugg = suggestSearches(q);
+    var ask = { label: "Ask Why", cls: "primary", title: "Opens the chat", onTap: function () { askWhyToFind(q); } };
+    var no = { label: "No thanks", onTap: function () { dismiss(); } };
+    if (sugg.length) {
+      say({
+        text: "Did you mean one of these?", scope: "search", ttl: 30000,
+        chips: sugg.map(function (c) {
+          return { label: c.label, cls: "idea", onTap: function () {
+            dismiss();
+            try { setSearchQuery(c.q); } catch (e) {}
+            S.dirty = true; S.last = Date.now();
+          } };
+        }).concat([ask, no])
+      });
+    } else {
+      say({ text: "Nothing close in the feed. Want me to ask Why to dig deeper?", scope: "search", ttl: 20000, chips: [ask, no] });
+    }
+  }
+  function askSearch(q, miss) {
+    noteShown("search");
+    var shown = q.length > 28 ? q.slice(0, 27) + "\u2026" : q;
+    say({
+      trigger: "search", scope: "search", ttl: 14000,
+      text: miss ? "Couldn\u2019t find \u201c" + shown + "\u201d. Want me to help look for it?" : hey() + " looking for something specific? I can help you find it.",
+      onIgnore: function () { outcome("search", "ignored"); cool("search", 3 * HOUR); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () {
+          outcome("search", "yes"); cool("search", HOUR); addFact("search-help", "Uses help when a search comes up empty"); offerFinds(q); } },
+        { label: "No", onTap: function () {
+          outcome("search", "no"); cool("search", DAY);
+          if (afterNo("search")) return;
+          say({ text: "Okay. I\u2019m here if you need me.", scope: "search", ttl: 3500 }); } },
+        { label: "Not sure", onTap: function () {
+          outcome("search", "unsure"); cool("search", 3 * HOUR);
+          say({ text: "No worries. A shorter keyword or a #hashtag can help.", scope: "search", ttl: 7000 }); } }
+      ]
+    });
+  }
+  function maybeSearch(now) {
+    if (!searchInputEl || !S.dirty || now - S.last < SEARCH_IDLE_MS) return;
+    var q = (searchInputEl.value || "").trim();
+    S.dirty = false;
+    if (q.length < 2) return;
+    var miss = !!(searchBodyEl && searchBodyEl.querySelector(".search-empty"));
+    var key = q.toLowerCase();
+    if (S.committed.indexOf(key) < 0) S.committed.push(key);
+    S.lastQ = q;
+    if (S.fired) return;
+    if (!(miss || (S.committed.length >= 3 && !S.clicked))) return;
+    if (!canNudge("search")) return;
+    S.fired = true;
+    askSearch(q, miss);
+  }
+
+  // ---- trigger E: stuck on a reply -----------------------------------------
+  var REPLY_IDLE_MS = 12000;
+  var R = { el: null, id: null, since: 0, last: 0, fired: false };
+  document.addEventListener("focusin", function (e) {
+    var t = e.target;
+    if (t && typeof t.id === "string" && t.id.indexOf("detail-upinput-") === 0) {
+      if (R.el !== t) R = { el: t, id: t.id.slice(15), since: Date.now(), last: Date.now(), fired: false };
+      else R.since = Date.now();
+    }
+  });
+  document.addEventListener("input", function (e) {
+    if (R.el && e.target === R.el) {
+      R.last = Date.now();
+      if (active && active.scope === "reply") dismiss();
+    }
+  }, true);
+
+  var LOCAL_REPLIES = [
+    "Love this. Thanks for sharing it.",
+    "Great point. What made you think of it?",
+    "This is really interesting. Tell us more?"
+  ];
+  function useReply(id, t) {
+    var el = document.getElementById("detail-upinput-" + id);
+    if (!el) return dismiss();
+    el.value = t.slice(0, 280);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    try { el.focus(); } catch (e) {}
+    say({ text: "Edit it however you like, then send.", scope: "reply", ttl: 3500 });
+  }
+  function showReplies(post) {
+    say({ text: "Let me think\u2026", scope: "reply" });
+    var body = String(post.text || post.question || "").replace(/\s+/g, " ").slice(0, 300);
+    var prompt = "Someone named " + (post.name || "a user") + " posted on WhyBlog: \u201c" + body + "\u201d. " +
+      "Suggest 3 different short replies " + (firstName() || "I") + " could post (each under 120 characters, friendly, first person, no hashtags). " +
+      "Reply with ONLY a JSON array of 3 strings and nothing else.";
+    agentList(prompt, 140).then(function (list) {
+      var el = document.getElementById("detail-upinput-" + post.id);
+      if (!el || (el.value || "").trim()) { if (active && active.scope === "reply") dismiss(); return; }
+      if (!list || !list.length) list = LOCAL_REPLIES.slice();
+      say({
+        text: "Here are a few replies. Tap one to start with it:", scope: "reply", ttl: 30000,
+        chips: list.map(function (t) {
+          return { label: t.length > 48 ? t.slice(0, 47) + "\u2026" : t, title: t, cls: "idea", onTap: function () { useReply(post.id, t); } };
+        }).concat([{ label: "No thanks", onTap: function () { dismiss(); } }])
+      });
+    });
+  }
+  function askReply(post) {
+    noteShown("reply");
+    say({
+      trigger: "reply", scope: "reply", ttl: 14000,
+      text: hey() + " want help writing a reply?",
+      onIgnore: function () { outcome("reply", "ignored"); cool("reply", 2 * HOUR); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () {
+          outcome("reply", "yes"); cool("reply", 20 * 60 * 1000); addFact("reply-help", "Likes getting reply suggestions"); showReplies(post); } },
+        { label: "No", onTap: function () {
+          outcome("reply", "no"); cool("reply", DAY);
+          if (afterNo("reply")) return;
+          say({ text: "Okay, if you say so. Still here if you need me.", scope: "reply", ttl: 4000 }); } },
+        { label: "Not sure", onTap: function () {
+          outcome("reply", "unsure"); cool("reply", 2 * HOUR);
+          say({ text: "No rush. I\u2019m here if you want a few ideas.", scope: "reply", ttl: 9000,
+            chips: [{ label: "Show replies", cls: "primary", onTap: function () { showReplies(post); } }] }); } }
+      ]
+    });
+  }
+  function maybeReply(now) {
+    if (!R.el || R.fired || !R.el.isConnected) return;
+    if (document.activeElement !== R.el || (R.el.value || "").trim()) return;
+    if (now - Math.max(R.since, R.last) < REPLY_IDLE_MS) return;
+    R.fired = true; // decide once per time the reply box is focused
+    var post = null;
+    try { post = findUserPostById(R.id); } catch (e) {}
+    if (!post || !(post.text || post.question)) return;
+    try { if (telegramUser && String(post.userId) === String(telegramUser.id)) return; } catch (e) {}
+    if (canNudge("reply")) askReply(post);
+  }
+
+  // ---- trigger F: welcome back after a few days away ------------------------
+  var LKEY = "whyBotLastSeen:v1", AWAY_MS = 2 * DAY;
+  var welcomeSince = 0, welcomePending = false;
+  try { welcomeSince = Number(localStorage.getItem(LKEY)) || 0; } catch (e) {}
+  welcomePending = settings.learn && welcomeSince > 0 && (Date.now() - welcomeSince) >= AWAY_MS;
+  function touchSeen() { if (settings.learn) { try { localStorage.setItem(LKEY, String(Date.now())); } catch (e) {} } }
+  touchSeen();
+  document.addEventListener("visibilitychange", function () { if (document.hidden) touchSeen(); });
+
+  function highlightPosts(since) {
+    var out = [], me = null;
+    try { me = telegramUser ? String(telegramUser.id) : null; } catch (e) {}
+    try {
+      USER_POSTS.forEach(function (p) {
+        var st = userPostState[p.id];
+        if (!st || !(p.createdAtMillis > since) || !(p.text || p.question)) return;
+        if (me && String(p.userId) === me) return;
+        if (typeof isOffInterestPost === "function" && isOffInterestPost(p)) return;
+        out.push({ p: p, likes: st.likeCount || 0 });
+      });
+    } catch (e) {}
+    out.sort(function (a, b) { return b.likes - a.likes || (b.p.createdAtMillis - a.p.createdAtMillis); });
+    return out.slice(0, 3).map(function (x) { return x.p; });
+  }
+  function showHighlights() {
+    var posts = highlightPosts(welcomeSince);
+    if (!posts.length) return say({ text: "It\u2019s been quiet. Nothing big to catch up on.", ttl: 5000 });
+    say({
+      text: "Here\u2019s what people have been talking about:", ttl: 30000,
+      chips: posts.map(function (p) {
+        var t = String(p.text || p.question).replace(/\s+/g, " ");
+        return { label: (p.name || "Someone") + ": " + (t.length > 40 ? t.slice(0, 39) + "\u2026" : t), title: t, cls: "idea",
+          onTap: function () { dismiss(); try { openPostTap(p.id); } catch (e) {} } };
+      }).concat([{ label: "Later", onTap: function () { dismiss(); } }])
+    });
+  }
+  function askWelcome() {
+    noteShown("welcome");
+    var days = Math.max(2, Math.floor((Date.now() - welcomeSince) / DAY)), n = firstName();
+    say({
+      trigger: "welcome", ttl: 14000,
+      text: "Welcome back" + (n ? ", " + n : "") + ". It\u2019s been " + days + " days. Want the highlights?",
+      onIgnore: function () { outcome("welcome", "ignored"); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () { outcome("welcome", "yes"); addFact("welcome-back", "Catches up on highlights after time away"); showHighlights(); } },
+        { label: "No", onTap: function () { outcome("welcome", "no"); say({ text: "Okay. Glad you\u2019re back.", ttl: 3500 }); } },
+        { label: "Not sure", onTap: function () { outcome("welcome", "unsure"); say({ text: "No problem. The feed\u2019s ready when you are.", ttl: 4000 }); } }
+      ]
+    });
+  }
+  function maybeWelcome(now) {
+    if (!welcomePending || isFloating() || now - stableSince < 6000) return;
+    if (!settings.learn) { welcomePending = false; return; }
+    var ready = false;
+    try { ready = USER_POSTS.length > 0; } catch (e) {}
+    if (!ready || !canNudge("welcome")) return;
+    welcomePending = false; // once per return
+    askWelcome();
+  }
+
+  // ---- quick talk: type to the bot without opening the chat -----------------
+  var talkBusy = false;
+  var SCREENS = [["reelsPage", "reels"], ["composePage", "the create-post screen"], ["postDetailPage", "a post and its replies"],
+    ["profilePage", "a profile"], ["searchPage", "search"], ["bookmarksPage", "bookmarks"], ["questsPage", "quests"],
+    ["videoZonePage", "the video zone"], ["reportsPage", "reports"], ["starrersPage", "a stars list"]];
+  function screenName() {
+    for (var i = 0; i < SCREENS.length; i++) { if (isOpen(SCREENS[i][0])) return SCREENS[i][1]; }
+    return "the home feed";
+  }
+  function continueInChat(text) {
+    dismiss();
+    try {
+      openAI();
+      var inp = document.getElementById("aiInput");
+      if (inp) { inp.value = text.slice(0, 200); sendAIMessage(); }
+    } catch (e) {}
+  }
+  function talkPrompt(text, opts) {
+    var o = { placeholder: "Ask me anything\u2026", focus: true, onSubmit: talkSend };
+    if (opts) for (var k in opts) o[k] = opts[k];
+    return o;
+  }
+  var OPEN_CHAT_CHIP = { label: "Open full chat", onTap: function () { dismiss(); try { openAI(); } catch (e) {} } };
+  function openTalk() {
+    if (isHidden()) return;
+    talkBusy = false;
+    say({ text: hey() + " what\u2019s on your mind?", input: talkPrompt(), ttl: 45000, scope: "talk", chips: [OPEN_CHAT_CHIP] });
+  }
+  function talkSend(text) {
+    text = String(text).trim().slice(0, 200);
+    if (!text || talkBusy) return;
+    var limit = typeof AI_FREE_DAILY_LIMIT !== "undefined" ? AI_FREE_DAILY_LIMIT : 5;
+    try {
+      if (typeof aiMessagesRemainingToday === "function" && aiMessagesRemainingToday() <= 0) {
+        return say({ text: "You\u2019ve used today\u2019s " + limit + " free messages. Go Premium for unlimited access to Why.", input: talkPrompt(), ttl: 30000, scope: "talk", chips: [OPEN_CHAT_CHIP] });
+      }
+      if (typeof aiSending !== "undefined" && aiSending) {
+        return say({ text: "I\u2019m still answering in the chat. Give me a second.", input: talkPrompt(), ttl: 20000, scope: "talk" });
+      }
+    } catch (e) {}
+    var hist = (typeof aiMessages !== "undefined" && Array.isArray(aiMessages)) ? aiMessages : [];
+    var last = hist[hist.length - 1];
+    if (last && last.role === "assistant" && Array.isArray(last.content) && last.content.some(function (b) { return b && b.type === "tool_use"; })) {
+      return say({ text: "I\u2019ve got something waiting for you in the chat first.", input: talkPrompt(), ttl: 30000, scope: "talk", chips: [OPEN_CHAT_CHIP] });
+    }
+    if (typeof sb === "undefined" || !sb) {
+      return say({ text: "I can\u2019t connect right now. Try again in a moment.", input: talkPrompt(), ttl: 20000, scope: "talk" });
+    }
+    talkBusy = true;
+    say({ text: text, input: talkPrompt(null, { busy: true }), scope: "talk", ttl: 60000 });
+    var sent = text + "\n\n(The user is on " + screenName() + ". Keep your answer to 1 to 3 short sentences: it shows in a small speech bubble.)";
+    sb.functions.invoke("ai-agent", { body: { messages: hist.concat([{ role: "user", content: sent }]), context: buildAIContext(), init_data: tg && tg.initData } })
+      .then(function (res) {
+        talkBusy = false;
+        if (!res || res.error || !res.data) throw new Error("bad response");
+        var content = res.data.content || [];
+        var reply = content.filter(function (b) { return b && b.type === "text" && b.text; }).map(function (b) { return b.text; }).join("\n").trim();
+        var wantsTool = content.some(function (b) { return b && b.type === "tool_use"; });
+        if (wantsTool || !reply) {
+          return say({ text: wantsTool ? "That one needs the full chat. Want to continue there?" : "I couldn\u2019t come up with anything. Try asking another way?",
+            input: talkPrompt(), ttl: 30000, scope: "talk",
+            chips: wantsTool ? [{ label: "Continue in chat", cls: "primary", onTap: function () { continueInChat(text); } }] : [OPEN_CHAT_CHIP] });
+        }
+        // Keep the conversation in one place: the chat shows what was said here.
+        try {
+          aiDisplayItems.push({ kind: "user", text: text });
+          aiMessages.push({ role: "user", content: text });
+          aiDisplayItems.push({ kind: "text", text: reply });
+          aiMessages.push({ role: "assistant", content: content });
+          if (typeof recordAIMessageSentLocally === "function") recordAIMessageSentLocally();
+        } catch (e) {}
+        if (settings.learn) { stat("talk").yes++; saveMem(); }
+        say({ text: reply, input: talkPrompt(), ttl: 45000, scope: "talk", chips: [OPEN_CHAT_CHIP] });
+      })
+      .catch(function () {
+        talkBusy = false;
+        say({ text: "Sorry, I couldn\u2019t reach Why just now.", input: talkPrompt(), ttl: 20000, scope: "talk" });
+      });
+  }
+
   // ---- scheduler ----------------------------------------------------------
-  var stableSince = Date.now(), lastKey = "", lastSlow = 0;
+  var stableSince = Date.now(), lastKey = "", lastSlow = 0, lastSeenWrite = Date.now();
   setInterval(function () {
     var now = Date.now();
     var key = (isFloating() ? "f" : "d") + (isHidden() ? "h" : "");
@@ -14818,7 +15247,18 @@ setInterval(refreshRelativeTimes, 30000);
     if (!open && C.open && active && active.scope === "compose") dismiss();
     C.open = open;
     if (open) maybeCreateIdle(now);
-    else if (now - lastSlow > 4000) { lastSlow = now; maybeDraft(now); maybeSkip(now); }
+
+    var sOpen = !!searchPageEl && searchPageEl.classList.contains("open");
+    if (sOpen && !S.open) { S = { open: true, last: 0, dirty: false, committed: [], lastQ: "", clicked: false, fired: false }; }
+    if (!sOpen && S.open) { S.open = false; if (active && active.scope === "search") dismiss(); }
+    if (sOpen) maybeSearch(now);
+
+    var dOpen = document.getElementById("postDetailPage");
+    if (dOpen && dOpen.classList.contains("open")) maybeReply(now);
+    else if (active && active.scope === "reply") dismiss();
+
+    if (!open && now - lastSlow > 4000) { lastSlow = now; maybeWelcome(now); maybeDraft(now); maybeSkip(now); }
+    if (now - lastSeenWrite > 30000) { lastSeenWrite = now; if (!document.hidden) touchSeen(); }
   }, 1000);
 
   // ---- privacy panel (inside the AI chat page) ----------------------------
@@ -14846,15 +15286,18 @@ setInterval(refreshRelativeTimes, 30000);
         row("Post help", "Ideas when you\u2019re stuck on the create screen.", s.types.create, 'data-bp="type" data-v="create"') +
         row("Drafts", "A reminder about unfinished drafts.", s.types.drafts, 'data-bp="type" data-v="drafts"') +
         row("Feed tips", "Offers to turn down topics you keep scrolling past.", s.types.browse, 'data-bp="type" data-v="browse"') +
+        row("Search help", "Offers a hand when a search comes up empty or you keep searching.", s.types.search, 'data-bp="type" data-v="search"') +
+        row("Reply help", "Reply ideas when you\u2019re stuck on a blank reply box.", s.types.replies, 'data-bp="type" data-v="replies"') +
+        row("Welcome back", "A catch-up offer after a few days away. Needs \u201cLearn from my activity\u201d on.", s.types.welcome, 'data-bp="type" data-v="welcome"') +
         '<div class="bp-h">Quiet hours</div>' +
         row("No bubbles during these hours", "", q.on, 'data-bp="quiet"') +
         '<div class="bp-times ' + (q.on ? "" : "bp-off") + '">From <input class="bp-time" type="time" data-bp-time="from" value="' + q.from + '"> to <input class="bp-time" type="time" data-bp-time="to" value="' + q.to + '"></div>' +
       '</div>' +
       '<div class="bp-h">Learning</div>' +
-      row("Learn from my activity", "Lets Why remember how you respond to nudges and which topics you skip. Off means nothing new is recorded and topic tracking stops.", s.learn, 'data-bp="learn"') +
+      row("Learn from my activity", "Lets Why remember how you respond to nudges, which topics you skip and when you last visited. Off means nothing new is recorded.", s.learn, 'data-bp="learn"') +
       '<div class="bp-h">What Why has learned</div>' + facts +
       '<button class="bp-clear" data-bp="clear">Clear everything Why has learned</button>' +
-      '<div class="bp-note">This is stored on this device only. The only time anything leaves it is when you ask for post ideas: then your display name and the topics you follow are sent to Why AI to write them.</div>';
+      '<div class="bp-note">Tip: press and hold the bot to talk to it without opening the chat. What Why learns is stored on this device only. Text leaves it only when you ask for ideas or type to me: then your display name, the topics you follow, what you typed and, for replies, the post you\u2019re replying to go to Why AI.</div>';
   }
   if (panel) {
     panel.addEventListener("click", function (e) {
@@ -14863,14 +15306,15 @@ setInterval(refreshRelativeTimes, 30000);
       if (!t) return;
       var a = t.getAttribute("data-bp"), v = t.getAttribute("data-v");
       if (a === "nudges") { settings.nudges = !settings.nudges; if (!settings.nudges) dismiss(); }
-      else if (a === "learn") { settings.learn = !settings.learn; if (!settings.learn) { skipLog = []; engageLog = []; } }
+      else if (a === "learn") { settings.learn = !settings.learn; if (!settings.learn) { skipLog = []; engageLog = []; welcomePending = false; try { localStorage.removeItem(LKEY); } catch (err) {} } else touchSeen(); }
       else if (a === "type") { settings.types[v] = !settings.types[v]; }
       else if (a === "freq") { settings.freq = v; }
       else if (a === "quiet") { settings.quiet.on = !settings.quiet.on; }
       else if (a === "del") { mem.facts = mem.facts.filter(function (f) { return f.key !== v; }); saveMem(); }
       else if (a === "clear") {
         if (!confirm("Clear everything Why has learned about your activity?")) return;
-        mem.facts = []; mem.stats = {}; mem.streak = {}; mem.cool = {}; skipLog = []; engageLog = [];
+        mem.facts = []; mem.stats = {}; mem.streak = {}; mem.cool = {}; skipLog = []; engageLog = []; welcomePending = false;
+        try { localStorage.removeItem(LKEY); } catch (err) {}
         saveMem();
         if (typeof showToast === "function") showToast("Cleared");
       }
