@@ -3886,6 +3886,8 @@
       <div class="form-field">
         <label class="form-label">Website</label>
         <div id="questProfileWebsiteVerified" class="quest-status-pill winner" style="display:none;"></div>
+        <button type="button" class="quest-review-action reject" style="display:none;margin-top:8px;" id="questProfileWebsiteUnlinkBtn" onclick="unlinkMyWebsite()">Unlink website</button>
+        <div class="form-note" id="questProfileWebsiteLockNote" style="display:none;"></div>
         <div id="questProfileWebsiteForm">
           <input class="form-input" id="questProfileWebsiteInput" type="url" placeholder="https://yoursite.com" autocomplete="off" />
           <div class="form-note">We check your site to confirm quest submissions are actually yours.</div>
@@ -3894,6 +3896,7 @@
             <div class="form-note" style="margin-top:0;">Add this tag to your site's &lt;head&gt;, then verify:</div>
             <div class="quest-verify-snippet" id="questProfileWebsiteSnippet"></div>
             <button type="button" class="quest-review-action" style="margin-top:8px;" onclick="verifyMyWebsite()">Verify website</button>
+            <button type="button" class="quest-review-action reject" style="margin-top:8px;margin-left:6px;" onclick="unlinkMyWebsite()">Remove website</button>
           </div>
         </div>
         <div class="gift-status-line" id="questProfileWebsiteStatus"></div>
@@ -7051,17 +7054,34 @@ async function loadMyWebsiteVerification() {
   if (!sb || !telegramUser.id) return;
   try {
     const { data } = await sb.from("website_verifications")
-      .select("website_url, verification_token, verified")
+      .select("website_url, verification_token, verified, verified_at")
       .eq("user_id", String(telegramUser.id))
       .maybeSingle();
     if (data) {
       PROFILES.you.websiteUrl = data.website_url || "";
       PROFILES.you.websiteToken = data.verification_token || "";
       PROFILES.you.websiteVerified = !!data.verified;
+      PROFILES.you.websiteVerifiedAt = data.verified_at ? (Date.parse(data.verified_at) || 0) : 0;
     }
   } catch (e) {
     console.error("loadMyWebsiteVerification failed:", e);
   }
+}
+
+// A verified website is locked in for a while so quest links can't be moved between
+// sites right after submitting. Returns when the lock ends (ms), or 0 if it's free.
+const WEBSITE_CHANGE_COOLDOWN_DAYS = 7;
+
+function websiteChangeLockedUntil() {
+  const p = PROFILES.you;
+  if (!p.websiteVerified || !p.websiteVerifiedAt) return 0;
+  const until = p.websiteVerifiedAt + WEBSITE_CHANGE_COOLDOWN_DAYS * 86400000;
+  return until > Date.now() ? until : 0;
+}
+
+function websiteLockMessage(until) {
+  const d = new Date(until).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `You can change your website again on ${d}.`;
 }
 
 function renderQuestProfileWebsiteState() {
@@ -7071,6 +7091,15 @@ function renderQuestProfileWebsiteState() {
   const input = document.getElementById("questProfileWebsiteInput");
   const snippet = document.getElementById("questProfileWebsiteSnippet");
   if (!verifiedBox || !formBox) return;
+
+  const unlinkBtn = document.getElementById("questProfileWebsiteUnlinkBtn");
+  const lockNote = document.getElementById("questProfileWebsiteLockNote");
+  const lockedUntil = websiteChangeLockedUntil();
+  if (unlinkBtn) unlinkBtn.style.display = (PROFILES.you.websiteVerified && !lockedUntil) ? "" : "none";
+  if (lockNote) {
+    lockNote.style.display = lockedUntil ? "" : "none";
+    lockNote.textContent = lockedUntil ? websiteLockMessage(lockedUntil) : "";
+  }
 
   if (PROFILES.you.websiteVerified) {
     verifiedBox.style.display = "";
@@ -7129,6 +7158,78 @@ async function generateWebsiteVerification() {
   }
 }
 
+// Telegram clients can suppress window.confirm; prefer the native popup when available.
+function askConfirm(message) {
+  return new Promise(resolve => {
+    try {
+      const wa = window.Telegram && window.Telegram.WebApp;
+      if (wa && typeof wa.showConfirm === "function" && wa.isVersionAtLeast && wa.isVersionAtLeast("6.2")) {
+        wa.showConfirm(message, ok => resolve(!!ok));
+        return;
+      }
+    } catch (e) {}
+    resolve(confirm(message));
+  });
+}
+
+let websiteUnlinkInFlight = false;
+
+// Removes the linked website (verified or still pending) so a different one can be
+// linked. Quest submissions need a verified site, so this also locks submitting
+// until a new site is verified.
+async function unlinkMyWebsite() {
+  if (websiteUnlinkInFlight) return;
+  const statusEl = document.getElementById("questProfileWebsiteStatus");
+  const lockedUntil = websiteChangeLockedUntil();
+  if (lockedUntil) {
+    statusEl.textContent = websiteLockMessage(lockedUntil);
+    statusEl.className = "gift-status-line error";
+    return;
+  }
+  const wasVerified = !!PROFILES.you.websiteVerified;
+  const host = hostnameOf(PROFILES.you.websiteUrl || "") || "this website";
+  const msg = wasVerified
+    ? `Unlink ${host}? You won't be able to submit quests until you verify a website again.`
+    : `Remove ${host} from your Quest profile?`;
+  if (!(await askConfirm(msg))) return;
+  if (!sb || !telegramUser || !telegramUser.id) return;
+
+  websiteUnlinkInFlight = true;
+  statusEl.textContent = "Unlinking\u2026";
+  statusEl.className = "gift-status-line";
+  document.querySelectorAll("#questProfileWebsiteUnlinkBtn, #questProfileWebsiteForm .quest-review-action").forEach(b => { b.disabled = true; });
+
+  try {
+    const { error } = await sb.from("website_verifications").delete().eq("user_id", String(telegramUser.id));
+    if (error) throw error;
+
+    PROFILES.you.websiteUrl = "";
+    PROFILES.you.websiteToken = "";
+    PROFILES.you.websiteVerified = false;
+    PROFILES.you.websiteVerifiedAt = 0;
+    renderQuestProfileWebsiteState();
+    const input = document.getElementById("questProfileWebsiteInput");
+    if (input) { input.value = ""; setTimeout(() => input.focus(), 50); }
+    statusEl.textContent = "Website unlinked. Add a new one to keep submitting quests.";
+    statusEl.className = "gift-status-line";
+    haptic("light");
+    try { renderQuestsPage(); } catch (e) {}
+  } catch (e) {
+    console.error("unlinkMyWebsite failed:", e);
+    // The database enforces the same cooldown; if it refuses, the local clock was off.
+    const refused = /website_change_cooldown/.test(String((e && (e.message || e.details || e.hint)) || ""));
+    if (refused && PROFILES.you.websiteVerifiedAt) {
+      PROFILES.you.websiteVerifiedAt = Math.max(PROFILES.you.websiteVerifiedAt, Date.now() - 1000);
+      renderQuestProfileWebsiteState();
+    }
+    statusEl.textContent = refused ? "You changed your website recently. Please try again later." : "Couldn't unlink your website. Please try again.";
+    statusEl.className = "gift-status-line error";
+  } finally {
+    websiteUnlinkInFlight = false;
+    document.querySelectorAll("#questProfileWebsiteUnlinkBtn, #questProfileWebsiteForm .quest-review-action").forEach(b => { b.disabled = false; });
+  }
+}
+
 async function verifyMyWebsite() {
   const statusEl = document.getElementById("questProfileWebsiteStatus");
   statusEl.textContent = "Checking\u2026";
@@ -7142,6 +7243,7 @@ async function verifyMyWebsite() {
 
     if (data && data.verified) {
       PROFILES.you.websiteVerified = true;
+      PROFILES.you.websiteVerifiedAt = Date.now();
       renderQuestProfileWebsiteState();
       statusEl.textContent = "Website verified!";
       statusEl.className = "gift-status-line";
