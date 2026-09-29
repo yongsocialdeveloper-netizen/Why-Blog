@@ -2850,6 +2850,64 @@
   .why-bot.floating.dragging { cursor: grabbing; filter: drop-shadow(0 14px 16px rgba(0,0,0,.4)); }
   .why-bot.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
+  /* ---- Why bot speech bubble ---- */
+  .why-bubble {
+    position: fixed; left: 0; top: 0; z-index: 71;
+    width: max-content; max-width: min(272px, calc(100vw - 16px));
+    background: #e7ecef; color: #0d1116;
+    border-radius: 16px; padding: 11px 13px 12px;
+    font-size: 13.5px; line-height: 1.4; font-weight: 500;
+    box-shadow: 0 10px 28px rgba(0,0,0,.4);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(6px) scale(.97); transform-origin: var(--tail-x, 50%) 100%;
+    transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  }
+  .why-bubble.show { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+  .why-bubble.below { transform-origin: var(--tail-x, 50%) 0; }
+  .why-bubble::after {
+    content: ""; position: absolute; left: var(--tail-x, 50%); bottom: -5px;
+    width: 12px; height: 12px; background: inherit;
+    transform: translateX(-50%) rotate(45deg); border-radius: 0 0 3px 0;
+  }
+  .why-bubble.below::after { bottom: auto; top: -5px; border-radius: 3px 0 0 0; }
+  .why-bubble-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .wb-chip {
+    font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid rgba(13,17,22,.22); color: #0d1116; background: transparent;
+  }
+  .wb-chip.primary { background: #2fa393; border-color: #2fa393; color: #06211d; }
+  .wb-chip.idea { width: 100%; text-align: left; font-weight: 600; border-radius: 12px; line-height: 1.3; }
+  .wb-chip:active { transform: scale(.97); }
+
+  /* ---- Bot privacy (inside the AI chat page) ---- */
+  .ai-topbar-privacy { display: flex; color: var(--ink-faint); }
+  .ai-topbar-privacy:hover { color: var(--ink); }
+  .bot-privacy {
+    position: absolute; inset: 0; z-index: 6; background: var(--card);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .22s ease, visibility .22s;
+  }
+  .bot-privacy.open { transform: none; visibility: visible; }
+  .bot-privacy-body { flex: 1; overflow-y: auto; padding: 4px 16px 32px; }
+  .bp-h { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 22px 0 6px; }
+  .bp-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .bp-row-text { flex: 1; min-width: 0; }
+  .bp-row-title { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .bp-row-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; line-height: 1.35; }
+  .bp-seg { display: flex; gap: 6px; padding: 10px 0 4px; }
+  .bp-seg button { flex: 1; padding: 8px 0; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .bp-seg button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+  .bp-off { opacity: .45; pointer-events: none; }
+  .bp-times { display: flex; align-items: center; gap: 8px; padding: 10px 0 2px; font-size: 13px; color: var(--ink-soft); }
+  .bp-time { background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; font-family: inherit; color-scheme: dark; }
+  .bp-fact { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--ink); }
+  .bp-fact span { flex: 1; }
+  .bp-fact button { color: var(--ink-faint); font-size: 20px; line-height: 1; padding: 2px 6px; }
+  .bp-empty { font-size: 13px; color: var(--ink-faint); padding: 8px 0; }
+  .bp-clear { margin-top: 18px; width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(224,96,74,.5); color: var(--heart); font-weight: 700; font-size: 14px; }
+  .bp-note { font-size: 12px; color: var(--ink-faint); line-height: 1.5; margin-top: 18px; }
+
   .ai-page {
     position: fixed;
     inset: 0;
@@ -3315,6 +3373,11 @@
     </svg>
   </button>
 
+  <div class="why-bubble" id="whyBubble" role="status" aria-live="polite">
+    <div class="why-bubble-text" id="whyBubbleText"></div>
+    <div class="why-bubble-chips" id="whyBubbleChips"></div>
+  </div>
+
   <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu(false)"></div>
 
   <aside class="menu-panel" id="menuPanel">
@@ -3514,7 +3577,19 @@
       </button>
       <div class="ai-topbar-icon"><img src="https://i.ibb.co/k6wtC2Jq/file-00000000e51c821096528334f88d8554-copy-300x300.png" alt="" referrerpolicy="no-referrer" /></div>
       <div class="ai-topbar-title">Why</div>
+      <button class="ai-topbar-privacy" onclick="openBotPrivacy()" aria-label="Bot privacy settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-4z"/><rect x="9.5" y="10.5" width="5" height="4.5" rx="1"/><path d="M10.5 10.5V9.2a1.5 1.5 0 013 0v1.3"/></svg>
+      </button>
       <button class="ai-topbar-clear" onclick="clearAIChat()">Clear</button>
+    </div>
+    <div class="bot-privacy" id="botPrivacyPanel">
+      <div class="ai-topbar">
+        <button class="ai-topbar-back" data-bp-back aria-label="Back">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="ai-topbar-title">Bot privacy</div>
+      </div>
+      <div class="bot-privacy-body" id="botPrivacyBody"></div>
     </div>
     <div class="ai-body" id="aiBody"></div>
     <div class="ai-usage-banner" id="aiUsageBanner"></div>
@@ -11382,6 +11457,7 @@ function openAI() {
 }
 
 function closeAI() {
+  if (typeof closeBotPrivacyIfOpen === "function") closeBotPrivacyIfOpen();
   document.getElementById("aiPage").classList.remove("open");
   syncBackButton();
 }
@@ -11963,7 +12039,7 @@ function anyOverlayOpen() {
 
 function closeTopOverlay() {
   if (document.getElementById("aiPage").classList.contains("open")) {
-    closeAI();
+    if (!(typeof closeBotPrivacyIfOpen === "function" && closeBotPrivacyIfOpen())) closeAI();
   } else if (document.getElementById("videoZonePlayer").classList.contains("open")) {
     closeVideoPlayer();
   } else if (document.getElementById("videoZonePage").classList.contains("open")) {
@@ -14271,5 +14347,546 @@ setInterval(refreshRelativeTimes, 30000);
   sync();
 })();
 </script>
+<script>
+// Why bot brain: speech bubbles, nudge triggers, on-device learning, privacy panel.
+(function () {
+  var btn = document.getElementById("whyBotBtn");
+  var bubble = document.getElementById("whyBubble");
+  var bubbleText = document.getElementById("whyBubbleText");
+  var bubbleChips = document.getElementById("whyBubbleChips");
+  var composeEl = document.getElementById("composePage");
+  var feedEl = document.getElementById("feed");
+  var panel = document.getElementById("botPrivacyPanel");
+  var pbody = document.getElementById("botPrivacyBody");
+  if (!btn || !bubble || !bubbleText || !bubbleChips) return;
+
+  // ---- tuning -------------------------------------------------------------
+  var HOUR = 3600 * 1000, DAY = 24 * HOUR;
+  var CREATE_IDLE_MS = 15000;            // idle on an empty create-post screen
+  var DRAFT_MIN_AGE_MS = 6 * HOUR;       // draft counts as "unfinished" after this
+  var SKIP_DWELL_MS = 1400;              // seen for less than this = skipped
+  var SKIP_WINDOW_MS = 4 * 60 * 1000;
+  var SKIP_THRESHOLD = 5;                // skips of one topic inside the window
+  var FREQ = {
+    rarely:    { gap: 30 * 60 * 1000, max: 2 },
+    sometimes: { gap: 10 * 60 * 1000, max: 5 },
+    often:     { gap: 4 * 60 * 1000,  max: 10 }
+  };
+  var TRIG = {
+    createIdle: { group: "create", label: "post ideas" },
+    draft:      { group: "drafts", label: "draft reminders" },
+    skipTopic:  { group: "browse", label: "topic tips" }
+  };
+
+  // ---- storage (this device only) ----------------------------------------
+  var SKEY = "whyBotSettings:v1", MKEY = "whyBotMemory:v1";
+  function readJSON(k) { try { var v = JSON.parse(localStorage.getItem(k)); return v && typeof v === "object" ? v : null; } catch (e) { return null; } }
+  function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  var settings = (function () {
+    var d = { nudges: true, freq: "sometimes", types: { create: true, drafts: true, browse: true }, learn: true, quiet: { on: false, from: "22:00", to: "08:00" } };
+    var s = readJSON(SKEY) || {};
+    if (typeof s.nudges === "boolean") d.nudges = s.nudges;
+    if (FREQ[s.freq]) d.freq = s.freq;
+    if (typeof s.learn === "boolean") d.learn = s.learn;
+    if (s.types) ["create", "drafts", "browse"].forEach(function (k) { if (typeof s.types[k] === "boolean") d.types[k] = s.types[k]; });
+    if (s.quiet) {
+      if (typeof s.quiet.on === "boolean") d.quiet.on = s.quiet.on;
+      if (/^\d\d:\d\d$/.test(s.quiet.from)) d.quiet.from = s.quiet.from;
+      if (/^\d\d:\d\d$/.test(s.quiet.to)) d.quiet.to = s.quiet.to;
+    }
+    return d;
+  })();
+  var mem = (function () {
+    var m = readJSON(MKEY) || {};
+    var obj = function (x) { return x && typeof x === "object" && !Array.isArray(x) ? x : {}; };
+    return {
+      facts: Array.isArray(m.facts) ? m.facts : [],
+      stats: obj(m.stats), cool: obj(m.cool), streak: obj(m.streak),
+      log: m.log && typeof m.log === "object" ? m.log : { last: 0, day: "", count: 0 }
+    };
+  })();
+  function saveSettings() { writeJSON(SKEY, settings); }
+  function saveMem() { writeJSON(MKEY, mem); }
+
+  // ---- helpers ------------------------------------------------------------
+  function firstName() {
+    var n = "";
+    try { n = (PROFILES.you && PROFILES.you.name) || ""; } catch (e) {}
+    n = String(n).trim().split(/\s+/)[0];
+    return !n || n.toLowerCase() === "you" ? "" : n;
+  }
+  function hey() { var n = firstName(); return n ? "Hey " + n + "," : "Hey,"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function tap() { if (typeof haptic === "function") haptic("light"); }
+  function isFloating() { return btn.classList.contains("floating"); }
+  function isHidden() { return btn.classList.contains("hidden"); }
+
+  function inQuiet() {
+    if (!settings.quiet.on) return false;
+    function mins(t) { var p = t.split(":"); return (+p[0]) * 60 + (+p[1]); }
+    var d = new Date(), n = d.getHours() * 60 + d.getMinutes();
+    var a = mins(settings.quiet.from), b = mins(settings.quiet.to);
+    if (a === b) return false;
+    return a < b ? (n >= a && n < b) : (n >= a || n < b);
+  }
+
+  function canNudge(trigger) {
+    if (!settings.nudges || !settings.types[TRIG[trigger].group]) return false;
+    if (inQuiet() || active || isHidden() || document.hidden) return false;
+    var f = FREQ[settings.freq] || FREQ.sometimes, now = Date.now();
+    if (now - (mem.log.last || 0) < f.gap) return false;
+    if (mem.log.day === new Date().toDateString() && mem.log.count >= f.max) return false;
+    if ((mem.cool[trigger] || 0) > now) return false;
+    return true;
+  }
+
+  // ---- learning -----------------------------------------------------------
+  function stat(t) { return mem.stats[t] || (mem.stats[t] = { shown: 0, yes: 0, no: 0, unsure: 0, ignored: 0 }); }
+  function noteShown(t) {
+    var day = new Date().toDateString();
+    mem.log.last = Date.now();
+    if (mem.log.day !== day) { mem.log.day = day; mem.log.count = 0; }
+    mem.log.count++;
+    if (settings.learn) stat(t).shown++;
+    saveMem();
+  }
+  function outcome(t, kind) {
+    if (settings.learn) {
+      stat(t)[kind]++;
+      if (kind === "no") mem.streak[t] = (mem.streak[t] || 0) + 1;
+      else if (kind === "yes") mem.streak[t] = 0;
+    }
+    saveMem();
+  }
+  function cool(key, ms) { mem.cool[key] = Date.now() + ms; saveMem(); }
+  function addFact(key, text) {
+    if (!settings.learn) return;
+    mem.facts = mem.facts.filter(function (f) { return f.key !== key; });
+    mem.facts.unshift({ key: key, text: text, ts: Date.now() });
+    if (mem.facts.length > 30) mem.facts.length = 30;
+    saveMem();
+    if (panelOpen()) renderPanel();
+  }
+  // Three "no" in a row: stop that type of nudge and say how to undo it.
+  function afterNo(trigger) {
+    if (!settings.learn || (mem.streak[trigger] || 0) < 3) return false;
+    var g = TRIG[trigger].group;
+    settings.types[g] = false; saveSettings();
+    mem.streak[trigger] = 0; saveMem();
+    say({
+      text: "Okay, I'll stop suggesting " + TRIG[trigger].label + ". You can turn it back on in my privacy settings.",
+      ttl: 8000,
+      chips: [{ label: "Undo", onTap: function () { settings.types[g] = true; saveSettings(); say({ text: "Back on. I'll only check in now and then.", ttl: 3500 }); } }]
+    });
+    return true;
+  }
+
+  // ---- bubble -------------------------------------------------------------
+  var active = null, raf = 0;
+
+  function place() {
+    if (!active) return;
+    var b = btn.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var w = bubble.offsetWidth, h = bubble.offsetHeight;
+    var cx = b.left + b.width / 2;
+    var left = Math.min(Math.max(8, cx - w / 2), Math.max(8, vw - w - 8));
+    var above = b.top - h - 12 >= 8;
+    var top = above ? b.top - h - 12 : b.bottom + 12;
+    top = Math.min(Math.max(8, top), Math.max(8, vh - h - 8));
+    bubble.style.left = left + "px";
+    bubble.style.top = top + "px";
+    bubble.classList.toggle("below", !above);
+    bubble.style.setProperty("--tail-x", Math.min(Math.max(18, cx - left), Math.max(18, w - 18)) + "px");
+  }
+  function loop() {
+    raf = 0;
+    if (!active) return;
+    if (isHidden()) { dismiss(); return; }
+    place();
+    raf = requestAnimationFrame(loop);
+  }
+  function bounce() {
+    if (!btn.animate) return;
+    btn.animate([{ transform: "translateY(0)" }, { transform: "translateY(-9px)" }, { transform: "translateY(0)" }], { duration: 380, easing: "ease-out" });
+  }
+  function dismiss() {
+    if (active) clearTimeout(active.timer);
+    active = null;
+    bubble.classList.remove("show");
+  }
+  // o: { text, chips:[{label,cls,title,onTap}], ttl, trigger, scope, onIgnore }
+  function say(o) {
+    if (active) clearTimeout(active.timer);
+    var wasShown = !!active;
+    bubbleText.textContent = o.text;
+    while (bubbleChips.firstChild) bubbleChips.removeChild(bubbleChips.firstChild);
+    (o.chips || []).forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "wb-chip" + (c.cls ? " " + c.cls : "");
+      b.textContent = c.label;
+      if (c.title) b.title = c.title;
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation(); tap();
+        if (active) clearTimeout(active.timer);
+        c.onTap();
+      });
+      bubbleChips.appendChild(b);
+    });
+    bubbleChips.style.display = (o.chips && o.chips.length) ? "" : "none";
+    active = { trigger: o.trigger || null, scope: o.scope || null, onIgnore: o.onIgnore || null, timer: 0 };
+    if (o.ttl) active.timer = setTimeout(function () {
+      var a = active; dismiss(); if (a && a.onIgnore) a.onIgnore();
+    }, o.ttl);
+    bubble.classList.add("show");
+    place();
+    if (!wasShown) bounce();
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+  // Tapping the bot itself opens the chat: drop the bubble quietly.
+  btn.addEventListener("click", function () { if (active) dismiss(); }, true);
+  document.addEventListener("visibilitychange", function () { if (document.hidden && active) dismiss(); });
+  window.addEventListener("resize", function () { if (active) place(); });
+
+  // ---- trigger A: idle on an empty create-post screen ---------------------
+  var C = { open: false, openAt: 0, last: 0, fired: false };
+
+  function composeEmpty() {
+    var ta = document.getElementById("composeTextarea");
+    if (!ta) return false;
+    try {
+      if (editingPostId || currentDraftId) return false;
+      if (composeMode !== "text") return false;
+      if (composeImage || composeVideoUrl || composeVideoSelected || composeVideoProcessing) return false;
+    } catch (e) { return false; }
+    return !ta.value.trim();
+  }
+  if (composeEl) composeEl.addEventListener("input", function () {
+    C.last = Date.now();
+    if (active && active.scope === "compose") {
+      var a = active; dismiss();
+      if (a.trigger === "createIdle" && a.onIgnore) a.onIgnore();
+    }
+  }, true);
+
+  var LOCAL_IDEAS = [
+    "One thing I learned this week that surprised me:",
+    "Hot take: ",
+    "Something small that made my day today:",
+    "A question for everyone here: what's ",
+    "The best advice I ever got was ",
+    "Something I'm working on right now:",
+    "A photo or moment from today, and why it stuck with me:",
+    "Unpopular opinion about my favorite thing: "
+  ];
+  function localIdeas() {
+    var pool = LOCAL_IDEAS.slice(), out = [];
+    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return out;
+  }
+  function parseIdeas(text, max) {
+    var ideas = [], m = text.match(/\[[\s\S]*\]/);
+    if (m) { try { var arr = JSON.parse(m[0]); if (Array.isArray(arr)) ideas = arr.filter(function (x) { return typeof x === "string"; }); } catch (e) {} }
+    if (!ideas.length) {
+      ideas = text.split("\n").map(function (l) {
+        return l.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, "").replace(/^["\u201c]|["\u201d]$/g, "").trim();
+      }).filter(function (l) { return l.length > 8; });
+    }
+    return ideas.map(function (s) { return s.trim().slice(0, max); }).filter(Boolean).slice(0, 3);
+  }
+  // Asks Why AI for ideas. Only reads text from the reply; never runs tool calls.
+  function fetchIdeas() {
+    return new Promise(function (resolve) {
+      var done = false;
+      function fin(v) { if (!done) { done = true; resolve(v); } }
+      setTimeout(function () { fin(null); }, 14000);
+      try {
+        if (typeof sb === "undefined" || !sb || typeof aiMessagesRemainingToday !== "function" || aiMessagesRemainingToday() <= 0) return fin(null);
+        var max = Math.min(140, typeof getComposeMax === "function" ? getComposeMax() : 500);
+        var liked = [];
+        INTEREST_TOPICS.forEach(function (t) { if (interestState[t.key] !== false) liked.push(t.shortLabel || t.label); });
+        var prompt = "Suggest 3 different short post ideas for " + (firstName() || "me") + " to share on WhyBlog. " +
+          (liked.length && liked.length < INTEREST_TOPICS.length ? "Topics they like: " + liked.join(", ") + ". " : "") +
+          "Each idea is a ready-to-edit opening line or prompt under " + max + " characters, in a friendly first-person voice. " +
+          "Reply with ONLY a JSON array of 3 strings and nothing else.";
+        sb.functions.invoke("ai-agent", { body: { messages: [{ role: "user", content: prompt }], context: buildAIContext(), init_data: tg && tg.initData } })
+          .then(function (res) {
+            if (!res || res.error || !res.data) return fin(null);
+            var text = (res.data.content || []).filter(function (b) { return b && b.type === "text" && b.text; }).map(function (b) { return b.text; }).join("\n");
+            fin(parseIdeas(text, max));
+          }).catch(function () { fin(null); });
+      } catch (e) { fin(null); }
+    });
+  }
+  function useIdea(t) {
+    var ta = document.getElementById("composeTextarea");
+    if (!ta) return dismiss();
+    var max = typeof getComposeMax === "function" ? getComposeMax() : 500;
+    ta.value = t.slice(0, max);
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+    say({ text: "Nice pick. Make it yours.", scope: "compose", ttl: 3500 });
+  }
+  function showIdeas() {
+    say({ text: "Let me think\u2026", scope: "compose" });
+    fetchIdeas().then(function (ideas) {
+      if (!composeEl || !composeEl.classList.contains("open") || !composeEmpty()) { if (active && active.scope === "compose") dismiss(); return; }
+      if (!ideas || !ideas.length) ideas = localIdeas();
+      say({
+        text: "Here are a few ideas. Tap one to start with it:", scope: "compose", ttl: 30000,
+        chips: ideas.map(function (t) {
+          return { label: t.length > 48 ? t.slice(0, 47) + "\u2026" : t, title: t, cls: "idea", onTap: function () { useIdea(t); } };
+        }).concat([{ label: "No thanks", onTap: function () { dismiss(); } }])
+      });
+    });
+  }
+  function askCreate() {
+    noteShown("createIdle");
+    say({
+      trigger: "createIdle", scope: "compose", ttl: 14000,
+      text: hey() + " not sure what to post?",
+      onIgnore: function () { outcome("createIdle", "ignored"); cool("createIdle", 2 * HOUR); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () {
+          outcome("createIdle", "yes"); addFact("post-help", "Likes getting post ideas when stuck"); showIdeas(); } },
+        { label: "No", onTap: function () {
+          outcome("createIdle", "no"); cool("createIdle", DAY);
+          if (afterNo("createIdle")) return;
+          say({ text: "Okay, if you say so. Still here if you need me.", scope: "compose", ttl: 4500 }); } },
+        { label: "Not sure", onTap: function () {
+          outcome("createIdle", "unsure"); cool("createIdle", 2 * HOUR);
+          say({ text: "No rush. I'm here if you want a few ideas.", scope: "compose", ttl: 9000,
+            chips: [{ label: "Show ideas", cls: "primary", onTap: showIdeas }] }); } }
+      ]
+    });
+  }
+  function maybeCreateIdle(now) {
+    if (C.fired || now - Math.max(C.openAt, C.last) < CREATE_IDLE_MS) return;
+    if (!composeEmpty() || !isFloating()) return;
+    C.fired = true; // decide once per visit to the create screen
+    if (canNudge("createIdle")) askCreate();
+  }
+
+  // ---- trigger B: unfinished draft ---------------------------------------
+  function whenPhrase(age) {
+    if (age < 20 * HOUR) return "earlier";
+    if (age < 44 * HOUR) return "yesterday";
+    return Math.round(age / DAY) + " days ago";
+  }
+  function askDraft(d, now) {
+    noteShown("draft");
+    var id = d.id;
+    say({
+      trigger: "draft", ttl: 14000,
+      text: hey() + " you have an unfinished draft from " + whenPhrase(now - d.savedAt) + ". Want to pick it back up?",
+      onIgnore: function () { outcome("draft", "ignored"); cool("draft", 6 * HOUR); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () {
+          outcome("draft", "yes"); cool("draft", 12 * HOUR); addFact("finishes-drafts", "Comes back to finish drafts when reminded");
+          dismiss(); try { continueEditingDraft(id); } catch (e) {} } },
+        { label: "No", onTap: function () {
+          outcome("draft", "no"); cool("draft", 3 * DAY);
+          if (afterNo("draft")) return;
+          say({ text: "Alright. It'll stay in your drafts.", ttl: 4000 }); } },
+        { label: "Not sure", onTap: function () {
+          outcome("draft", "unsure"); cool("draft", DAY);
+          say({ text: "No pressure. It'll be in Drafts whenever you want it.", ttl: 8000,
+            chips: [{ label: "Open drafts", cls: "primary", onTap: function () { dismiss(); try { openDraftsSheet(); } catch (e) {} } }] }); } }
+      ]
+    });
+  }
+  function maybeDraft(now) {
+    if (isFloating() || now - stableSince < 8000 || !canNudge("draft")) return;
+    var drafts;
+    try { drafts = loadDrafts(); } catch (e) { return; }
+    var d = (drafts || []).filter(function (x) { return (x.text || x.question) && x.savedAt && now - x.savedAt >= DRAFT_MIN_AGE_MS; })
+      .sort(function (a, b) { return b.savedAt - a.savedAt; })[0];
+    if (d) askDraft(d, now);
+  }
+
+  // ---- trigger C: scrolling past one topic over and over ------------------
+  var skipLog = [], engageLog = [];
+  function catOf(id) {
+    try { for (var i = 0; i < USER_POSTS.length; i++) if (String(USER_POSTS[i].id) === String(id)) return USER_POSTS[i].category || null; } catch (e) {}
+    return null;
+  }
+  function canTrackFeed() {
+    return settings.learn && settings.nudges && settings.types.browse && !isFloating() && !isHidden() && !document.hidden &&
+      (typeof activeFeedTab === "undefined" || activeFeedTab === "foryou");
+  }
+  function noteSkip(id) {
+    var c = catOf(id); if (!c) return;
+    var now = Date.now(), cut = now - SKIP_WINDOW_MS;
+    skipLog.push({ cat: c, ts: now });
+    skipLog = skipLog.filter(function (x) { return x.ts >= cut; });
+    engageLog = engageLog.filter(function (x) { return x.ts >= cut; });
+  }
+  function topicLabel(key) {
+    var t = INTEREST_TOPICS.filter(function (x) { return x.key === key; })[0];
+    return t ? (t.shortLabel || t.label) : key;
+  }
+  function turnDownTopic(cat) {
+    interestState[cat] = false;
+    saveInterestState();
+    feedVisibleCount = FEED_PAGE_SIZE;
+    render();
+    try { bannerAdRotationIndex = 0; renderBannerAd(); } catch (e) {}
+  }
+  function askSkip(cat) {
+    noteShown("skipTopic");
+    var label = topicLabel(cat);
+    say({
+      trigger: "skipTopic", ttl: 14000,
+      text: "Seeing a lot of " + label + " posts? Want me to turn them down?",
+      onIgnore: function () { outcome("skipTopic", "ignored"); cool("skip:" + cat, DAY); },
+      chips: [
+        { label: "Yes", cls: "primary", onTap: function () {
+          outcome("skipTopic", "yes");
+          try { turnDownTopic(cat); } catch (e) {}
+          addFact("topic-off:" + cat, "Turned down " + label + " posts");
+          skipLog = skipLog.filter(function (x) { return x.cat !== cat; });
+          say({ text: "Done. You can turn " + label + " back on anytime in Interests.", ttl: 5500 }); } },
+        { label: "No", onTap: function () {
+          outcome("skipTopic", "no"); cool("skip:" + cat, 7 * DAY);
+          addFact("keeps-topic:" + cat, "Doesn't want " + label + " posts turned down");
+          if (afterNo("skipTopic")) return;
+          say({ text: "Got it, I'll leave them be.", ttl: 3500 }); } },
+        { label: "Not sure", onTap: function () {
+          outcome("skipTopic", "unsure"); cool("skip:" + cat, DAY);
+          say({ text: "No problem. Your call.", ttl: 3000 }); } }
+      ]
+    });
+  }
+  function maybeSkip(now) {
+    if (!canTrackFeed() || typeof interestState === "undefined") return;
+    var cut = now - SKIP_WINDOW_MS, counts = {}, pick = null;
+    skipLog.forEach(function (x) { if (x.ts >= cut) counts[x.cat] = (counts[x.cat] || 0) + 1; });
+    Object.keys(counts).forEach(function (c) {
+      if (counts[c] < SKIP_THRESHOLD || interestState[c] !== true) return;
+      if (engageLog.some(function (e) { return e.cat === c && e.ts >= cut; })) return;
+      if ((mem.cool["skip:" + c] || 0) > now) return;
+      if (!pick || counts[c] > counts[pick]) pick = c;
+    });
+    if (pick && canNudge("skipTopic")) askSkip(pick);
+  }
+
+  if (feedEl && "IntersectionObserver" in window) {
+    var seen = new WeakMap(), observed = new WeakSet();
+    var stFor = function (el) { var s = seen.get(el); if (!s) { s = { start: 0, engaged: false, counted: false }; seen.set(el, s); } return s; };
+    var io = new IntersectionObserver(function (entries) {
+      var now = performance.now();
+      entries.forEach(function (e) {
+        var el = e.target;
+        if (!el.isConnected) { io.unobserve(el); return; }
+        var st = stFor(el);
+        var h = e.boundingClientRect.height || 1;
+        var seenEnough = e.isIntersecting && e.intersectionRect.height >= Math.min(h * 0.6, window.innerHeight * 0.4);
+        if (seenEnough) { if (!st.start && canTrackFeed()) st.start = now; }
+        else if (st.start) {
+          var dwell = now - st.start; st.start = 0;
+          if (dwell < SKIP_DWELL_MS && !st.engaged && !st.counted && canTrackFeed()) { st.counted = true; noteSkip(el.getAttribute("data-post-id")); }
+        }
+      });
+    }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+    var scan = function () {
+      var cards = feedEl.querySelectorAll(".post");
+      for (var i = 0; i < cards.length; i++) if (!observed.has(cards[i])) { observed.add(cards[i]); io.observe(cards[i]); }
+    };
+    var scanRaf = 0;
+    new MutationObserver(function () { if (!scanRaf) scanRaf = requestAnimationFrame(function () { scanRaf = 0; scan(); }); })
+      .observe(feedEl, { childList: true, subtree: true });
+    feedEl.addEventListener("click", function (ev) {
+      var art = ev.target.closest && ev.target.closest(".post");
+      if (!art) return;
+      stFor(art).engaged = true;
+      var c = catOf(art.getAttribute("data-post-id"));
+      if (c) engageLog.push({ cat: c, ts: Date.now() });
+    }, true);
+    scan();
+  }
+
+  // ---- scheduler ----------------------------------------------------------
+  var stableSince = Date.now(), lastKey = "", lastSlow = 0;
+  setInterval(function () {
+    var now = Date.now();
+    var key = (isFloating() ? "f" : "d") + (isHidden() ? "h" : "");
+    if (key !== lastKey) { lastKey = key; stableSince = now; }
+    var open = !!composeEl && composeEl.classList.contains("open");
+    if (open && !C.open) { C.openAt = now; C.last = now; C.fired = false; }
+    if (!open && C.open && active && active.scope === "compose") dismiss();
+    C.open = open;
+    if (open) maybeCreateIdle(now);
+    else if (now - lastSlow > 4000) { lastSlow = now; maybeDraft(now); maybeSkip(now); }
+  }, 1000);
+
+  // ---- privacy panel (inside the AI chat page) ----------------------------
+  function panelOpen() { return !!panel && panel.classList.contains("open"); }
+  function row(title, sub, on, attrs) {
+    return '<div class="bp-row"><div class="bp-row-text"><div class="bp-row-title">' + title + '</div>' +
+      (sub ? '<div class="bp-row-sub">' + sub + '</div>' : '') + '</div>' +
+      '<button class="toggle ' + (on ? "on" : "") + '" ' + attrs + ' aria-pressed="' + (on ? "true" : "false") + '"></button></div>';
+  }
+  function renderPanel() {
+    if (!pbody) return;
+    var s = settings, q = s.quiet;
+    var freqBtns = ["rarely", "sometimes", "often"].map(function (k) {
+      return '<button data-bp="freq" data-v="' + k + '" class="' + (s.freq === k ? "active" : "") + '">' + k.charAt(0).toUpperCase() + k.slice(1) + '</button>';
+    }).join("");
+    var facts = mem.facts.length ? mem.facts.map(function (f) {
+      return '<div class="bp-fact"><span>' + esc(f.text) + '</span><button data-bp="del" data-v="' + esc(f.key) + '" aria-label="Remove">\u00d7</button></div>';
+    }).join("") : '<div class="bp-empty">Nothing yet.</div>';
+    pbody.innerHTML =
+      '<div class="bp-h">Nudges</div>' +
+      row("Let Why speak up", "Short bubbles from the floating bot that offer help.", s.nudges, 'data-bp="nudges"') +
+      '<div class="' + (s.nudges ? "" : "bp-off") + '">' +
+        '<div class="bp-seg">' + freqBtns + '</div>' +
+        '<div class="bp-h">What Why can nudge about</div>' +
+        row("Post help", "Ideas when you\u2019re stuck on the create screen.", s.types.create, 'data-bp="type" data-v="create"') +
+        row("Drafts", "A reminder about unfinished drafts.", s.types.drafts, 'data-bp="type" data-v="drafts"') +
+        row("Feed tips", "Offers to turn down topics you keep scrolling past.", s.types.browse, 'data-bp="type" data-v="browse"') +
+        '<div class="bp-h">Quiet hours</div>' +
+        row("No bubbles during these hours", "", q.on, 'data-bp="quiet"') +
+        '<div class="bp-times ' + (q.on ? "" : "bp-off") + '">From <input class="bp-time" type="time" data-bp-time="from" value="' + q.from + '"> to <input class="bp-time" type="time" data-bp-time="to" value="' + q.to + '"></div>' +
+      '</div>' +
+      '<div class="bp-h">Learning</div>' +
+      row("Learn from my activity", "Lets Why remember how you respond to nudges and which topics you skip. Off means nothing new is recorded and topic tracking stops.", s.learn, 'data-bp="learn"') +
+      '<div class="bp-h">What Why has learned</div>' + facts +
+      '<button class="bp-clear" data-bp="clear">Clear everything Why has learned</button>' +
+      '<div class="bp-note">This is stored on this device only. The only time anything leaves it is when you ask for post ideas: then your display name and the topics you follow are sent to Why AI to write them.</div>';
+  }
+  if (panel) {
+    panel.addEventListener("click", function (e) {
+      if (e.target.closest("[data-bp-back]")) { panel.classList.remove("open"); return; }
+      var t = e.target.closest("[data-bp]");
+      if (!t) return;
+      var a = t.getAttribute("data-bp"), v = t.getAttribute("data-v");
+      if (a === "nudges") { settings.nudges = !settings.nudges; if (!settings.nudges) dismiss(); }
+      else if (a === "learn") { settings.learn = !settings.learn; if (!settings.learn) { skipLog = []; engageLog = []; } }
+      else if (a === "type") { settings.types[v] = !settings.types[v]; }
+      else if (a === "freq") { settings.freq = v; }
+      else if (a === "quiet") { settings.quiet.on = !settings.quiet.on; }
+      else if (a === "del") { mem.facts = mem.facts.filter(function (f) { return f.key !== v; }); saveMem(); }
+      else if (a === "clear") {
+        if (!confirm("Clear everything Why has learned about your activity?")) return;
+        mem.facts = []; mem.stats = {}; mem.streak = {}; mem.cool = {}; skipLog = []; engageLog = [];
+        saveMem();
+        if (typeof showToast === "function") showToast("Cleared");
+      }
+      tap(); saveSettings(); renderPanel();
+    });
+    panel.addEventListener("change", function (e) {
+      var t = e.target.closest("[data-bp-time]");
+      if (!t || !/^\d\d:\d\d$/.test(t.value)) return;
+      settings.quiet[t.getAttribute("data-bp-time")] = t.value;
+      saveSettings();
+    });
+  }
+  window.openBotPrivacy = function () { if (!panel) return; renderPanel(); panel.classList.add("open"); };
+  window.closeBotPrivacyIfOpen = function () { if (panelOpen()) { panel.classList.remove("open"); return true; } return false; };
+})();
+</script>
 </body>
+
 </html>
