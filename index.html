@@ -7134,20 +7134,20 @@ async function generateWebsiteVerification() {
   statusEl.className = "gift-status-line";
 
   try {
-    const token = generateVerificationToken();
-    const { error } = await sb.from("website_verifications").upsert({
-      user_id: String(telegramUser.id),
-      website_url: url,
-      verification_token: token,
-      verification_method: "meta",
-      verified: false,
-      verified_at: null
-    }, { onConflict: "user_id" });
+    const { data, error } = await sb.functions.invoke("website-link", {
+      body: { init_data: tgInitData(), action: "set", website_url: url }
+    });
     if (error) throw error;
+    if (!data || !data.ok) {
+      statusEl.textContent = (data && data.error) || "Couldn't generate a code. Please try again.";
+      statusEl.className = "gift-status-line error";
+      return;
+    }
 
-    PROFILES.you.websiteUrl = url;
-    PROFILES.you.websiteToken = token;
+    PROFILES.you.websiteUrl = data.website_url;
+    PROFILES.you.websiteToken = data.verification_token;
     PROFILES.you.websiteVerified = false;
+    PROFILES.you.websiteVerifiedAt = 0;
     renderQuestProfileWebsiteState();
   } catch (e) {
     console.error("generateWebsiteVerification failed:", e);
@@ -7156,6 +7156,10 @@ async function generateWebsiteVerification() {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+function tgInitData() {
+  return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
 }
 
 // Telegram clients can suppress window.confirm; prefer the native popup when available.
@@ -7200,8 +7204,13 @@ async function unlinkMyWebsite() {
   document.querySelectorAll("#questProfileWebsiteUnlinkBtn, #questProfileWebsiteForm .quest-review-action").forEach(b => { b.disabled = true; });
 
   try {
-    const { error } = await sb.from("website_verifications").delete().eq("user_id", String(telegramUser.id));
+    const { data, error } = await sb.functions.invoke("website-link", {
+      body: { init_data: tgInitData(), action: "unlink" }
+    });
     if (error) throw error;
+    if (!data || !data.ok) {
+      throw new Error(data && data.code === "cooldown" ? "website_change_cooldown" : ((data && data.error) || "unlink failed"));
+    }
 
     PROFILES.you.websiteUrl = "";
     PROFILES.you.websiteToken = "";
@@ -7237,13 +7246,13 @@ async function verifyMyWebsite() {
 
   try {
     const { data, error } = await sb.functions.invoke("verify-website", {
-      body: { user_id: String(telegramUser.id) }
+      body: { init_data: tgInitData() }
     });
     if (error) throw error;
 
     if (data && data.verified) {
       PROFILES.you.websiteVerified = true;
-      PROFILES.you.websiteVerifiedAt = Date.now();
+      PROFILES.you.websiteVerifiedAt = (data.verified_at && Date.parse(data.verified_at)) || Date.now();
       renderQuestProfileWebsiteState();
       statusEl.textContent = "Website verified!";
       statusEl.className = "gift-status-line";
@@ -7801,30 +7810,18 @@ async function submitQuestEntry() {
   if (sendBtn) sendBtn.disabled = true;
 
   try {
-    // Re-check against the live row, not the cached list — the cache can be
-    // stale (e.g. quest list fetched a while ago, tab left open past the
-    // deadline). This is the authoritative client-side check.
-    if (sb) {
-      const { data: freshQuest, error: fetchErr } = await sb.from("quests")
-        .select("status, ends_at")
-        .eq("id", questId)
-        .maybeSingle();
-      if (fetchErr) throw fetchErr;
-      if (!freshQuest || !isQuestSubmissionOpen(freshQuest)) {
-        statusEl.textContent = "Submission closed.";
-        statusEl.className = "gift-status-line error";
-        if (sendBtn) sendBtn.disabled = false;
-        renderQuestsPage();
-        return;
-      }
-    }
-
-    const { error } = await sb.from("quest_submissions").insert({
-      quest_id: questId,
-      telegram_id: String(telegramUser.id),
-      submission_link: link
+    // Server validates Telegram initData, quest status/deadline, and the verified-site host.
+    const { data, error } = await sb.functions.invoke("submit-quest", {
+      body: { init_data: tgInitData(), quest_id: questId, submission_link: link }
     });
     if (error) throw error;
+    if (!data || !data.ok) {
+      statusEl.textContent = (data && data.error) || "Couldn't submit. Please try again.";
+      statusEl.className = "gift-status-line error";
+      if (sendBtn) sendBtn.disabled = false;
+      if (data && data.code === "closed") renderQuestsPage();
+      return;
+    }
     closeQuestSubmitModal();
     renderQuestsPage();
     postQuestSubmissionAnnouncement(questId, link);
